@@ -1,7 +1,9 @@
 # Windows-only hidden GPU regression. Never activates or shows a window.
 param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug',
       [ValidateSet('Showcase', 'Gameplay')][string] $Mode = 'Showcase',
-      [string] $PhysicsConfig)
+      [string] $PhysicsConfig,
+      [string] $GameplayConfig,
+      [string] $InputConfig)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Requires Windows/PowerShell 7.' }
@@ -10,14 +12,27 @@ $exe = Join-Path $root "bin/$Configuration/net10.0/brutal-breakout.exe"
 if (-not (Test-Path -LiteralPath $exe)) { throw "Build first: dotnet build -c $Configuration" }
 $physicsPath = $null
 $physicsExpected = $null
+$gameplayPath = $null
+$gameplayExpected = $null
+$inputPath = $null
+$inputExpected = $null
 if ($Mode -eq 'Gameplay') {
     # Deterministic test fixture, independent of the editable production physics.json.
     $physicsPath = if ([string]::IsNullOrWhiteSpace($PhysicsConfig)) {
         Join-Path $root 'tests/Gameplay/Fixtures/physics-default.json'
     } else { [IO.Path]::GetFullPath($PhysicsConfig) }
     $physicsExpected = [IO.File]::ReadAllText($physicsPath) | ConvertFrom-Json
-} elseif (-not [string]::IsNullOrWhiteSpace($PhysicsConfig)) {
-    throw '-PhysicsConfig applies only to -Mode Gameplay.'
+    $gameplayPath = if ([string]::IsNullOrWhiteSpace($GameplayConfig)) {
+        Join-Path $root 'tests/Gameplay/Fixtures/gameplay-default.json'
+    } else { [IO.Path]::GetFullPath($GameplayConfig) }
+    $inputPath = if ([string]::IsNullOrWhiteSpace($InputConfig)) {
+        Join-Path $root 'tests/Gameplay/Fixtures/input-default.json'
+    } else { [IO.Path]::GetFullPath($InputConfig) }
+    $gameplayExpected = [IO.File]::ReadAllText($gameplayPath) | ConvertFrom-Json
+    $inputExpected = [IO.File]::ReadAllText($inputPath) | ConvertFrom-Json
+} elseif (-not [string]::IsNullOrWhiteSpace($PhysicsConfig) -or
+          -not [string]::IsNullOrWhiteSpace($GameplayConfig) -or -not [string]::IsNullOrWhiteSpace($InputConfig)) {
+    throw 'Configuration overrides apply only to -Mode Gameplay.'
 }
 Add-Type @'
 using System;
@@ -54,6 +69,10 @@ try {
     if ($Mode -eq 'Gameplay') {
         $start.ArgumentList.Add('--physics-config')
         $start.ArgumentList.Add($physicsPath)
+        $start.ArgumentList.Add('--gameplay-config')
+        $start.ArgumentList.Add($gameplayPath)
+        $start.ArgumentList.Add('--input-config')
+        $start.ArgumentList.Add($inputPath)
     }
     $start.WorkingDirectory = $root
     $start.UseShellExecute = $false
@@ -124,6 +143,40 @@ try {
             throw 'Loaded physics settings/path do not match the selected fixture.'
         }
         Write-Output "Verified configured gameplay: updateHz=$hz; substeps=$($loaded.Groups[3].Value); maxCatchUpSteps=$($loaded.Groups[4].Value)."
+        $game = [regex]::Match($output, 'Gameplay configuration: width=([^;]+); height=([^;]+); left=([^;]+); top=([^;]+); right=([^;]+); bottom=([^;]+); wallThickness=([^;]+); radius=([^;]+); speed=([^;]+); spawnX=([^;]+); spawnY=([^;]+); initialAimX=([^;]+); initialAimY=([^;]+); path=([^\r\n]+)')
+        $loadedInput = [regex]::Match($output, 'Input configuration: stickDeadzone=([^;]+); path=([^\r\n]+)')
+        $probe = [regex]::Match($output, 'Gameplay input probe PASS: stickDeadzone=([^;]+); inside=None; outside=Direction\.')
+        $motion = [regex]::Match($output, 'Gameplay launch motion: actualSpeed=([^;]+); configuredSpeed=([^\r\n]+)\.')
+        if (-not $game.Success -or -not $loadedInput.Success -or -not $probe.Success -or -not $motion.Success) {
+            throw 'Missing actual gameplay/input settings, real-router probe or native launch-speed evidence.'
+        }
+        $a = $gameplayExpected.arena
+        $b = $gameplayExpected.ball
+        $scale = [Math]::Max([Math]::Abs([double]$b.initialAimX), [Math]::Abs([double]$b.initialAimY))
+        $ax = [double]$b.initialAimX / $scale
+        $ay = [double]$b.initialAimY / $scale
+        $length = [Math]::Sqrt($ax * $ax + $ay * $ay)
+        $expected = @($a.width, $a.height, $a.left, $a.top, $a.right, $a.bottom, $a.wallThickness,
+                      $b.radius, $b.speed, $b.spawnX, $b.spawnY, ($ax / $length), ($ay / $length))
+        for ($i = 0; $i -lt $expected.Count; $i++) {
+            $actual = [double]::Parse($game.Groups[$i + 1].Value, $culture)
+            if ([Math]::Abs($actual - [double]$expected[$i]) -gt [Math]::Max(1.0, [Math]::Abs([double]$expected[$i])) * 1e-12) {
+                throw "Loaded gameplay field $i does not match selected fixture."
+            }
+        }
+        if ($game.Groups[14].Value -ne $gameplayPath -or $loadedInput.Groups[2].Value -ne $inputPath -or
+            [float]::Parse($loadedInput.Groups[1].Value, $culture) -ne [float]$inputExpected.stickDeadzone -or
+            [float]::Parse($probe.Groups[1].Value, $culture) -ne [float]$inputExpected.stickDeadzone -or
+            [double]::Parse($motion.Groups[2].Value, $culture) -ne [double]$b.speed -or
+            [Math]::Abs([double]::Parse($motion.Groups[1].Value, $culture) - [double]$b.speed) -gt [Math]::Max(1.0, [double]$b.speed * 1e-5)) {
+            throw 'Loaded gameplay/input paths, effective deadzone or native launch speed differ from fixtures.'
+        }
+        $reset = [regex]::Match($output, 'Gameplay stage: Reset; ticks=\d+; phase=Aiming; eligible=False; position=([^,;]+),([^;]+);')
+        if (-not $reset.Success -or [double]::Parse($reset.Groups[1].Value, $culture) -ne [double]$b.spawnX -or
+            [double]::Parse($reset.Groups[2].Value, $culture) -ne [double]$b.spawnY) {
+            throw 'Actual reset snapshot did not restore configured spawn.'
+        }
+        Write-Output "Verified gameplay/input: canvas=$($a.width)x$($a.height); radius=$($b.radius); speed=$($b.speed); spawn=$($b.spawnX),$($b.spawnY); stickDeadzone=$($loadedInput.Groups[1].Value)."
         $receipt = 'Gameplay receipt regression PASS: clearOnlyPresented=True; geometryPresented=False; nonemptyPresentedFrames=0; viewports=0; stage=Initial.'
         if (-not $output.Contains($receipt) -or
             $output -notmatch 'Shape frame 1281x720 skipped after resize; rebuild at 1280x720\.' -or

@@ -1,0 +1,4 @@
+{
+  "arena": { "width": 1280, "height": 720, "left": 48, "top": 48, "right": 1232, "bottom": 672, "wallThickness": 16 },
+  "ball": { "radius": 12, "speed": 600, "spawnX": 640, "spawnY": 612, "initialAimX": 0, "initialAimY": -1 }
+}
