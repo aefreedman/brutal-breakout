@@ -10,7 +10,7 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     [Fact]
     public void DisposeIsIdempotentAndAllNativeOperationsRejectUseAfterDispose()
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         sim.Dispose();
         sim.Dispose();
         Assert.Throws<ObjectDisposedException>(() => sim.Step());
@@ -23,7 +23,7 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     [Fact]
     public void WrongThreadCannotQueryStepOrDestroyOwnerWorld()
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         Exception? step = null, query = null, preview = null, dispose = null;
         var thread = new Thread(() =>
         {
@@ -45,10 +45,10 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     [Fact]
     public void IndependentWorldsAndRepeatedDestructionDoNotShareGameplay()
     {
-        using var still = new BallSimulation();
+        using var still = new BallSimulation(TestSettings.Baseline);
         for (int cycle = 0; cycle < 100; cycle++)
         {
-            using var moving = new BallSimulation();
+            using var moving = new BallSimulation(TestSettings.Baseline);
             moving.Step(new(new double2(1, 0), true));
             for (int tick = 0; tick < 130; tick++) moving.Step();
             Assert.True(moving.State.CatchEligible);
@@ -61,7 +61,7 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     [Fact]
     public void RepeatedCatchHoldRelaunchRestartKeepsCurrentPoseAndSeparateEdges()
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         double penetration = 0, drift = 0;
         for (int cycle = 0; cycle < 50; cycle++)
         {
@@ -108,7 +108,7 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     [Fact]
     public void NativeElapsedMovementUsesTheFixedTimestep()
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         sim.Step(new(new double2(1, 0), true));
         for (int i = 1; i < 100; i++) sim.Step();
         ArenaTests.Near(new(1140, 612), sim.State.Position, .01);
@@ -119,7 +119,7 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     [Fact]
     public void NativeStepAllocationMeasurement()
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         sim.Step(new(new double2(1, -.731), true));
         for (int i = 0; i < 200; i++) sim.Step();
         long before = GC.GetAllocatedBytesForCurrentThread();

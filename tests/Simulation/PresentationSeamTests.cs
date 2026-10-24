@@ -12,7 +12,7 @@ public class PresentationSeamTests
     [InlineData(1280, 720)] [InlineData(960, 540)]
     public void ActualCpuConsumerHandlesNativePreviewFlightAndCatch(int width, int height)
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         using var draw = new ShapeDrawList();
         BallSandbox.Build(draw, sim, width, height, out var aiming);
         Assert.True(aiming.ArenaIndices > 0 && aiming.BallIndices > 0 && aiming.AimIndices > 0);

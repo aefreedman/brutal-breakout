@@ -21,11 +21,19 @@ public readonly struct BallState
         => (Position, Velocity, AimDirection, Phase, CatchEligible) = (position, velocity, aimDirection, phase, catchEligible);
 }
 
-/// <summary>One owned native world and a synchronous 120Hz gameplay system.</summary>
+/// <summary>One owned native world and a synchronous configured-frequency gameplay system.</summary>
 public sealed class BallSimulation : IDisposable
 {
-    public const double StepSeconds = 1.0 / 120;
-    private readonly NativeArena native = new();
+    public PhysicsSettings Settings { get; }
+    public double StepSeconds => Settings.StepSeconds;
+    private readonly NativeArena native;
+
+    public BallSimulation(PhysicsSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        Settings = settings;
+        native = new(settings);
+    }
     public BallState State { get; private set; } = InitialState();
 
     private static BallState InitialState() => new(new(640, 612), default, new(0, -1), BallPhase.Aiming, false);

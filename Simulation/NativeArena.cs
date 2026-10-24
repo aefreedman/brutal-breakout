@@ -14,8 +14,12 @@ internal sealed class NativeArena : IDisposable
     private readonly B2Shape[] walls = new B2Shape[4];
     private bool disposed;
 
-    internal NativeArena()
+    private readonly PhysicsSettings settings;
+
+    internal NativeArena(PhysicsSettings settings)
     {
+        ArgumentNullException.ThrowIfNull(settings);
+        this.settings = settings;
         var definition = B2WorldDef.Default;
         definition.Gravity = default;
         definition.EnableSleep = false;
@@ -24,9 +28,8 @@ internal sealed class NativeArena : IDisposable
         definition.RestitutionThreshold = 0;
         definition.HitEventThreshold = 0;
         // Published contact tuning: stiffness in Hz, 1 = critical damping.
-        // 120 Hz is one quarter of the 480 Hz substep rate; see API-EVIDENCE.md.
-        definition.ContactHertz = 120;
-        definition.ContactDampingRatio = 1;
+        definition.ContactHertz = settings.ContactHertz;
+        definition.ContactDampingRatio = settings.ContactDampingRatio;
         world = Box2D.CreateWorld(in definition);
         try
         {
@@ -114,7 +117,7 @@ internal sealed class NativeArena : IDisposable
     internal unsafe bool Step()
     {
         Guard();
-        world.Step(1f / 120f, 4);
+        world.Step((float)settings.StepSeconds, settings.Substeps);
         // Event buffers belong to this step. Consume all needed facts before any mutation.
         var events = world.GetContactEvents();
         bool contact = false;

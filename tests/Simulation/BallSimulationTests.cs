@@ -10,7 +10,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [Fact]
     public void InitialStateAndLaunch()
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         Assert.Equal(BallPhase.Aiming, sim.State.Phase);
         ArenaTests.Near(new(640, 612), sim.State.Position);
         ArenaTests.Near(default, sim.State.Velocity);
@@ -25,7 +25,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [Fact]
     public void CatchOnlyAfterContactPreservesPositionAndRequiresSeparatePress()
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         sim.Step(new(PrimaryPressed: true));
         sim.Step(new(PrimaryPressed: true));
         Assert.Equal(BallPhase.Flying, sim.State.Phase);
@@ -47,10 +47,10 @@ public class BallSimulationTests(ITestOutputHelper output)
     [Fact]
     public void RestartWinsOverAimAndPrimary()
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         sim.Step(new(PrimaryPressed: true));
         sim.Step(new(new double2(1, 0), true, true));
-        using var reference = new BallSimulation();
+        using var reference = new BallSimulation(TestSettings.Baseline);
         var initial = reference.State;
         Assert.Equal(initial, sim.State);
     }
@@ -60,7 +60,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [InlineData(double.Epsilon, double.Epsilon)]
     public void NormalizesFiniteDirectionsRobustly(double x, double y)
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         sim.Step(new(new double2(x, y), true));
         Assert.InRange(double2.Distance(default, sim.State.Velocity), 599.99, 600.01);
         ArenaTests.Near(double2.Normalize(new double2(x / Math.Max(x, y), y / Math.Max(x, y))), sim.State.AimDirection);
@@ -71,7 +71,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [InlineData(1, double.PositiveInfinity)] [InlineData(double.NegativeInfinity, 1)]
     public void ZeroAndNonfiniteAimAreExplicitlyIgnored(double x, double y)
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         sim.Step(new(new double2(x, y), true));
         ArenaTests.Near(new(0, -600), sim.State.Velocity);
     }
@@ -81,7 +81,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [InlineData(1, -0.5)] [InlineData(-1, -0.5)] [InlineData(1, 0.000001)]
     public void PreviewMatchesFirstNativeImpactWithinOneLogicalUnit(double x, double y)
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         sim.Step(new(new double2(x, y)));
         var preview = sim.Preview();
         Assert.True(preview.HasHit);
@@ -111,7 +111,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [InlineData(580, 48)] [InlineData(-580, 48)] [InlineData(1, 0.000001)]
     public void LongRunNativeSolverDoesNotEscapeStallOrLoseEnergy(double x, double y)
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         sim.Step(new(new double2(x, y), true));
         const double nativeContactAllowance = 2, coordinateRoundoffAllowance = .001;
         double penetration = 0, drift = 0;

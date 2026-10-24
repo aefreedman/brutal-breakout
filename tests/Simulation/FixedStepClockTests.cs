@@ -9,8 +9,8 @@ public class FixedStepClockTests
     [InlineData(30)] [InlineData(60)] [InlineData(120)] [InlineData(144)] [InlineData(1000)]
     public void TimePartitionProducesSameTicksAndGameplay(int frames)
     {
-        var clock = new FixedStepClock();
-        using var sim = new BallSimulation();
+        var clock = new FixedStepClock(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline);
         bool launchPending = true;
         int steps = 0;
         for (int frame = 0; frame < frames; frame++)
@@ -23,7 +23,7 @@ public class FixedStepClockTests
                 launchPending = false;
             }
         }
-        using var reference = new BallSimulation();
+        using var reference = new BallSimulation(TestSettings.Baseline);
         reference.Step(new(PrimaryPressed: true));
         for (int tick = 1; tick < 120; tick++) reference.Step();
         Assert.Equal(120, steps);
@@ -35,23 +35,23 @@ public class FixedStepClockTests
     [InlineData(1)] [InlineData(1000000)] [InlineData(double.MaxValue)]
     public void LargeElapsedIsBoundedAndDoesNotLeaveDebt(double elapsed)
     {
-        var clock = new FixedStepClock();
+        var clock = new FixedStepClock(TestSettings.Baseline);
         Assert.Equal(8, clock.Advance(elapsed));
         Assert.Equal(0, clock.Advance(0));
-        Assert.Equal(1, clock.Advance(FixedStepClock.StepSeconds));
+        Assert.Equal(1, clock.Advance(clock.StepSeconds));
     }
 
     [Fact]
     public void CapPreservesPreviousFractionAndResetDropsIt()
     {
-        var clock = new FixedStepClock();
-        Assert.Equal(0, clock.Advance(FixedStepClock.StepSeconds / 2));
+        var clock = new FixedStepClock(TestSettings.Baseline);
+        Assert.Equal(0, clock.Advance(clock.StepSeconds / 2));
         Assert.Equal(8, clock.Advance(100));
-        Assert.Equal(1, clock.Advance(FixedStepClock.StepSeconds / 2));
-        clock.Advance(FixedStepClock.StepSeconds / 2);
+        Assert.Equal(1, clock.Advance(clock.StepSeconds / 2));
+        clock.Advance(clock.StepSeconds / 2);
         clock.Reset();
         Assert.Equal(0, clock.RemainderSeconds);
-        Assert.Equal(0, clock.Advance(FixedStepClock.StepSeconds / 2));
+        Assert.Equal(0, clock.Advance(clock.StepSeconds / 2));
     }
 
     [Theory]
@@ -59,21 +59,21 @@ public class FixedStepClockTests
     [InlineData(double.PositiveInfinity)] [InlineData(double.NegativeInfinity)]
     public void InvalidElapsedThrowsWithoutChangingAccumulator(double elapsed)
     {
-        var clock = new FixedStepClock();
-        clock.Advance(FixedStepClock.StepSeconds / 2);
+        var clock = new FixedStepClock(TestSettings.Baseline);
+        clock.Advance(clock.StepSeconds / 2);
         Assert.Throws<ArgumentOutOfRangeException>(() => clock.Advance(elapsed));
-        Assert.Equal(1, clock.Advance(FixedStepClock.StepSeconds / 2));
+        Assert.Equal(1, clock.Advance(clock.StepSeconds / 2));
     }
 
     [Fact]
     public void MultiTickCallerConsumesPrimaryOnlyOnce()
     {
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         sim.Step(new(PrimaryPressed: true));
         for (int i = 0; i < 300 && !sim.State.CatchEligible; i++) sim.Step();
         Assert.True(sim.State.CatchEligible);
         var position = sim.State.Position;
-        var clock = new FixedStepClock();
+        var clock = new FixedStepClock(TestSettings.Baseline);
         int steps = clock.Advance(1);
         for (int i = 0; i < steps; i++) sim.Step(new(PrimaryPressed: i == 0));
         Assert.Equal(BallPhase.Aiming, sim.State.Phase);

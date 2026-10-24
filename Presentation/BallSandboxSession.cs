@@ -26,9 +26,16 @@ public readonly record struct ArenaViewport(int WindowWidth, int WindowHeight, i
 /// <summary>Single-threaded host bridge: input edges survive render-only frames, never catch-up ticks.</summary>
 public sealed class BallSandboxSession : IDisposable
 {
-    public BallSimulation Simulation { get; } = new();
+    public BallSimulation Simulation { get; }
+    public PhysicsSettings Settings => Simulation.Settings;
     public InputRouter Router { get; } = new();
-    private readonly FixedStepClock clock = new();
+    private readonly FixedStepClock clock;
+
+    public BallSandboxSession(PhysicsSettings settings)
+    {
+        clock = new(settings); // Validate managed dependencies before creating the native world.
+        Simulation = new(settings);
+    }
     private readonly int ownerThread = Environment.CurrentManagedThreadId;
     private bool disposed;
     private bool active, primary, restart;
