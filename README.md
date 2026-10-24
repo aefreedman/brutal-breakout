@@ -19,7 +19,7 @@ dotnet build --no-restore
 dotnet run --no-build
 ```
 
-Expect a resizable 1280 x 720 **Brutal Breakout** window with six panels of abstract shapes. The wide canvas fits the live physical framebuffer with uniform scale and centered margins, not a phone/paddle layout. Resize/minimize/restore, then close normally. Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation`, `--smoke-test`, `--lifecycle-smoke-test`, or `--visible-resize-stress`.
+Expect a resizable 1280 x 720 **Brutal Breakout** window with nine panels of abstract shapes. The wide canvas fits the live physical framebuffer with uniform scale and centered margins, not a phone/paddle layout. Resize/minimize/restore, then close normally. Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation`, `--smoke-test`, `--lifecycle-smoke-test`, or `--visible-resize-stress`.
 
 ### Validation
 
@@ -40,7 +40,7 @@ pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug
 pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Release
 ```
 
-Routine `--smoke-test` enables validation and renders in a **hidden GLFW window**. It submits the actual 31-shape showcase (asserting minimum vertex/index counts and five clip-command runs), requires presentations after resize, and has a 15-second deadline. This is GPU validation, not headless CPU, screenshot comparison, or real minimize/restore coverage. Hidden presentation is verified on this Windows/RTX 5070 Ti setup; other platforms/drivers remain unverified. The metadata regression above suppresses console creation too, samples foreground/window visibility every 10ms, and asserts unchanged foreground/no visible test windows with a 25-second process deadline. It does not move user focus; external user focus activity invalidates the observation. Sampling cannot exclude shorter transients. CPU generation skips iconified/zero-size windows; `Draw(null)` retains backend throttling. Validation errors cause nonzero exit. The three known Galaxy/GOG layer-naming warnings are upstream loader warnings, not validation errors; report other warnings separately.
+Routine `--smoke-test` enables validation and renders in a **hidden GLFW window**. It submits the actual 53-call showcase (14 solid outlines and 8 patterned paths, plus filled/transform/clip/blend references and panel/marker shapes), reports expected shape counts and nonempty geometry at both 1280 x 720 and 960 x 540, asserts minimum vertex/index counts and five clip-command runs, requires presentations after resize, and has a 15-second deadline. This is GPU validation, not headless CPU, screenshot comparison, or real minimize/restore coverage. Hidden presentation is verified on this Windows/RTX 5070 Ti setup; other platforms/drivers remain unverified. The metadata regression above suppresses console creation too, samples foreground/window visibility every 10ms, and asserts unchanged foreground/no visible test windows with a 25-second process deadline. It does not move user focus; external user focus activity invalidates the observation. Sampling cannot exclude shorter transients. CPU generation skips iconified/zero-size windows; `Draw(null)` retains backend throttling. Validation errors cause nonzero exit. The three known Galaxy/GOG layer-naming warnings are upstream loader warnings, not validation errors; report other warnings separately.
 
 Cleanup injects resource-lifetime helper failures, not actual device loss. CPU tests validate geometry/ABI contracts, not GPU image correctness. Visible tests are **separate explicit opt-ins**; obtain user permission for desktop/focus disturbance before running:
 
@@ -58,14 +58,17 @@ All test-created windows request `Focused=false` and `FocusOnShow=false`; extern
 
 Panels left to right, top to bottom, without font dependencies:
 
-1. Cyan disc and gold ring with an empty center.
-2. Coral rectangle, cyan rounded rectangle, gold triangle.
-3. Equal centerline lengths with butt, square, then round segment caps.
-4. Rotated rounded rectangle, nonuniformly scaled/sheared ring, reflected/sheared triangle, white open butt-cap bevel polyline.
-5. Nested hard scissors: cyan disc cut at outer left edge; coral/gold shapes bounded by a smaller inner rectangle; white segment clipped only by the outer scissor.
-6. Half-alpha linear red/blue on black: blue-over-red above, red-over-blue below. Overlaps must differ. Right gray bar is linear 0.5 encoded to sRGB (about 188/255), not 128. Red/green upper left/right markers expose orientation errors.
+1. Filled cyan disc, gold ring, coral rectangle, cyan rounded rectangle and gold triangle.
+2. Solid circle, rectangle, rounded rectangle and triangle outlines.
+3. Inside, center and outside circle outlines, left to right; thin white strokes mark their input boundaries.
+4. Two nonuniform scales: cyan Local widths above, gold Framebuffer widths below (all width 6). Framebuffer widths remain physical pixels even as the design canvas fits the window.
+5. Basic/butt, square and round dashes, then genuine circular dots. Dash rows share occupied centerline lengths and allow space for cap extensions.
+6. Continuous dash phase across a corner; three closed rings demonstrate phased fixed-period dashes, closure-fitted natural dashes, and fixed dots.
+7. Rotated rounded rectangle, scaled/sheared ring, reflected/sheared triangle and white open solid bevel path.
+8. Nested framebuffer scissors: disc under the outer clip, coral/gold under the inner clip, white segment under only the outer clip.
+9. Ordered half-alpha linear red/blue over black: blue-over-red above, red-over-blue below; a linear 0.5 gray bar at right. Red/green top markers retain orientation cues.
 
-On the tested RTX 5070 Ti, client-area capture sampling gave red-only `(188,0,0)`, blue-only `(0,0,188)`, blue-over-red `(138,0,188)`, red-over-blue `(188,0,138)`, gray `(188,188,188)`. These are targeted blend/sRGB checks, not comprehensive goldens or evidence for other devices.
+Prior to this outline/pattern layout, targeted client-area samples on the RTX 5070 Ti measured red-only `(188,0,0)`, blue-only `(0,0,188)`, blue-over-red `(138,0,188)`, red-over-blue `(188,0,138)`, gray `(188,188,188)`. These historical blend/sRGB checks are not new visual evidence for this layout, image goldens, or evidence for other devices. Hidden GPU tests validate submission and resize, not visual appearance or minimize/restore.
 
 ## Shape API and limits
 
@@ -73,9 +76,43 @@ Use a disposable `ShapeDrawList`, `BeginFrame(width, height[, worldToPixel])`, p
 
 Coordinates are physical framebuffer pixels, origin top-left, +Y down. `SetTransform` applies local-to-world before world-to-pixel; local radii/widths transform too. `PushClip` intersects a half-open integer framebuffer scissor with its parent; balance with `PopClip`. Clips are not transformed local geometry. Submission order is preserved, merging only adjacent equal-scissor commands. `LinearColor` accepts straight linear RGBA in [0,1]; use `FromSrgb` for sRGB source colors. Vertices premultiply once; blending uses ONE / ONE_MINUS_SRC_ALPHA and the sRGB attachment encodes once.
 
-Calls: `FillDisc`, `FillRing`, `FillRect`, `FillRoundedRect`, `FillTriangle`, `StrokeSegment` (butt/square/round), `StrokePolyline`. Polylines are open, butt-cap, bevel-join, at most 1024 input points; consecutive duplicates/forward-collinear runs are removed. Reversals and crossing/touching/overlapping outlines throw instead of double blending. Closed/round/miter joins and general self-crossing unions are deferred.
+Filled calls: `FillDisc`, `FillRing`, `FillRect`, `FillRoundedRect`, `FillTriangle`. Solid open calls: `StrokeSegment` (butt/square/round caps), `StrokePolyline` (butt-cap, bevel-join). Solid closed calls: `StrokeCircle`, `StrokeRect`, `StrokeRoundedRect`, `StrokeTriangle`, `StrokeClosedPolyline`.
 
-Curves target <=0.25 physical-pixel chord error (8–4096 full-circle segments). Framebuffer coordinate magnitude is bounded by 2^20; default budgets are 1,000,000 vertices / 3,000,000 indices. Invalid/nonfinite/negative input or state throws. Valid zero-size/alpha/empty-clip/singular-transform shapes emit nothing. Reflections are supported, but finite geometry can be unrepresentable in float32: actual inverted triangles or touching/crossing quantized polyline boundaries are rejected transactionally, not repaired. Budget/tessellation failures also throw without partial shape output.
+```csharp
+using Brutal.Numerics;
+using BrutalBreakout.Rendering.Shapes;
+
+using var draw = new ShapeDrawList();
+draw.BeginFrame(1280, 720);
+var cyan = LinearColor.FromSrgb(.24f, .84f, .85f);
+draw.StrokeRoundedRect(new(40, 40), new(200, 100), 20, 8, cyan,
+    alignment: StrokeAlignment.Inside, space: StrokeSpace.Framebuffer);
+draw.StrokePatternedSegment(new(40, 200), new(320, 200), 10,
+    StrokePattern.Dashes(24, 18, offsetCycles: -.25), cyan, LineCap.Round);
+draw.StrokePatternedCircle(new(440, 200), 60, 8,
+    StrokePattern.FixedDots(16), cyan);
+var frame = draw.Finish(); // synchronously renderer.Draw(frame) before next BeginFrame/disposal
+```
+
+Outline width is full thickness; `Center` (default) puts half on either side of the input boundary, `Inside` preserves outer bounds and `Outside` preserves the inner boundary, independent of winding/reflection. Rectangles, triangles and convex closed polylines use miter corners. Rounded rectangles clamp radius to half the shorter extent; eroded radii clamp to zero. A consumed hole produces a solid outer silhouette, not inverted triangles.
+
+`StrokeSpace.Local` (default) measures offsets, widths and pattern lengths before local/world transforms; nonuniform transforms also distort local circular dots. `Framebuffer` transforms the boundary/centerline first and then measures offsets and lengths in physical pixels, keeping width constant under scaling/shear. Transformed circles use sampled contours (including ellipses), not an analytic ellipse-arclength promise. Patterned strokes follow their centerline; they do not take an alignment argument.
+
+Pattern calls: `StrokePatternedSegment`, `StrokePatternedPolyline(points, width, pattern, color, closed=false, cap=Butt, space=Local)` and `StrokePatternedCircle`. Factories:
+
+- `StrokePattern.Dashes(length, gap, offsetCycles=0, fitClosed=false)` and `RelativeDashes(lengthMultiples, gapMultiples, offsetCycles=0, fitClosed=false)`.
+- `StrokePattern.Dots(spacing, offsetCycles=0, fitClosed=false)` and `RelativeDots(spacingMultiples, offsetCycles=0, fitClosed=false)`.
+- `StrokePattern.FixedDashes(count, gapFraction=0.5, offsetCycles=0)` and `FixedDots(count, offsetCycles=0)`.
+
+Absolute lengths use the selected space; relative lengths multiply full width. Dash length is the **occupied centerline interval**, not the visible tip-to-tip length: square/round caps extend half a width past each interval. Gaps must allow these extensions and turns; touching/overlapping fragment geometry rejects rather than blending twice. Zero gap can become a continuous solid path. Dots are discs of diameter width, not short round dashes; cap appearance is ignored for dots but the enum is still validated.
+
+Positive phase moves the lattice forward by a fraction of a period; phase wraps periodically, including negative offsets (`-.25` equals `.75`, `1` equals `0`). Arc-length phase continues across vertices; closed seam fragments are stitched rather than capped twice. `FixedDashes` fits **count complete periods**, not necessarily count disconnected visible islands: phase may split/clip endpoint fragments. `FixedDots` places count sites over `[0,length)`, never duplicating the far endpoint. Natural dots include an open far endpoint only when it is a lattice site; closed paths never duplicate seam dots. `fitClosed` rescales natural spacing to the nearest whole period count (midpoints upward, minimum one), preserving dash duty cycle; fixed-count patterns inherently fit. Open end-to-end snapping and decorative angled/chevron styles are not supported.
+
+Paths accept at most 1024 input points. Consecutive duplicates, repeated closing points on closed paths, and forward-collinear runs are removed. Closed outlines/patterned paths require simple **convex** contours, either winding; nonconvex/self-crossing paths are not a general polygon-union facility. Open paths reject reversals, crossings, touching or overlapping geometry. Pattern output is limited to 4096 intervals/sites and pairwise validation to 4,000,000 candidates, including broad-phase tests; excessive complexity rejects even below the output limit. Zero-length patterned paths are validated no-ops, including round caps.
+
+The Unity Shapes public interfaces in read-only PrototypeStudio were a **conceptual reference only**, not copied tessellation/shaders or a parity claim. Published BRUTAL packages were checked first: Numerics supplies vectors/transforms and Render.Mesh `GenerateDisk` supplies the tested disk adapter/rims; no complete planar outline/pattern facility was found. CPU tessellation fills that gap and submits the unchanged GPU triangle ABI; there is no new rendering backend or font dependency.
+
+Curves target <=0.25 physical-pixel chord error (8–4096 full-circle segments). Framebuffer coordinate magnitude is bounded by 2^20; default budgets are 1,000,000 vertices / 3,000,000 indices. Invalid/nonfinite/negative input or state throws. Valid zero-size/alpha/empty-clip/singular-transform shapes emit nothing. Reflections are supported, but finite geometry can be unrepresentable in float32: actual inverted triangles or touching/crossing quantized polyline boundaries are rejected transactionally, not repaired. Budget/tessellation/pattern-complexity failures also throw without partial shape output, including command merging: each failing shape call leaves previously published vertices, indices and commands unchanged. This does not extend borrowed-frame lifetime.
 
 Backend: one fence-protected in-flight upload frame, dynamic viewport/scissors, indexed triangles, classic render pass, 4x-MSAA resolve into sRGB swapchain, no depth/culling, VMA-backed buffers/images. Resize rebuilds attachment/pipeline resources. Actual device loss, other platforms/drivers, and unsupported-format/sample-count failure paths have not been exercised in integration.
 
@@ -121,7 +158,7 @@ The second check uses the installed Pi loader/API and runs doctor plus cancellat
 ## Project files and dependencies
 
 - `Program.cs`: main-thread lifecycle and bounded smoke/self-tests.
-- `Presentation/ShapeShowcase.cs`: fitted six-panel demo.
+- `Presentation/ShapeShowcase.cs`: fitted nine-panel demo.
 - `Rendering/Shapes/`: headless geometry/contracts/colors/clips and borrowed buffers.
 - `tests/Shapes/`: CPU geometry and ABI tests.
 - `Rendering/VulkanRenderer.cs`, `Rendering/VulkanRenderer.Shapes.cs`, `Rendering/Shaders/`: lifecycle, pipeline, uploads, MSAA and disposal.
