@@ -57,6 +57,15 @@ public sealed class GameplaySettings
     internal float CastMeters { get; }
     internal float2 NativeSpawn { get; }
 
+    /// <summary>Pure cross-settings validation, safe before any platform or native initialization.</summary>
+    public void ValidatePhysics(PhysicsSettings physics)
+    {
+        ArgumentNullException.ThrowIfNull(physics);
+        float travel = NativeSpeed * (float)physics.StepSeconds;
+        if (!float.IsFinite(travel) || !float.IsFinite(travel * travel))
+            throw new ArgumentException("Configured speed and timestep overflow native displacement arithmetic.");
+    }
+
     public GameplaySettings(ArenaSettings arena, BallSettings ball)
     {
         ArgumentNullException.ThrowIfNull(arena); ArgumentNullException.ThrowIfNull(ball);

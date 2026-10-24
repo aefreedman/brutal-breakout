@@ -23,9 +23,7 @@ internal sealed class NativeArena : IDisposable
         ArgumentNullException.ThrowIfNull(gameplay);
         this.settings = settings;
         this.gameplay = gameplay;
-        float travel = gameplay.NativeSpeed * (float)settings.StepSeconds;
-        if (!float.IsFinite(travel) || !float.IsFinite(travel * travel))
-            throw new ArgumentException("Configured speed and timestep overflow native displacement arithmetic.");
+        gameplay.ValidatePhysics(settings);
         var definition = B2WorldDef.Default;
         definition.MaximumLinearSpeed = Math.Max(definition.MaximumLinearSpeed, gameplay.NativeSpeed);
         definition.Gravity = default;
