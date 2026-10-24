@@ -183,7 +183,7 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
             frame = null;
         }
         if (frame is { } upload) Upload(upload);
-        var acquired = device.AcquireNextImageKHR(_swapchain, 100_000_000, _imageAvailable, default, out var index);
+        var acquired = AcquireImage(out var index);
         if (acquired == VkResult.ErrorOutOfDateKHR)
         {
             _recreate = true;
@@ -208,7 +208,7 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
         };
         _queue.Submit(new Span<VkSubmitInfo>(&submit, 1), _frameFence);
         var swapchain = _swapchain;
-        var presented = _queue.PresentKHR(new VkPresentInfoKHR
+        var presented = PresentImage(new VkPresentInfoKHR
         {
             WaitSemaphoreCount = 1, WaitSemaphores = &signal,
             SwapchainCount = 1, Swapchains = &swapchain, ImageIndices = &index,
@@ -221,6 +221,37 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
             _recreate = true;
         if (presented is VkResult.Success or VkResult.SuboptimalKHR)
             PresentedFrames++;
+    }
+
+    // Published BRUTAL wrappers return Suboptimal/Timeout/NotReady, but throw for
+    // OutOfDate. Normalize only that recoverable exception; fatal driver errors retain
+    // their original exception. In particular, do not reset the fence on failed acquire
+    // or count an out-of-date presentation as a successfully presented frame.
+    private VkResult AcquireImage(out int index)
+    {
+        try
+        {
+            return _device!.AcquireNextImageKHR(_swapchain, 100_000_000, _imageAvailable, default, out index);
+        }
+        catch (VkResultError error) when (error.Result == VkResult.ErrorOutOfDateKHR)
+        {
+            index = default; // Not used: Draw returns before indexing any per-image resource.
+            return error.Result;
+        }
+    }
+
+    private VkResult PresentImage(VkPresentInfoKHR present)
+    {
+        try
+        {
+            return _queue.PresentKHR(present);
+        }
+        catch (VkResultError error) when (error.Result == VkResult.ErrorOutOfDateKHR)
+        {
+            // Submission has already signaled its fence. Recreation waits device idle
+            // before releasing this swapchain's presentation semaphores and attachments.
+            return error.Result;
+        }
     }
 
     private void RecreateSwapchain(int2 size)
