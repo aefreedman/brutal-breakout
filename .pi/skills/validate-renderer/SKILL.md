@@ -20,7 +20,16 @@ pwsh -NoProfile -File <resolved-script> -Operation smoke
 - `cleanup`: build sequence plus `dotnet run --no-build -- --cleanup-self-test`. Headless; no real device-loss injection.
 - `smoke`: cleanup sequence plus `dotnet run --no-build -- --smoke-test`. Opens a window, exercises resize/minimize/restore, and requires SDK validation; never add --no-validation. Coordinate with other GPU work so only one smoke run occurs. After lifecycle changes this check is required by AGENTS.md; if explicit opt-in or prerequisites are missing, report incomplete validation rather than claiming completion.
 
-Each child has a timeout (restore/build default 120 seconds each, cleanup 30, smoke 45; doctor checks 10–30). `-TimeoutSeconds` adjusts restore/build/network limits, from 1 to 600 seconds. A failed stage stops later validation stages and returns nonzero (124 for timeout). There is no .NET test project or shape-test command. Do not invent one.
+Each child has a timeout (restore/build default 120 seconds each, cleanup 30, smoke 45; doctor checks 10–30). `-TimeoutSeconds` adjusts restore/build/network limits, from 1 to 600 seconds. A failed stage stops later validation stages and returns nonzero (124 for timeout). The support operations do not run CPU shape tests. Run the actual headless project separately in both configurations:
+
+```powershell
+dotnet restore Rendering/Shapes/BrutalBreakout.Shapes.csproj --locked-mode
+dotnet restore tests/Shapes/Shapes.Tests.csproj --locked-mode
+dotnet test tests/Shapes/Shapes.Tests.csproj -c Debug --no-restore
+dotnet test tests/Shapes/Shapes.Tests.csproj -c Release --no-restore
+```
+
+Use the repository root as cwd; these headless commands do not require GPU opt-in.
 
 If loaded, the optional `brutal_support` tool exposes the same known operation enum only on user request; never run it from hooks. It uses the extension's repository root even when explicitly loaded from another cwd; inspect provenance before use.
 

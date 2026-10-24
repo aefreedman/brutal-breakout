@@ -2,6 +2,8 @@ using System.Diagnostics;
 using Brutal.GlfwApi;
 using Brutal.Numerics;
 using BrutalBreakout.Rendering;
+using BrutalBreakout.Rendering.Shapes;
+using BrutalBreakout.Presentation;
 
 var smokeTest = args.Contains("--smoke-test");
 var cleanupSelfTest = args.Contains("--cleanup-self-test");
@@ -32,7 +34,9 @@ try
     var renderer = VulkanRenderer.Create(window, validation);
     ResourceLifetime.Run(() =>
     {
-        Console.WriteLine("Close the window to exit. Expect a dark blue Vulkan clear frame.");
+        using var shapes = new ShapeDrawList();
+        Console.WriteLine("Close the window to exit. Expect six panels of Vulkan primitives (see README).");
+        var shapeFrames = 0;
         var timer = Stopwatch.StartNew();
         var phase = SmokePhase.Warmup;
         var phaseStarted = TimeSpan.Zero;
@@ -95,14 +99,26 @@ try
             }
             var wasIconified = window.IsIconified;
             var framesBeforeDraw = renderer.PresentedFrames;
-            renderer.Draw();
+            var framebuffer = window.FramebufferSize;
+            ShapeFrame? frame = null;
+            if (!wasIconified && framebuffer.X > 0 && framebuffer.Y > 0)
+            {
+                frame = ShapeShowcase.Build(shapes, framebuffer.X, framebuffer.Y);
+                if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
+                    frame.Value.Indices.Length < ShapeShowcase.ShapeCount * 3 || frame.Value.Commands.Length < 5))
+                    throw new InvalidOperationException("Smoke: showcase lost shapes or nested clip commands.");
+                shapeFrames++;
+            }
+            renderer.Draw(frame); // Consumes borrowed CPU buffers before the next BeginFrame.
             if (smokeTest && wasIconified && renderer.PresentedFrames != framesBeforeDraw)
                 throw new InvalidOperationException("Smoke: Draw presented while iconified.");
         }
         Console.WriteLine($"Presented frames: {renderer.PresentedFrames}.");
         if (smokeTest && !completed)
             throw new InvalidOperationException($"Smoke interrupted before completing lifecycle recovery in {phase}.");
-        if (smokeTest) Console.WriteLine("Smoke: resize, idle minimize, restore and resumed presentation passed.");
+        if (smokeTest && shapeFrames < 9)
+            throw new InvalidOperationException("Smoke: insufficient nonempty shape frames.");
+        if (smokeTest) Console.WriteLine($"Smoke: {ShapeShowcase.ShapeCount} shapes/frame, {shapeFrames} nonempty frames; resize, idle minimize, restore and resumed presentation passed.");
     }, renderer.Dispose); // Dispose GPU resources before GLFW destroys the native window.
 }
 catch (Exception exception)
