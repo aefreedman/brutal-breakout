@@ -3,12 +3,18 @@ using Brutal.Numerics;
 namespace BrutalBreakout.Platform.Input;
 
 /// <summary>Pure synchronous snapshot mapping; no GLFW calls. Aim priority: active keyboard, active stick,
-/// then moved/clicked mouse. Stationary mouse never replaces aim. Stick has a radial 0.2 deadzone.
+/// then moved/clicked mouse. Stationary mouse never replaces aim. Stick uses the configured radial deadzone.
 /// Actions use aggregate edges with per-source baselines: overlapping sources cannot double-fire.
 /// First sample, focus regain, and a newly selected pad baseline held buttons without firing them.</summary>
 public sealed class InputRouter
 {
-    public const float StickDeadzone = 0.2f;
+    public InputSettings Settings { get; }
+
+    public InputRouter(InputSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        Settings = settings;
+    }
     private bool initialized;
     private InputSnapshot previous;
     private bool cursorValid;
@@ -50,7 +56,7 @@ public sealed class InputRouter
         AimKind kind = AimKind.None;
         float2 aim = default;
         if (Direction(sample.KeyboardDirection, 0, out aim)
-            || (sample.PadConnected && Direction(sample.PadStick, StickDeadzone, out aim)))
+            || (sample.PadConnected && Direction(sample.PadStick, Settings.StickDeadzone, out aim)))
             kind = AimKind.Direction;
         else if (valid && (moved || mousePress))
         {
