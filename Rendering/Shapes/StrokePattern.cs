@@ -77,7 +77,7 @@ public readonly struct StrokePattern
         if (phase == 1) phase = 0; // tiny negative offsets may round upward at the wrap
         double first = phase * period;
         double extra = endpointPadding / period;
-        if (!double.IsFinite(extra) || ratio + 2 * extra > 4096)
+        if (!double.IsFinite(extra) || extra > 4096)
             throw new ArgumentException("Pattern exceeds 4096 intervals/sites including decorative endpoint padding.");
         int paddingCycles = (int)Math.Ceiling(extra);
         int cyclesToVisit = (int)Math.Ceiling(ratio) + 1 + paddingCycles;
@@ -95,7 +95,7 @@ public readonly struct StrokePattern
                 if (start >= 0 && start < total && !(occupiedEnd > start))
                     throw new ArgumentException("Pattern occupied interval loses precision.");
                 double end = endpointPadding == 0 ? Math.Min(total, occupiedEnd) : occupiedEnd;
-                start = endpointPadding == 0 ? Math.Max(0, start) : start;
+                if (endpointPadding == 0) start = Math.Max(0, start);
                 if (end > start && end > -endpointPadding && start < total + endpointPadding) spans.Add(new(start, end));
             }
             if (sites.Count > 4096 || spans.Count > (closed ? 4097 : 4096)) throw new ArgumentException("Pattern exceeds 4096 intervals/sites.");

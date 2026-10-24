@@ -58,28 +58,31 @@ public class DecorativeDashTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void AngledAcrossCornerAndSeam(bool reverse)
+    [InlineData(DashShape.Angled, false)] [InlineData(DashShape.Angled, true)]
+    [InlineData(DashShape.Chevron, false)] [InlineData(DashShape.Chevron, true)]
+    public void AcrossCornerAndSeam(DashShape shape, bool reverse)
     {
         float2[] open = [V(10, 10), V(30, 10), V(30, 30)];
         float2[] loop = [V(10, 10), V(30, 10), V(30, 30), V(10, 30)];
         if (reverse) { Array.Reverse(open); Array.Reverse(loop); }
         foreach (bool closed in new[] { false, true })
+        foreach (double modifier in new[] { -1.0, 1.0 })
         {
             using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
             d.StrokePatternedPolyline(closed ? loop : open, 2,
-                StrokePattern.Dashes(24, 16, .75, true).WithShape(DashShape.Angled), Half, closed);
+                StrokePattern.Dashes(24, 16, closed ? .75 : .1, true).WithShape(shape, modifier), Half, closed);
             var f = d.Finish(); Assert.True(Area(f) > 0); Tiled(f);
         }
     }
 
     [Theory]
-    [InlineData(-1.0)] [InlineData(1.0)]
-    public void AngledShortGlyphsAndOpenEndpointClipping(double modifier)
+    [InlineData(DashShape.Angled, -1.0)] [InlineData(DashShape.Angled, 1.0)]
+    [InlineData(DashShape.Chevron, -1.0)] [InlineData(DashShape.Chevron, 1.0)]
+    public void ShortGlyphsAndOpenEndpointClipping(DashShape shape, double modifier)
     {
         using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
         d.StrokePatternedSegment(V(10, 20), V(18, 20), 4,
-            StrokePattern.Dashes(.5, 1.5).WithShape(DashShape.Angled, modifier), Half);
+            StrokePattern.Dashes(.5, 1.5).WithShape(shape, modifier), Half);
         var f = d.Finish(); Tiled(f); Assert.InRange(Area(f), 7.99999, 8.00001);
         Assert.All(f.Vertices.ToArray(), v => Assert.InRange(v.Position.X, 10, 18));
         Assert.Contains(f.Vertices.ToArray(), v => v.Position.X == 10);
@@ -87,15 +90,16 @@ public class DecorativeDashTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void AngledBasicFallbackAtCorner(bool zeroGap)
+    [InlineData(DashShape.Angled, false)] [InlineData(DashShape.Angled, true)]
+    [InlineData(DashShape.Chevron, false)] [InlineData(DashShape.Chevron, true)]
+    public void BasicFallbackAtCorner(DashShape shape, bool zeroGap)
     {
         ShapeVertex[]? vertices = null; uint[]? indices = null;
         foreach (bool decorative in new[] { false, true })
         {
             using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
             var p = StrokePattern.Dashes(24, zeroGap ? 0 : 8);
-            if (decorative) p = p.WithShape(DashShape.Angled, zeroGap ? 1 : 0);
+            if (decorative) p = p.WithShape(shape, zeroGap ? 1 : 0);
             d.StrokePatternedPolyline([V(10, 10), V(30, 10), V(30, 30)], 2, p, Half);
             var f = d.Finish();
             if (!decorative) { vertices = f.Vertices.ToArray(); indices = f.Indices.ToArray(); }
@@ -103,12 +107,189 @@ public class DecorativeDashTests
         }
     }
 
-    [Fact]
-    public void AngledSampledCircle()
+    [Theory]
+    [InlineData(DashShape.Angled)] [InlineData(DashShape.Chevron)]
+    public void SampledCircle(DashShape shape)
     {
         using var d = new ShapeDrawList(); d.BeginFrame(200, 200);
-        d.StrokePatternedCircle(V(80, 80), 40, 2, StrokePattern.FixedDashes(8, .5, .9).WithShape(DashShape.Angled), Half);
+        d.StrokePatternedCircle(V(80, 80), 40, 2, StrokePattern.FixedDashes(8, .5, .9).WithShape(shape), Half);
         var f = d.Finish(); Assert.InRange(Area(f), 240, 260); Tiled(f);
+    }
+
+    [Theory]
+    [InlineData(-1.0)] [InlineData(1.0)] [InlineData(.5)]
+    public void ChevronAnalyticConcaveGlyph(double modifier)
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
+        d.StrokePatternedSegment(V(10, 20), V(30, 20), 4,
+            StrokePattern.Dashes(4, 16, .5).WithShape(DashShape.Chevron, modifier), Half);
+        var f = d.Finish(); Tiled(f); Assert.Equal(16, Area(f), 6);
+        foreach (var p in new[] { V(20, 20), V(24, 20), V((float)(20 + 2 * modifier), 18),
+            V((float)(20 + 2 * modifier), 22), V((float)(24 + 2 * modifier), 18), V((float)(24 + 2 * modifier), 22) })
+            Assert.Contains(f.Vertices.ToArray(), v => v.Position == p);
+        // A point in the V's missing wedge is not covered by any triangle.
+        double notchX = modifier > 0 ? 20 + modifier : 24 + modifier;
+        var vs = f.Vertices.ToArray(); var ids = f.Indices.ToArray();
+        for (int i = 0; i < ids.Length; i += 3)
+        {
+            var p = V((float)notchX, 18.25f);
+            double a = Cross(vs[ids[i]].Position, vs[ids[i + 1]].Position, p);
+            double b = Cross(vs[ids[i + 1]].Position, vs[ids[i + 2]].Position, p);
+            double c = Cross(vs[ids[i + 2]].Position, vs[ids[i]].Position, p);
+            Assert.False((a > 0 && b > 0 && c > 0) || (a < 0 && b < 0 && c < 0));
+        }
+        Assert.All(vs, v => Assert.Equal(.5f, v.Color.W));
+    }
+
+    [Theory]
+    [InlineData(DashShape.Angled)] [InlineData(DashShape.Chevron)]
+    public void SizingAndPhaseProduceSameGeometry(DashShape shape)
+    {
+        foreach (double phase in new[] { -.25, .75, 8.75, 1e300, -1e300 })
+        {
+            double normalized = phase % 1; if (normalized < 0) normalized += 1;
+            StrokePattern[] patterns = [StrokePattern.Dashes(4, 4, normalized),
+                StrokePattern.Dashes(4, 4, phase), StrokePattern.RelativeDashes(2, 2, phase),
+                StrokePattern.FixedDashes(4, .5, phase)];
+            ShapeVertex[]? vertices = null; uint[]? indices = null;
+            foreach (var p in patterns)
+            {
+                using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
+                d.StrokePatternedSegment(V(10, 20), V(42, 20), 2, p.WithShape(shape, .5), Half);
+                var f = d.Finish(); Tiled(f);
+                if (vertices == null) { vertices = f.Vertices.ToArray(); indices = f.Indices.ToArray(); }
+                else { Assert.Equal(vertices, f.Vertices.ToArray()); Assert.Equal(indices, f.Indices.ToArray()); }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(DashShape.Angled, StrokeSpace.Local)] [InlineData(DashShape.Angled, StrokeSpace.Framebuffer)]
+    [InlineData(DashShape.Chevron, StrokeSpace.Local)] [InlineData(DashShape.Chevron, StrokeSpace.Framebuffer)]
+    public void ReflectionShearAndPixelWidth(DashShape shape, StrokeSpace space)
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(200, 200);
+        d.SetTransform(new float3x2(-3, 0, 2, 2, 100, 0));
+        d.StrokePatternedSegment(V(10, 10), V(30, 10), 4,
+            StrokePattern.Dashes(space == StrokeSpace.Local ? 4 : 12, space == StrokeSpace.Local ? 16 : 48, .5)
+                .WithShape(shape), Half, space: space);
+        var f = d.Finish(); Tiled(f);
+        Assert.Equal(space == StrokeSpace.Local ? 96 : 48, Area(f), 5);
+        Assert.Equal(space == StrokeSpace.Local ? 8 : 4,
+            f.Vertices.ToArray().Max(v => v.Position.Y) - f.Vertices.ToArray().Min(v => v.Position.Y));
+        if (space == StrokeSpace.Local)
+        {
+            var originals = shape == DashShape.Angled ? new[] { V(18, 8), V(22, 8), V(22, 12), V(26, 12) }
+                : new[] { V(20, 10), V(24, 10), V(22, 8), V(26, 8), V(22, 12), V(26, 12) };
+            foreach (var p in originals)
+                Assert.Contains(f.Vertices.ToArray(), v => v.Position == V(-3 * p.X + 2 * p.Y + 100, 2 * p.Y));
+        }
+    }
+
+    [Theory]
+    [InlineData(DashShape.Angled)] [InlineData(DashShape.Chevron)]
+    public void LateFailuresRestoreMergedCommand(DashShape shape)
+    {
+        foreach (bool precision in new[] { false, true })
+        {
+            using var d = precision ? new ShapeDrawList() : new ShapeDrawList(20, 60);
+            d.BeginFrame(100, 100); d.FillTriangle(V(1, 1), V(2, 1), V(1, 2), Half);
+            if (precision)
+                Assert.Throws<ArgumentException>(() => d.StrokePatternedSegment(V(1048500, 10), V(1048600, 10),
+                    2, StrokePattern.Dashes(10, 10).WithShape(shape), Half));
+            else
+                Assert.Throws<InvalidOperationException>(() => d.StrokePatternedSegment(V(10, 10), V(50, 10),
+                    2, StrokePattern.Dashes(4, 4).WithShape(shape), Half));
+            var f = d.Finish(); Assert.Equal(3, f.Vertices.Length); Assert.Equal(3, f.Indices.Length);
+            Assert.Equal(3, Assert.Single(f.Commands.ToArray()).IndexCount);
+        }
+    }
+
+    [Theory]
+    [InlineData(DashShape.Angled)] [InlineData(DashShape.Chevron)]
+    public void ValidationAndTightTurnsRejectTransactionally(DashShape shape)
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
+        var p = StrokePattern.Dashes(15, 6).WithShape(shape);
+        Assert.Throws<ArgumentException>(() => d.StrokePatternedPolyline([V(10, 10), V(30, 10), V(30, 11), V(10, 11)], 4, p, Half));
+        Assert.Throws<ArgumentException>(() => d.StrokePatternedSegment(V(0, 0), V(100, 0), 1,
+            StrokePattern.Dashes(1e-300, 1e-300).WithShape(shape), Half));
+        Assert.Throws<ArgumentException>(() => d.StrokePatternedCircle(V(0, 0), 1e6f, 1, p, Half));
+        var hidden = new LinearColor(1, 1, 1, 0);
+        Assert.Throws<ArgumentException>(() => d.StrokePatternedPolyline([V(0, 0), V(0, 0), V(float.NaN, 1)], 0, p, hidden));
+        Assert.Throws<ArgumentOutOfRangeException>(() => d.StrokePatternedSegment(V(0, 0), V(0, 0), 0, p, hidden, space: (StrokeSpace)99));
+        Assert.Throws<ArgumentOutOfRangeException>(() => d.StrokePatternedPolyline(new float2[1025], 0, p, hidden));
+        d.PushClip(new(0, 0, 0, 0));
+        Assert.Throws<ArgumentException>(() => d.StrokePatternedCircle(V(float.PositiveInfinity, 0), 0, 0, p, Half));
+        d.PopClip(); Assert.Empty(d.Finish().Indices.ToArray());
+    }
+
+    [Theory]
+    [InlineData(DashShape.Angled)] [InlineData(DashShape.Chevron)]
+    public void ActualFloatPrecisionAndInterFragmentOverlapReject(DashShape shape)
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(200, 200);
+        d.FillTriangle(V(1, 1), V(2, 1), V(1, 2), Half);
+        var error = Assert.Throws<ArgumentException>(() => d.StrokePatternedPolyline(
+            [V(10, 10), V(50, 10), V(50, 30), V(10, 30), V(10, 11), V(40, 11)],
+            2, StrokePattern.Dashes(30, 10).WithShape(shape), Half));
+        Assert.Contains("overlap", error.Message);
+        d.SetTransform(new(1, 1.23456f, 0, 1e-6f, 100, 100));
+        Assert.Throws<ArgumentException>(() => d.StrokePatternedSegment(V(0, 0), V(40, 0), 4,
+            StrokePattern.Dashes(4, 4).WithShape(shape), Half));
+        var f = d.Finish(); Assert.Equal(3, f.Vertices.Length);
+        Assert.Equal(3, Assert.Single(f.Commands.ToArray()).IndexCount);
+    }
+
+    [Theory]
+    [InlineData(DashShape.Angled)] [InlineData(DashShape.Chevron)]
+    public void LimitsAndComplexityAreBounded(DashShape shape)
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(20000, 100);
+        d.StrokePatternedSegment(V(0, 10), V(8192, 10), 1,
+            StrokePattern.FixedDashes(4096, .5, .25).WithShape(shape, .5), Half);
+        Assert.InRange(Area(d.Finish()), 4095.5, 4096.5); // accumulated FLOAT32 area quantization
+        d.BeginFrame(20000, 100);
+        d.StrokePatternedPolyline(Enumerable.Range(0, 1024).Select(i => V(i, 10)).ToArray(), 1,
+            StrokePattern.Dashes(4, 4).WithShape(shape), Half);
+        Assert.True(Area(d.Finish()) > 500);
+        d.BeginFrame(20000, 100);
+        d.FillTriangle(V(1, 1), V(2, 1), V(1, 2), Half);
+        // Many short curved edges times many intervals exhaust the shared 4-million-candidate budget.
+        var points = Enumerable.Range(0, 1024).Select(i => V(i * 10, i % 2)).ToArray();
+        var error = Assert.Throws<ArgumentException>(() => d.StrokePatternedPolyline(points, .1f,
+            StrokePattern.FixedDashes(2048).WithShape(shape), Half));
+        Assert.Contains("complexity", error.Message, StringComparison.OrdinalIgnoreCase);
+        var f = d.Finish(); Assert.Equal(3, f.Vertices.Length);
+        Assert.Equal(3, Assert.Single(f.Commands.ToArray()).IndexCount);
+    }
+
+    [Theory]
+    [InlineData(DashShape.Angled, StrokeSpace.Local)] [InlineData(DashShape.Angled, StrokeSpace.Framebuffer)]
+    [InlineData(DashShape.Chevron, StrokeSpace.Local)] [InlineData(DashShape.Chevron, StrokeSpace.Framebuffer)]
+    public void TransformedSampledCurves(DashShape shape, StrokeSpace space)
+    {
+        foreach (double modifier in new[] { -1.0, .5, 1.0 })
+        {
+            using var d = new ShapeDrawList(); d.BeginFrame(500, 500);
+            d.SetTransform(new(-2, 0, 1, 3, 300, 0));
+            d.StrokePatternedCircle(V(40, 40), 20, 2,
+                StrokePattern.RelativeDashes(4, 4, .13, true).WithShape(shape, modifier), Half, space: space);
+            var f = d.Finish(); Assert.True(Area(f) > 0); Tiled(f);
+        }
+    }
+
+    [Fact]
+    public void NearCollinearClippedCurveRejectsWithoutPrecisionRepair()
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(500, 500);
+        d.FillTriangle(V(1, 1), V(2, 1), V(1, 2), Half);
+        d.SetTransform(new(-2, 0, 1, 3, 300, 0));
+        var error = Assert.Throws<ArgumentException>(() => d.StrokePatternedCircle(V(40, 40), 20, 2,
+            StrokePattern.RelativeDashes(4, 4, -.25, true).WithShape(DashShape.Chevron, -1), Half));
+        Assert.Contains("FLOAT32", error.Message);
+        var f = d.Finish(); Assert.Equal(3, f.Vertices.Length);
+        Assert.Equal(3, Assert.Single(f.Commands.ToArray()).IndexCount);
     }
 
     [Theory]

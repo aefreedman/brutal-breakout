@@ -31,6 +31,8 @@ public sealed partial class ShapeDrawList
             }
         }
         var tiles = new List<PatternTile>();
+        var occupied = new bool[intervals.Count];
+        var emitted = new bool[intervals.Count];
         var mask = new List<P>(8); var buffer = new List<P>(8);
         for (int edge = 0; edge < edges; edge++)
         {
@@ -46,16 +48,25 @@ public sealed partial class ShapeDrawList
                 var x = xy[0]; var y = xy[j]; var z = xy[k];
                 if (!(Cross(y - x, z - x) > 0))
                     throw new ArgumentException("Width/tight turn inverts a decorative ribbon tile.");
-                foreach (var interval in intervals)
+                for (int glyph = 0; glyph < intervals.Count; glyph++)
                 for (int cycle = closed ? -1 : 0; cycle <= (closed ? 1 : 0); cycle++)
+                for (int half = 0; half < (pattern.Shape == DashShape.Chevron ? 2 : 1); half++)
                 {
                     if (++work > 4_000_000) throw new ArgumentException("Decorative mask complexity limit.");
+                    var interval = intervals[glyph];
                     double start = interval.Start + cycle * total, end = interval.End + cycle * total;
                     double padding = radius * Math.Abs(pattern.Modifier);
                     if (end + padding <= s0 || start - padding >= s1) continue;
                     mask.Clear(); mask.Add(u); mask.Add(v); mask.Add(w);
-                    ClipDecorativeMask(ref mask, ref buffer, new(1, -pattern.Modifier), start, true);
-                    ClipDecorativeMask(ref mask, ref buffer, new(1, -pattern.Modifier), end, false);
+                    double slope = pattern.Modifier;
+                    if (pattern.Shape == DashShape.Chevron)
+                    {
+                        // Two disjoint half-ribbons retain the concave V notch; never fan across it.
+                        ClipDecorativeMask(ref mask, ref buffer, new(0, 1), 0, half == 1);
+                        if (half == 0) slope = -slope;
+                    }
+                    ClipDecorativeMask(ref mask, ref buffer, new(1, -slope), start, true);
+                    ClipDecorativeMask(ref mask, ref buffer, new(1, -slope), end, false);
                     if (mask.Count < 3) continue;
                     polygon.Clear(); triangles.Clear();
                     double determinant = Cross(v - u, w - u);
@@ -63,14 +74,21 @@ public sealed partial class ShapeDrawList
                     {
                         double bv = Cross(p - u, w - u) / determinant;
                         double bw = Cross(v - u, p - u) / determinant;
-                        polygon.Add(x + (y - x) * bv + (z - x) * bw);
+                        polygon.Add(p.X == s0 ? a + m0 * p.Y : p.X == s1 ? b + m1 * p.Y :
+                            x + (y - x) * bv + (z - x) * bw);
                     }
                     CleanOutline(polygon);
                     if (polygon.Count < 3) continue;
-                    for (int i = 1; i + 1 < polygon.Count; i++) Tri(0, i, i + 1);
+                    for (int i = 1; i + 1 < polygon.Count; i++)
+                    {
+                        Tri(0, i, i + 1);
+                        if (Cross(polygon[i] - polygon[0], polygon[i + 1] - polygon[0]) != 0) occupied[glyph] = true;
+                    }
                     int firstIndex = ic;
                     Emit(color, validateOutline: true, framebuffer: space == StrokeSpace.Framebuffer);
-                    if (ic == firstIndex) throw new ArgumentException("Framebuffer precision collapses a decorative tile.");
+                    // As in Emit, zero-area quantized triangles disappear. Reject loss of an entire
+                    // occupied glyph, not a vanishing clipping sliver at an edge/half-width boundary.
+                    emitted[glyph] |= ic != firstIndex;
                     // Validate *every* actual-float triangle, including pairs within the same glyph.
                     for (int index = firstIndex; index < ic; index += 3)
                     {
@@ -81,6 +99,8 @@ public sealed partial class ShapeDrawList
                 }
             }
         }
+        for (int i = 0; i < intervals.Count; i++)
+            if (occupied[i] && !emitted[i]) throw new ArgumentException("Framebuffer precision collapses a decorative glyph.");
         ValidatePatternTiles(tiles, work);
     }
 
@@ -95,8 +115,15 @@ public sealed partial class ShapeDrawList
             double cs = Dot(current, normal) - limit; if (!greater) cs = -cs;
             if ((cs >= 0) != (ps >= 0))
             {
-                double fraction = ps / (ps - cs);
-                output.Add(previous + (current - previous) * fraction);
+                // Canonical endpoint order gives shared edges identical intersections. Enforce the
+                // clipping equation exactly, avoiding numerical slivers along half-width boundaries.
+                var a = previous; var b = current;
+                if (a.X > b.X || (a.X == b.X && a.Y > b.Y)) (a, b) = (b, a);
+                double da = Dot(a, normal) - limit, db = Dot(b, normal) - limit;
+                var intersection = da == 0 ? a : db == 0 ? b : a + (b - a) * (da / (da - db));
+                intersection = normal.X == 0 ? new(intersection.X, limit / normal.Y)
+                    : new((limit - normal.Y * intersection.Y) / normal.X, intersection.Y);
+                output.Add(intersection);
             }
             if (cs >= 0) output.Add(current);
             previous = current; ps = cs;

@@ -169,7 +169,7 @@ public sealed partial class ShapeDrawList
                 OffsetOuter(width / 2.0); ErodeInner(width / 2.0);
                 EmitOutline(color, space);
             }
-            else if (pattern.IsDecorative && pattern.Shape == DashShape.Angled && !samples.Solid)
+            else if (pattern.IsDecorative && !samples.Solid)
             {
                 EmitDecorativePattern(centerline, distances, width, pattern, samples.Intervals, closed, color, space);
             }
