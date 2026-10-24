@@ -4,14 +4,18 @@ using Brutal.Numerics;
 using BrutalBreakout.Rendering;
 using BrutalBreakout.Rendering.Shapes;
 using BrutalBreakout.Presentation;
+using BrutalBreakout.Platform.Input;
 
+var gameplaySmokeTest = args.Contains("--gameplay-smoke-test");
+var showcase = args.Contains("--showcase");
 var hiddenSmokeTest = args.Contains("--smoke-test");
 var lifecycleSmokeTest = args.Contains("--lifecycle-smoke-test");
 var resizeStressTest = args.Contains("--visible-resize-stress");
-if (new[] { hiddenSmokeTest, lifecycleSmokeTest, resizeStressTest }.Count(enabled => enabled) > 1)
+if (new[] { hiddenSmokeTest, gameplaySmokeTest, lifecycleSmokeTest, resizeStressTest, showcase }.Count(enabled => enabled) > 1)
     throw new ArgumentException("Select only one GPU test mode.");
 var smokeTest = hiddenSmokeTest || lifecycleSmokeTest;
-var gpuTest = smokeTest || resizeStressTest;
+var gpuTest = smokeTest || resizeStressTest || gameplaySmokeTest;
+var gallery = showcase || smokeTest || resizeStressTest;
 var cleanupSelfTest = args.Contains("--cleanup-self-test");
 if (smokeTest || cleanupSelfTest) VerifyCleanupFailureHandling();
 if (cleanupSelfTest) return;
@@ -34,11 +38,12 @@ try
         // Published BRUTAL GLFW hints take integer GLFW_FALSE (0).
         Glfw.WindowHint(GlfwWindowHint.Focused, 0);
         Glfw.WindowHint(GlfwWindowHint.FocusOnShow, 0);
-        Glfw.WindowHint(GlfwWindowHint.Visible, hiddenSmokeTest ? 0 : 1);
+        Glfw.WindowHint(GlfwWindowHint.Visible, hiddenSmokeTest || gameplaySmokeTest ? 0 : 1);
     }
     var window = Glfw.CreateWindow(new GlfwWindow.CreateInfo
     {
-        Title = "Brutal Breakout",
+        Title = gallery ? "Brutal Breakout - primitive showcase" :
+            "Ball arena - Space / mouse left / gamepad A: launch or catch; R / Start: restart; WASD / arrows / left stick / mouse: aim",
         Size = new int2(1280, 720),
     });
     if (window.IsNull())
@@ -49,7 +54,15 @@ try
     {
         using var shapes = new ShapeDrawList();
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
-            "Close the window to exit. Expect twelve panels of Vulkan primitives (see README).");
+            gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
+            "Ball arena: aim, press to launch, bounce to unlock catch; release/repress to relaunch. See README.");
+        var session = new BallSandboxSession();
+        var poller = new GlfwInputPoller(window);
+        var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke() : null;
+        var gameplayViewports = new HashSet<(int Width, int Height)>();
+        var gameplayFrames = 0;
+        var resizeRequested = false;
+        var lastElapsed = TimeSpan.Zero;
         var shapeFrames = 0;
         var shapeViewports = new HashSet<(int Width, int Height)>();
         if (smokeTest) Console.WriteLine($"Smoke showcase: expectedShapes={ShapeShowcase.ShapeCount}; " +
@@ -65,6 +78,28 @@ try
             // need an explicit main-thread scheduler, not an await Task.Delay frame loop.
             Glfw.PollEvents();
             if (window.ShouldClose) break;
+            var now = timer.Elapsed;
+            var elapsedSeconds = (now - lastElapsed).TotalSeconds;
+            lastElapsed = now;
+            var size = window.Size;
+            var pixels = window.FramebufferSize;
+            var viewport = new ArenaViewport(size.X, size.Y, pixels.X, pixels.Y);
+            if (!gallery)
+            {
+                if (gameplayScript is not null)
+                {
+                    if (now.TotalSeconds > 15) throw new InvalidOperationException("Gameplay smoke timed out.");
+                    if (gameplayScript.ResizeRequested && !resizeRequested)
+                    {
+                        window.Size = new int2(960, 540);
+                        resizeRequested = true;
+                        Console.WriteLine("Gameplay: resize requested; waiting for resumed presentations.");
+                    }
+                    if (gameplayScript.Completed) break;
+                    gameplayScript.Advance(viewport);
+                }
+                else session.Advance(poller.Poll(), elapsedSeconds, viewport);
+            }
             if (smokeTest)
             {
                 if (timer.Elapsed.TotalSeconds > 15)
@@ -121,9 +156,13 @@ try
             var framesBeforeDraw = renderer.PresentedFrames;
             var framebuffer = window.FramebufferSize;
             ShapeFrame? frame = null;
+            BallSandbox.GeometryEvidence gameplayGeometry = default;
             if (!wasIconified && framebuffer.X > 0 && framebuffer.Y > 0)
             {
-                frame = ShapeShowcase.Build(shapes, framebuffer.X, framebuffer.Y, out var decorative);
+                ShapeShowcase.DecorativeEvidence decorative = default;
+                frame = gallery ? ShapeShowcase.Build(shapes, framebuffer.X, framebuffer.Y, out decorative) :
+                    BallSandbox.Build(shapes, (gameplayScript?.Session ?? session).Simulation,
+                        framebuffer.X, framebuffer.Y, out gameplayGeometry);
                 if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
                     frame.Value.Indices.Length < ShapeShowcase.ShapeCount * 3 || frame.Value.Commands.Length < 5))
                     throw new InvalidOperationException("Smoke: showcase lost shapes or nested clip commands.");
@@ -138,8 +177,21 @@ try
                 shapeFrames++;
             }
             renderer.Draw(frame); // Consumes borrowed CPU buffers before the next BeginFrame.
+            if (gameplayScript is not null && frame.HasValue && renderer.PresentedFrames > framesBeforeDraw)
+            {
+                gameplayFrames++;
+                if (gameplayViewports.Add((framebuffer.X, framebuffer.Y)))
+                    Console.WriteLine($"Gameplay viewport: {framebuffer.X}x{framebuffer.Y}; indices={frame.Value.Indices.Length}; arenaIndices={gameplayGeometry.ArenaIndices}; ballIndices={gameplayGeometry.BallIndices}; aimIndices={gameplayGeometry.AimIndices}.");
+                gameplayScript.Presented(framebuffer.X, framebuffer.Y, gameplayGeometry);
+            }
             if (smokeTest && wasIconified && renderer.PresentedFrames != framesBeforeDraw)
                 throw new InvalidOperationException("Smoke: Draw presented while iconified.");
+        }
+        if (gameplayScript is not null)
+        {
+            if (!gameplayScript.Completed || gameplayViewports.Count < 2 || gameplayFrames < 9)
+                throw new InvalidOperationException("Gameplay smoke interrupted or missing resized geometry.");
+            Console.WriteLine($"Gameplay: launch wall catch hold release relaunch reset passed; ticks={gameplayScript.Session.TotalTicks}; nonemptyPresentedFrames={gameplayFrames}; hidden resize and resumed presentation passed.");
         }
         Console.WriteLine($"Presented frames: {renderer.PresentedFrames}.");
         if (smokeTest && !completed)

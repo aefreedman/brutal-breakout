@@ -76,6 +76,40 @@ public class SessionTests
         Assert.Equal(aim, s.Simulation.State.AimDirection);
     }
 
+    [Fact] public void ZeroFramebufferDoesNotPausePhysicsOrChangeAim()
+    {
+        var s = new BallSandboxSession();
+        s.Advance(Sample(), 0, View);
+        s.Advance(Sample(true), 1.0 / 60, View);
+        var p = s.Simulation.State.Position;
+        s.Advance(Sample() with { Cursor = new(100, 100) }, 1.0 / 60, new(1280, 720, 0, 0));
+        Assert.Equal(p.Y - 10, s.Simulation.State.Position.Y, 8);
+        Assert.Equal(new double2(0, -1), s.Simulation.State.AimDirection);
+    }
+
+    [Fact] public void PointerAimsFromBallCenterNotWorldOrigin()
+    {
+        var s = new BallSandboxSession();
+        s.Advance(Sample(), 0, View);
+        s.Advance(Sample() with { Cursor = new(740, 612) }, 1.0 / 60, View);
+        Assert.Equal(new double2(1, 0), s.Simulation.State.AimDirection);
+        s.Advance(Sample() with { Cursor = new(800, 10) }, 1.0 / 60, new(1000, 1000, 2000, 2000));
+        Assert.Equal(new double2(1, 0), s.Simulation.State.AimDirection);
+    }
+
+    [Fact] public void FlyingResumeDoesNotJump()
+    {
+        var s = new BallSandboxSession();
+        s.Advance(Sample(), 0, View);
+        s.Advance(Sample(true), 1.0 / 60, View);
+        var p = s.Simulation.State.Position;
+        s.Advance(Sample() with { Minimized = true }, 1, View);
+        Assert.Equal(0, s.Advance(Sample(true), 10, View));
+        Assert.Equal(p, s.Simulation.State.Position);
+        s.Advance(Sample(true), 1.0 / 60, View);
+        Assert.Equal(p.Y - 10, s.Simulation.State.Position.Y, 8);
+    }
+
     [Theory]
     [InlineData(1280, 720, 2560, 1440, 640, 360, 640, 360)]
     [InlineData(1000, 1000, 2000, 2000, 500, 500, 640, 360)]

@@ -1,5 +1,6 @@
 # Windows-only hidden GPU regression. Never activates or shows a window.
-param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug')
+param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug',
+      [ValidateSet('Showcase', 'Gameplay')][string] $Mode = 'Showcase')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Requires Windows/PowerShell 7.' }
@@ -37,7 +38,7 @@ $visible = [Collections.Generic.HashSet[long]]::new()
 $process = $null
 try {
     $start = [Diagnostics.ProcessStartInfo]::new($exe)
-    $start.ArgumentList.Add('--smoke-test')
+    $start.ArgumentList.Add($(if ($Mode -eq 'Gameplay') { '--gameplay-smoke-test' } else { '--smoke-test' }))
     $start.WorkingDirectory = $root
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true # suppress the executable's console as well as GLFW's window
@@ -73,6 +74,7 @@ try {
     if ($windows.Count -eq 0) { throw 'No test window observed; hidden-state evidence incomplete.' }
     if ($visible.Count -ne 0) { throw 'A test window became visible.' }
     if ($foregrounds.Count -ne 1 -or -not $foregrounds.Contains($before.ToInt64())) { throw 'Foreground changed during observation (possibly external user activity); nonactivation evidence incomplete.' }
+    if ($Mode -eq 'Showcase') {
     $expected = [regex]::Match($output, 'Smoke showcase: expectedShapes=(\d+);')
     $frames = [regex]::Match($output, 'Smoke: (\d+) shapes/frame, (\d+) nonempty frames; hidden resize and resumed presentation passed')
     $viewports = [regex]::Matches($output, 'Smoke viewport: (\d+)x(\d+); vertices=(\d+); indices=(\d+); commands=(\d+)\.')
@@ -89,8 +91,31 @@ try {
         [void]$sizes.Add("$($viewport.Groups[1].Value)x$($viewport.Groups[2].Value)")
     }
     if ($sizes.Count -lt 2) { throw 'Missing distinct nonempty resize viewports.' }
+    } else {
+        $stages = @('Initial', 'Launch', 'Travel', 'Catch', 'Hold', 'Release', 'Relaunch', 'Reset', 'Resized')
+        foreach ($stage in $stages) {
+            if ($output -notmatch "Gameplay stage: $stage; ticks=\d+; phase=(Aiming|Flying);") {
+                throw "Missing presented gameplay stage: $stage"
+            }
+        }
+        $viewports = [regex]::Matches($output, 'Gameplay viewport: (\d+)x(\d+); indices=(\d+); arenaIndices=(\d+); ballIndices=(\d+); aimIndices=(\d+)\.')
+        $sizes = [Collections.Generic.HashSet[string]]::new()
+        foreach ($viewport in $viewports) {
+            if ([int]$viewport.Groups[3].Value -le 0 -or [int]$viewport.Groups[4].Value -le 0 -or
+                [int]$viewport.Groups[5].Value -le 0 -or [int]$viewport.Groups[6].Value -le 0) {
+                throw 'Missing actual arena/ball/aim indexed geometry.'
+            }
+            [void]$sizes.Add("$($viewport.Groups[1].Value)x$($viewport.Groups[2].Value)")
+        }
+        $result = [regex]::Match($output, 'Gameplay: launch wall catch hold release relaunch reset passed; ticks=(\d+); nonemptyPresentedFrames=(\d+); hidden resize and resumed presentation passed\.')
+        if (-not $sizes.Contains('1280x720') -or -not $sizes.Contains('960x540') -or
+            -not $result.Success -or [int]$result.Groups[1].Value -lt 100 -or
+            [int]$result.Groups[2].Value -lt 9 -or $output -notmatch 'Validation: 0 errors, \d+ warnings\.') {
+            throw 'Missing gameplay transitions/resize/validation evidence.'
+        }
+    }
     if ($errors -match 'VkResultError|\[Vulkan Error') { throw 'Unexpected Vulkan error.' }
-    Write-Output "PASS hidden GPU smoke ($Configuration): foreground unchanged; no visible test windows observed (10ms sampling)."
+    Write-Output "PASS hidden GPU smoke ($Configuration/$Mode): foreground unchanged; no visible test windows observed (10ms sampling)."
 }
 finally {
     if ($null -ne $process) {
