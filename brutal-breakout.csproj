@@ -7,11 +7,14 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Ahwoo.BRUTAL.Core" Version="2026.10.4" />
     <PackageReference Include="Ahwoo.BRUTAL.Glfw" Version="2026.10.5" />
+    <PackageReference Include="Ahwoo.BRUTAL.Vulkan" Version="2026.10.3" />
+    <PackageReference Include="Ahwoo.BRUTAL.Vulkan.Abstractions" Version="2026.10.3" />
   </ItemGroup>
 
 </Project>
