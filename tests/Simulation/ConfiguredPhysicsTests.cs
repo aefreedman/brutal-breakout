@@ -9,9 +9,13 @@ public class ConfiguredPhysicsTests
 {
     public static IEnumerable<object[]> RatesAndPartitions()
     {
-        foreach (int hz in new[] { 30, 60, 120, 144, 240 })
+        foreach (var (hz, substeps) in new[]
+        {
+            (30, 1), (30, 4), (60, 2), (60, 4),
+            (120, 4), (144, 3), (240, 4), (240, 8)
+        })
         foreach (int frames in new[] { 30, 60, 144, 1000 })
-            yield return new object[] { hz, frames, hz == 144 ? 3 : 4, 11 };
+            yield return new object[] { hz, frames, substeps, 11 };
     }
 
     [Theory]
