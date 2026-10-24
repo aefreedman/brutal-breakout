@@ -84,4 +84,48 @@ public class OutlineTests
         Assert.Throws<InvalidOperationException>(() => d.StrokeRect(V(0, 0), V(10, 10), 1, White));
         var f = d.Finish(); Assert.Equal(4, f.Vertices.Length); Assert.Equal(1, Area(f));
     }
+    [Theory]
+    [InlineData(StrokeAlignment.Center, 9, 11)]
+    [InlineData(StrokeAlignment.Inside, 8, 10)]
+    [InlineData(StrokeAlignment.Outside, 10, 12)]
+    public void CircleRadiiAreaAndTiling(StrokeAlignment alignment, double inner, double outer)
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
+        d.StrokeCircle(V(20, 20), 10, 2, new(1, 1, 1, .5f), alignment);
+        var f = d.Finish(); Tiled(f);
+        Assert.InRange(Area(f), Math.PI * (outer * outer - inner * inner) * .97, Math.PI * (outer * outer - inner * inner));
+        foreach (var v in f.Vertices.Span)
+        {
+            double r = Math.Sqrt(Math.Pow(v.Position.X - 20, 2) + Math.Pow(v.Position.Y - 20, 2));
+            Assert.True(Math.Abs(r - inner) < .00001 || Math.Abs(r - outer) < .00001);
+        }
+        Assert.Equal(20 - outer, f.Vertices.ToArray().Min(v => v.Position.X));
+        Assert.Equal(20 + outer, f.Vertices.ToArray().Max(v => v.Position.X));
+    }
+    [Theory]
+    [InlineData(StrokeAlignment.Center, 1)]
+    [InlineData(StrokeAlignment.Inside, 2)]
+    [InlineData(StrokeAlignment.Outside, 2)]
+    public void RoundedRectConsistentCornerRadii(StrokeAlignment alignment, float width)
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
+        d.StrokeRoundedRect(V(0, 0), V(20, 10), 3, width, White, alignment);
+        var f = d.Finish(); Tiled(f);
+        double outside = alignment == StrokeAlignment.Inside ? 0 : alignment == StrokeAlignment.Center ? width / 2.0 : width;
+        double inside = width - outside;
+        double outerArea = (20 + 2 * outside) * (10 + 2 * outside) - (4 - Math.PI) * Math.Pow(3 + outside, 2);
+        double innerArea = (20 - 2 * inside) * (10 - 2 * inside) - (4 - Math.PI) * Math.Pow(3 - inside, 2);
+        Assert.InRange(Area(f), (outerArea - innerArea) * .97, (outerArea - innerArea) * 1.03);
+    }
+    [Fact]
+    public void ConsumedCircleAndRoundedHoleBecomeSolid()
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
+        d.StrokeCircle(V(0, 0), 2, 4, White, StrokeAlignment.Inside);
+        var f = d.Finish(); Tiled(f); Assert.InRange(Area(f), 11, 4 * Math.PI);
+        d.BeginFrame(100, 100); d.StrokeRoundedRect(V(0, 0), V(20, 10), 3, 5, White, StrokeAlignment.Inside);
+        f = d.Finish(); Tiled(f); Assert.InRange(Area(f), 190, 193);
+        d.BeginFrame(100, 100); d.StrokeRoundedRect(V(0, 0), V(20, 10), 1, 2, White, StrokeAlignment.Inside);
+        f = d.Finish(); Tiled(f); Assert.InRange(Area(f), 102, 104);
+    }
 }

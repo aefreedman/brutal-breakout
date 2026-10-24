@@ -326,9 +326,9 @@ public sealed partial class ShapeDrawList : IDisposable
         double x = Dot(a, a), y = Dot(b, b), z = Dot(a, b);
         return Math.Sqrt((x + y + Math.Sqrt((x - y) * (x - y) + 4 * z * z)) / 2);
     }
-    private int Resolution(double radius)
+    private int Resolution(double radius, bool framebuffer = false)
     {
-        double r = radius * Scale();
+        double r = framebuffer ? radius : radius * Scale();
         // Reserve for float framebuffer quantization and the published generator's float trig.
         double tolerance = 0.25 - 0.09 - r * 0.000001;
         if (r == 0) return 8;

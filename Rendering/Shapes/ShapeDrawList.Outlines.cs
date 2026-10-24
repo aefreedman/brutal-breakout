@@ -15,6 +15,84 @@ public sealed partial class ShapeDrawList
         outlineBoundary.Clear(); outlineOuter.Clear(); outlineInner.Clear();
     }
 
+    public void StrokeCircle(float2 center, float radius, float width, LinearColor color,
+        StrokeAlignment alignment = StrokeAlignment.Center, StrokeSpace space = StrokeSpace.Local)
+    {
+        StartOutline(width, color, alignment, space);
+        var c = Input(center); Nonnegative(radius);
+        if (NoOutput(color) || width == 0 || radius == 0) return;
+        var (outside, inside) = Distances(width, alignment);
+        int n = RoundResolution(space == StrokeSpace.Local ? radius + outside : radius * Scale() + outside, space);
+        if (space == StrokeSpace.Framebuffer)
+        {
+            CircleBoundary(outlineBoundary, c, radius, n);
+            StrokeBoundary(width, color, alignment, space);
+        }
+        else
+        {
+            CircleBoundary(outlineOuter, c, radius + outside, n);
+            if (radius > inside) CircleBoundary(outlineInner, c, radius - inside, n);
+            EmitOutline(color, space);
+        }
+    }
+
+    public void StrokeRoundedRect(float2 origin, float2 size, float radius, float width, LinearColor color,
+        StrokeAlignment alignment = StrokeAlignment.Center, StrokeSpace space = StrokeSpace.Local)
+    {
+        StartOutline(width, color, alignment, space);
+        var o = Input(origin); var s = Size(size); Nonnegative(radius);
+        if (NoOutput(color) || width == 0 || s.X == 0 || s.Y == 0) return;
+        double r = Math.Min(radius, Math.Min(s.X, s.Y) / 2);
+        var (outside, inside) = Distances(width, alignment);
+        int n = RoundResolution(space == StrokeSpace.Local ? r + outside : r * Scale() + outside, space);
+        if (space == StrokeSpace.Framebuffer)
+        {
+            RoundedBoundary(outlineBoundary, o, s, r, n / 4);
+            StrokeBoundary(width, color, alignment, space);
+        }
+        else
+        {
+            RoundedBoundary(outlineOuter, o - new P(outside, outside), s + new P(2 * outside, 2 * outside), r == 0 ? 0 : r + outside, n / 4);
+            if (s.X > 2 * inside && s.Y > 2 * inside)
+                RoundedBoundary(outlineInner, o + new P(inside, inside), s - new P(2 * inside, 2 * inside), Math.Max(0, r - inside), n / 4);
+            EmitOutline(color, space);
+        }
+    }
+
+    private int RoundResolution(double radius, StrokeSpace space) => (Resolution(radius, space == StrokeSpace.Framebuffer) + 3) / 4 * 4;
+
+    private void CircleBoundary(List<P> target, P center, double radius, int n)
+    {
+        // Reuse the published disk adapter's rim and seam policy; cardinal points are exact.
+        disk.Generate(n);
+        var rim = disk.Positions;
+        for (int i = 0; i < n; i++)
+        {
+            var direction = i % (n / 4) == 0 ? new P(i == 0 ? 1 : i == n / 2 ? -1 : 0, i == n / 4 ? 1 : i == 3 * n / 4 ? -1 : 0) : new P(rim[3 * ((n / 2 - i + n) % n)].X, rim[3 * ((n / 2 - i + n) % n)].Y);
+            target.Add(center + direction * radius);
+        }
+    }
+
+    private static void RoundedBoundary(List<P> target, P o, P s, double r, int q)
+    {
+        if (r == 0)
+        {
+            target.Add(o); target.Add(o + new P(s.X, 0)); target.Add(o + s); target.Add(o + new P(0, s.Y));
+            return;
+        }
+        for (int corner = 0; corner < 4; corner++)
+        {
+            var c = o + new P(corner is 0 or 3 ? r : s.X - r, corner < 2 ? r : s.Y - r);
+            for (int j = 0; j <= q; j++)
+            {
+                double angle = Math.PI + corner * Math.PI / 2 + j * Math.PI / (2 * q);
+                var direction = j == 0 ? Cardinal(corner) : j == q ? Cardinal((corner + 1) % 4) : new P(Math.Cos(angle), Math.Sin(angle));
+                target.Add(c + direction * r);
+            }
+        }
+        CleanOutline(target);
+    }
+
     public void StrokeRect(float2 origin, float2 size, float width, LinearColor color,
         StrokeAlignment alignment = StrokeAlignment.Center, StrokeSpace space = StrokeSpace.Local)
     {
