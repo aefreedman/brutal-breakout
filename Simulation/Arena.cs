@@ -9,14 +9,9 @@ public readonly record struct WallContact(double Distance, double2 Position, dou
     public double2 Normal { get; init; }
 }
 
-/// <summary>Provisional closed sandbox. Logical units, +X right, +Y down. Bounds describe wall faces.</summary>
+/// <summary>Mathematical helpers for logical coordinates (+X right, +Y down).</summary>
 public static class Arena
 {
-    public const double Width = 1280, Height = 720, Left = 48, Top = 48, Right = 1232, Bottom = 672;
-    public const double Radius = 12, Speed = 600;
-    public const double MinX = Left + Radius, MaxX = Right - Radius;
-    public const double MinY = Top + Radius, MaxY = Bottom - Radius;
-
     internal static bool Finite(double2 v) => double.IsFinite(v.X) && double.IsFinite(v.Y);
 
     // Scale before the published normalization helper to avoid overflow/underflow for finite inputs.

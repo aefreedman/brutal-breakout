@@ -13,7 +13,7 @@ public class ArenaTests
     [InlineData(0, -1, 640, 60, 0, 1)]
     public void CircleCastAllWallsExcludesOwnBall(double dx, double dy, double x, double y, double rx, double ry)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         var hit = sim.Query(new(640, 360), new(dx, dy));
         Assert.True(hit.HasHit);
         Near(new(x, y), hit.Position, .51);
@@ -30,7 +30,7 @@ public class ArenaTests
     [InlineData(60, 660)] [InlineData(1220, 660)]
     public void CornerCastDoesNotInventCombinedNormal(double x, double y)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         var hit = sim.Query(new(640, 360), new(x - 640, y - 360));
         if (hit.HasHit)
         {
@@ -44,14 +44,14 @@ public class ArenaTests
     [InlineData(640, 48, 0, -1)] [InlineData(640, 672, 0, 1)]
     public void InitialOverlapIsNotAReflection(double x, double y, double dx, double dy)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         Assert.False(sim.Query(new(x, y), new(dx, dy)).HasHit);
     }
 
     [Fact]
     public void NoHitAndDefaultAreExplicit()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         Assert.False(default(WallContact).HasHit);
         Assert.False(sim.Query(new(10, 10), new(-1, 0)).HasHit);
     }
@@ -59,7 +59,7 @@ public class ArenaTests
     [Fact]
     public void GrazingCastRemainsFinite()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         var hit = sim.Query(new(61, 61), new(1, 0));
         Assert.True(hit.HasHit);
         Near(new(1220, 61), hit.Position, .51);
@@ -70,7 +70,7 @@ public class ArenaTests
     [InlineData(double.NaN)] [InlineData(double.PositiveInfinity)] [InlineData(double.NegativeInfinity)]
     public void RejectsNonfiniteQuery(double invalid)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         Assert.Throws<ArgumentOutOfRangeException>(() => sim.Query(new(invalid, 360), new(1, 0)));
         Assert.Throws<ArgumentOutOfRangeException>(() => sim.Query(new(640, 360), new(1, invalid)));
     }
@@ -80,7 +80,7 @@ public class ArenaTests
     [InlineData(double.Epsilon, double.Epsilon)]
     public void NativeCastNormalizesExtremeFiniteDirections(double x, double y)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         var hit = sim.Query(new(640, 360), new(x, y));
         Assert.True(hit.HasHit);
         Assert.InRange(hit.Distance, 400, 430);
@@ -90,7 +90,7 @@ public class ArenaTests
     [Fact]
     public void RejectsInvalidArgumentsSeparatelyFromOrdinaryOverlap()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         Assert.Throws<ArgumentOutOfRangeException>(() => sim.Query(new(640, 360), default));
         Assert.Throws<ArgumentOutOfRangeException>(() => sim.Query(new(-1, 360), new(1, 0)));
     }

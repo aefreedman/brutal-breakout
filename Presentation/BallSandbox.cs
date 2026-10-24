@@ -11,30 +11,34 @@ public static class BallSandbox
     public static ShapeFrame Build(ShapeDrawList draw, BallSimulation simulation, int width, int height,
         out GeometryEvidence evidence)
     {
-        var v = new ArenaViewport(width, height, width, height);
+        var a = simulation.Gameplay.Arena;
+        var radius = (float)simulation.Gameplay.Ball.Radius;
+        var v = new ArenaViewport(width, height, width, height, a);
         draw.BeginFrame(width, height, new float3x2(v.Scale, 0, 0, v.Scale, v.X, v.Y));
         var wall = LinearColor.FromSrgb(.25f, .38f, .48f);
         var gold = LinearColor.FromSrgb(1, .75f, .25f);
         var cyan = LinearColor.FromSrgb(.2f, .9f, .85f);
         var preview = LinearColor.FromSrgb(.9f, .94f, 1);
-        draw.FillRect(new(32, 32), new(1216, 16), wall);
-        draw.FillRect(new(32, 672), new(1216, 16), wall);
-        draw.FillRect(new(32, 48), new(16, 624), wall);
-        draw.FillRect(new(1232, 48), new(16, 624), wall);
+        float t = (float)a.WallThickness;
+        float left = (float)a.Left, right = (float)a.Right, top = (float)a.Top, bottom = (float)a.Bottom;
+        draw.FillRect(new(left - t, top - t), new(right - left + 2 * t, t), wall);
+        draw.FillRect(new(left - t, bottom), new(right - left + 2 * t, t), wall);
+        draw.FillRect(new(left - t, top), new(t, bottom - top), wall);
+        draw.FillRect(new(right, top), new(t, bottom - top), wall);
         var state = simulation.State;
         float2 Point(double2 p) => new((float)p.X, (float)p.Y);
         var center = Point(state.Position);
         var ball = state.CatchEligible ? cyan : gold;
-        draw.FillDisc(center, (float)Arena.Radius, ball);
+        draw.FillDisc(center, radius, ball);
         // Gold: aiming or catch-locked flight. Cyan: a wall has unlocked catching.
-        draw.StrokeCircle(center, state.Phase == BallPhase.Aiming ? 21 : 18, 3, ball);
+        draw.StrokeCircle(center, radius + (state.Phase == BallPhase.Aiming ? 9 : 6), 3, ball);
         if (state.Phase == BallPhase.Aiming)
         {
             var hit = simulation.Preview();
             if (hit.HasHit)
             {
                 draw.StrokePolyline([center, Point(hit.Position)], 2, preview);
-                draw.StrokeCircle(Point(hit.Position), (float)Arena.Radius, 2, preview);
+                draw.StrokeCircle(Point(hit.Position), radius, 2, preview);
                 // Query-only separation from native cast slop; never moves the ball or claims an exact second impact.
                 const double secondaryQuerySkin = 1;
                 var next = simulation.Query(hit.Position + hit.Normal * secondaryQuerySkin, hit.ReflectedDirection);

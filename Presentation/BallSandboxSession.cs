@@ -5,7 +5,7 @@ using BrutalBreakout.Simulation;
 namespace BrutalBreakout.Presentation;
 
 /// <summary>Uniform physical framebuffer fit; cursor coordinates originate in logical window units.</summary>
-public readonly record struct ArenaViewport(int WindowWidth, int WindowHeight, int Width, int Height)
+public readonly record struct ArenaViewport(int WindowWidth, int WindowHeight, int Width, int Height, ArenaSettings Arena)
 {
     public float Scale => MathF.Min(Width / (float)Arena.Width, Height / (float)Arena.Height);
     public float X => (Width - (float)Arena.Width * Scale) / 2;
@@ -28,13 +28,15 @@ public sealed class BallSandboxSession : IDisposable
 {
     public BallSimulation Simulation { get; }
     public PhysicsSettings Settings => Simulation.Settings;
-    public InputRouter Router { get; } = new();
+    public InputRouter Router { get; }
     private readonly FixedStepClock clock;
 
-    public BallSandboxSession(PhysicsSettings settings)
+    public BallSandboxSession(PhysicsSettings physics, GameplaySettings gameplay, InputSettings input)
     {
-        clock = new(settings); // Validate managed dependencies before creating the native world.
-        Simulation = new(settings);
+        Router = new(input);
+        ArgumentNullException.ThrowIfNull(gameplay);
+        clock = new(physics); // Validate managed dependencies before creating the native world.
+        Simulation = new(physics, gameplay);
     }
     private readonly int ownerThread = Environment.CurrentManagedThreadId;
     private bool disposed;
@@ -53,6 +55,8 @@ public sealed class BallSandboxSession : IDisposable
         if (Environment.CurrentManagedThreadId != ownerThread)
             throw new InvalidOperationException("The session must be advanced on its owner thread.");
         ObjectDisposedException.ThrowIf(disposed, this);
+        if (!ReferenceEquals(viewport.Arena, Simulation.Gameplay.Arena))
+            throw new ArgumentException("Viewport must use this session's arena settings.", nameof(viewport));
         var input = Router.Route(snapshot);
         if (!input.Active)
         {

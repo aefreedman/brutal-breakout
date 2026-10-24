@@ -28,15 +28,20 @@ public sealed class BallSimulation : IDisposable
     public double StepSeconds => Settings.StepSeconds;
     private readonly NativeArena native;
 
-    public BallSimulation(PhysicsSettings settings)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        Settings = settings;
-        native = new(settings);
-    }
-    public BallState State { get; private set; } = InitialState();
+    public GameplaySettings Gameplay { get; }
 
-    private static BallState InitialState() => new(new(640, 612), default, new(0, -1), BallPhase.Aiming, false);
+    public BallSimulation(PhysicsSettings physics, GameplaySettings gameplay)
+    {
+        ArgumentNullException.ThrowIfNull(physics);
+        ArgumentNullException.ThrowIfNull(gameplay);
+        Settings = physics;
+        Gameplay = gameplay;
+        State = InitialState();
+        native = new(physics, gameplay);
+    }
+    public BallState State { get; private set; }
+
+    private BallState InitialState() => new(Gameplay.Ball.Spawn, default, Gameplay.Ball.InitialAim, BallPhase.Aiming, false);
 
     public WallContact Preview() => Query(State.Position, State.AimDirection);
     public WallContact Query(double2 origin, double2 direction) => native.Query(origin, direction);

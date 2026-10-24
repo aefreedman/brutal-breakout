@@ -10,7 +10,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [Fact]
     public void InitialStateAndLaunch()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         Assert.Equal(BallPhase.Aiming, sim.State.Phase);
         ArenaTests.Near(new(640, 612), sim.State.Position);
         ArenaTests.Near(default, sim.State.Velocity);
@@ -25,7 +25,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [Fact]
     public void CatchOnlyAfterContactPreservesPositionAndRequiresSeparatePress()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         sim.Step(new(PrimaryPressed: true));
         sim.Step(new(PrimaryPressed: true));
         Assert.Equal(BallPhase.Flying, sim.State.Phase);
@@ -47,10 +47,10 @@ public class BallSimulationTests(ITestOutputHelper output)
     [Fact]
     public void RestartWinsOverAimAndPrimary()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         sim.Step(new(PrimaryPressed: true));
         sim.Step(new(new double2(1, 0), true, true));
-        using var reference = new BallSimulation(TestSettings.Baseline);
+        using var reference = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         var initial = reference.State;
         Assert.Equal(initial, sim.State);
     }
@@ -60,7 +60,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [InlineData(double.Epsilon, double.Epsilon)]
     public void NormalizesFiniteDirectionsRobustly(double x, double y)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         sim.Step(new(new double2(x, y), true));
         Assert.InRange(double2.Distance(default, sim.State.Velocity), 599.99, 600.01);
         ArenaTests.Near(double2.Normalize(new double2(x / Math.Max(x, y), y / Math.Max(x, y))), sim.State.AimDirection);
@@ -71,7 +71,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [InlineData(1, double.PositiveInfinity)] [InlineData(double.NegativeInfinity, 1)]
     public void ZeroAndNonfiniteAimAreExplicitlyIgnored(double x, double y)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         sim.Step(new(new double2(x, y), true));
         ArenaTests.Near(new(0, -600), sim.State.Velocity);
     }
@@ -81,7 +81,7 @@ public class BallSimulationTests(ITestOutputHelper output)
     [InlineData(1, -0.5)] [InlineData(-1, -0.5)] [InlineData(1, 0.000001)]
     public void PreviewMatchesFirstNativeImpactWithinOneLogicalUnit(double x, double y)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         sim.Step(new(new double2(x, y)));
         var preview = sim.Preview();
         Assert.True(preview.HasHit);
@@ -99,7 +99,7 @@ public class BallSimulationTests(ITestOutputHelper output)
         Assert.True(sim.State.CatchEligible);
         output.WriteLine($"Shot ({x},{y}): closest preview-plane approach {closest:F9} logical units");
         Assert.InRange(closest, 0, 1);
-        ArenaTests.Near(preview.ReflectedDirection * Arena.Speed, sim.State.Velocity, .1);
+        ArenaTests.Near(preview.ReflectedDirection * TestSettings.Gameplay.Ball.Speed, sim.State.Velocity, .1);
     }
 
     private static double2 ArenaDirectionNormal(double2 incoming, double2 reflected) =>
@@ -111,18 +111,18 @@ public class BallSimulationTests(ITestOutputHelper output)
     [InlineData(580, 48)] [InlineData(-580, 48)] [InlineData(1, 0.000001)]
     public void LongRunNativeSolverDoesNotEscapeStallOrLoseEnergy(double x, double y)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         sim.Step(new(new double2(x, y), true));
         const double nativeContactAllowance = 2, coordinateRoundoffAllowance = .001;
         double penetration = 0, drift = 0;
         for (int i = 0; i < 10000; i++)
         {
             sim.Step();
-            penetration = Math.Max(penetration, Math.Max(Math.Max(Arena.MinX - sim.State.Position.X, sim.State.Position.X - Arena.MaxX),
-                Math.Max(Arena.MinY - sim.State.Position.Y, sim.State.Position.Y - Arena.MaxY)));
-            drift = Math.Max(drift, Math.Abs(double2.Distance(default, sim.State.Velocity) - Arena.Speed));
-            Assert.InRange(sim.State.Position.X, Arena.MinX - nativeContactAllowance - coordinateRoundoffAllowance, Arena.MaxX + nativeContactAllowance + coordinateRoundoffAllowance);
-            Assert.InRange(sim.State.Position.Y, Arena.MinY - nativeContactAllowance - coordinateRoundoffAllowance, Arena.MaxY + nativeContactAllowance + coordinateRoundoffAllowance);
+            penetration = Math.Max(penetration, Math.Max(Math.Max(TestSettings.Gameplay.MinX - sim.State.Position.X, sim.State.Position.X - TestSettings.Gameplay.MaxX),
+                Math.Max(TestSettings.Gameplay.MinY - sim.State.Position.Y, sim.State.Position.Y - TestSettings.Gameplay.MaxY)));
+            drift = Math.Max(drift, Math.Abs(double2.Distance(default, sim.State.Velocity) - TestSettings.Gameplay.Ball.Speed));
+            Assert.InRange(sim.State.Position.X, TestSettings.Gameplay.MinX - nativeContactAllowance - coordinateRoundoffAllowance, TestSettings.Gameplay.MaxX + nativeContactAllowance + coordinateRoundoffAllowance);
+            Assert.InRange(sim.State.Position.Y, TestSettings.Gameplay.MinY - nativeContactAllowance - coordinateRoundoffAllowance, TestSettings.Gameplay.MaxY + nativeContactAllowance + coordinateRoundoffAllowance);
             Assert.InRange(double2.Distance(default, sim.State.Velocity), 599, 601);
         }
         output.WriteLine($"Shot ({x},{y}), 10000 ticks: worst penetration {penetration:F9}, speed drift {drift:F9}");

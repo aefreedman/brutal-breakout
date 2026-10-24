@@ -24,8 +24,8 @@ public class ConfiguredPhysicsTests
     {
         var settings = new PhysicsSettings(hz, substeps, cap, 90, .7);
         var clock = new FixedStepClock(settings);
-        using var simulation = new BallSimulation(settings);
-        using var reference = new BallSimulation(settings);
+        using var simulation = new BallSimulation(settings, TestSettings.Gameplay);
+        using var reference = new BallSimulation(settings, TestSettings.Gameplay);
         Assert.Same(settings, simulation.Settings);
         Assert.Same(settings, clock.Settings);
         int ticks = 0;
@@ -46,7 +46,7 @@ public class ConfiguredPhysicsTests
     public void NativeFirstDisplacementUsesConfiguredStepAndSubsteps(int hz, int substeps)
     {
         var settings = new PhysicsSettings(hz, substeps, 2, 60, .5);
-        using var simulation = new BallSimulation(settings);
+        using var simulation = new BallSimulation(settings, TestSettings.Gameplay);
         double start = simulation.State.Position.Y;
         simulation.Step(new(PrimaryPressed: true));
         Assert.InRange(Math.Abs((start - simulation.State.Position.Y) - 600 * settings.StepSeconds), 0, .001);
@@ -96,9 +96,9 @@ public class ConfiguredPhysicsTests
     public void SessionLatchesUntilTickConsumesOnceAndClearsOnPause(int hz, int cap)
     {
         var settings = new PhysicsSettings(hz, 2, cap, 60, 1);
-        using var session = new BallSandboxSession(settings);
+        using var session = new BallSandboxSession(settings, TestSettings.Gameplay, TestSettings.Input);
         Assert.Same(settings, session.Settings);
-        var viewport = new ArenaViewport(1280, 720, 1280, 720);
+        var viewport = new ArenaViewport(1280, 720, 1280, 720, TestSettings.Gameplay.Arena);
         var idle = new InputSnapshot { Focused = true };
         var press = idle with { KeyboardPrimary = true };
         Assert.Equal(0, session.Advance(idle, 10, viewport)); // Activation discards time.
@@ -122,7 +122,7 @@ public class ConfiguredPhysicsTests
     {
         var settings = new PhysicsSettings(hz, substeps, 3, 60, 1);
         var clock = new FixedStepClock(settings);
-        using var simulation = new BallSimulation(settings);
+        using var simulation = new BallSimulation(settings, TestSettings.Gameplay);
         simulation.Step(new(PrimaryPressed: true));
         for (int i = 0; i < 1000; i++) { clock.Advance(settings.StepSeconds); simulation.Step(); }
         long before = GC.GetAllocatedBytesForCurrentThread();

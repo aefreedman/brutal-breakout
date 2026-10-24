@@ -10,7 +10,7 @@ public class FixedStepClockTests
     public void TimePartitionProducesSameTicksAndGameplay(int frames)
     {
         var clock = new FixedStepClock(TestSettings.Baseline);
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         bool launchPending = true;
         int steps = 0;
         for (int frame = 0; frame < frames; frame++)
@@ -23,7 +23,7 @@ public class FixedStepClockTests
                 launchPending = false;
             }
         }
-        using var reference = new BallSimulation(TestSettings.Baseline);
+        using var reference = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         reference.Step(new(PrimaryPressed: true));
         for (int tick = 1; tick < 120; tick++) reference.Step();
         Assert.Equal(120, steps);
@@ -68,7 +68,7 @@ public class FixedStepClockTests
     [Fact]
     public void MultiTickCallerConsumesPrimaryOnlyOnce()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         sim.Step(new(PrimaryPressed: true));
         for (int i = 0; i < 300 && !sim.State.CatchEligible; i++) sim.Step();
         Assert.True(sim.State.CatchEligible);

@@ -15,12 +15,19 @@ internal sealed class NativeArena : IDisposable
     private bool disposed;
 
     private readonly PhysicsSettings settings;
+    private readonly GameplaySettings gameplay;
 
-    internal NativeArena(PhysicsSettings settings)
+    internal NativeArena(PhysicsSettings settings, GameplaySettings gameplay)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(gameplay);
         this.settings = settings;
+        this.gameplay = gameplay;
+        float travel = gameplay.NativeSpeed * (float)settings.StepSeconds;
+        if (!float.IsFinite(travel) || !float.IsFinite(travel * travel))
+            throw new ArgumentException("Configured speed and timestep overflow native displacement arithmetic.");
         var definition = B2WorldDef.Default;
+        definition.MaximumLinearSpeed = Math.Max(definition.MaximumLinearSpeed, gameplay.NativeSpeed);
         definition.Gravity = default;
         definition.EnableSleep = false;
         definition.EnableContinuous = true;
@@ -51,13 +58,16 @@ internal sealed class NativeArena : IDisposable
                 var box = Box2D.MakeBox(hx, hy);
                 walls[index] = body.CreatePolygonShape(in shape, in box);
             }
-            Wall(0, .38f, 3.60f, .10f, 3.22f);
-            Wall(1, 12.42f, 3.60f, .10f, 3.22f);
-            Wall(2, 6.40f, .38f, 6.12f, .10f);
-            Wall(3, 6.40f, 6.82f, 6.12f, .10f);
+            var a = gameplay.Arena;
+            double t = a.WallThickness;
+            float M(double value) => Geometry.Meters(value);
+            Wall(0, M(a.Left - t / 2), M((a.Top + a.Bottom) / 2), M(t / 2), M((a.Bottom - a.Top) / 2));
+            Wall(1, M(a.Right + t / 2), M((a.Top + a.Bottom) / 2), M(t / 2), M((a.Bottom - a.Top) / 2));
+            Wall(2, M((a.Left + a.Right) / 2), M(a.Top - t / 2), M((a.Right - a.Left) / 2 + t), M(t / 2));
+            Wall(3, M((a.Left + a.Right) / 2), M(a.Bottom + t / 2), M((a.Right - a.Left) / 2 + t), M(t / 2));
             var bd = B2BodyDef.Default;
             bd.Type = B2BodyType.Dynamic;
-            bd.Position = new(6.4f, 6.12f);
+            bd.Position = gameplay.NativeSpawn;
             bd.IsBullet = true;
             bd.FixedRotation = true;
             bd.EnableSleep = false;
@@ -68,7 +78,7 @@ internal sealed class NativeArena : IDisposable
             shape.Filter.CategoryBits = 2;
             shape.Filter.MaskBits = 1;
             shape.Density = 1;
-            var circle = new B2Circle { Radius = .12f };
+            var circle = new B2Circle { Radius = gameplay.NativeRadius };
             ballShape = ball.CreateCircleShape(in shape, in circle);
             Freeze();
         }
@@ -99,12 +109,12 @@ internal sealed class NativeArena : IDisposable
     {
         Guard();
         ball.SetType(B2BodyType.Dynamic);
-        ball.SetLinearVelocity(new((float)(direction.X * 6), (float)(direction.Y * 6)));
+        ball.SetLinearVelocity(new((float)(direction.X * gameplay.NativeSpeed), (float)(direction.Y * gameplay.NativeSpeed)));
     }
     internal void Reset()
     {
         Freeze();
-        ball.SetTransform(new(6.4f, 6.12f), B2Rot.Identity);
+        ball.SetTransform(gameplay.NativeSpawn, B2Rot.Identity);
     }
     private bool IsWall(B2Shape shape)
     {
@@ -137,15 +147,15 @@ internal sealed class NativeArena : IDisposable
     internal WallContact Query(double2 origin, double2 direction)
     {
         Guard();
-        if (!Arena.Finite(origin) || origin.X < 0 || origin.X > Arena.Width || origin.Y < 0 || origin.Y > Arena.Height)
+        if (!Arena.Finite(origin) || origin.X < 0 || origin.X > gameplay.Arena.Width || origin.Y < 0 || origin.Y > gameplay.Arena.Height)
             throw new ArgumentOutOfRangeException(nameof(origin));
         if (!Arena.Finite(direction) || (direction.X == 0 && direction.Y == 0))
             throw new ArgumentOutOfRangeException(nameof(direction));
         var unit = Arena.Normalize(direction);
         // Longer than the arena diagonal, finite even for extreme input direction magnitudes.
-        const float castMeters = 16;
+        float castMeters = gameplay.CastMeters;
         float2 translation = new((float)unit.X * castMeters, (float)unit.Y * castMeters);
-        var proxy = new B2ShapeProxy { Count = 1, Radius = .12f };
+        var proxy = new B2ShapeProxy { Count = 1, Radius = gameplay.NativeRadius };
         proxy.Points[0] = new((float)(origin.X / UnitsPerMeter), (float)(origin.Y / UnitsPerMeter));
         var filter = B2QueryFilter.Default;
         filter.CategoryBits = 2;
