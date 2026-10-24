@@ -2,6 +2,7 @@
 
 - Use feature branches; do not merge into `main` without the user's approval.
 - Use focused subagents for implementation and independent review. Keep one writer per working tree; reviewers are read-only.
+- Keep execution proportional to the request: define a bounded scope before implementation, minimize serial handoffs and unnecessary review stages, and do not expand adjacent configuration/framework work without a concrete need. Run focused tests during implementation and the full relevant validation suite once at final integration; repeat broad gates only when fixes affect that coverage. Preserve atomic commits and independent review without turning them into ceremony.
 - Make small atomic commits: separate independently valid behavior changes from workflow/docs wiring, and build/test each before committing.
 - Keep Git remotes on HTTPS.
 - Planning files belong in `C:\Users\aaron\obs-mono\vaults\personal\brutal-breakout`, using `YY-MM-DD-kebab-case.md` names.
