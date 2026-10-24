@@ -23,6 +23,10 @@ internal sealed class NativeArena : IDisposable
         definition.WorkerCount = 0;
         definition.RestitutionThreshold = 0;
         definition.HitEventThreshold = 0;
+        // Published contact tuning: stiffness in Hz, 1 = critical damping.
+        // 120 Hz is one quarter of the 480 Hz substep rate; see API-EVIDENCE.md.
+        definition.ContactHertz = 120;
+        definition.ContactDampingRatio = 1;
         world = Box2D.CreateWorld(in definition);
         try
         {
@@ -173,7 +177,8 @@ internal sealed class NativeArena : IDisposable
         normal = float2.Normalize(normal);
         float2 reflected = float2.Reflect(new((float)unit.X, (float)unit.Y), normal);
         var displacement = Logical(translation) * nearest;
-        return new(double2.Distance(default, displacement), origin + displacement, new(reflected.X, reflected.Y));
+        return new(double2.Distance(default, displacement), origin + displacement, new(reflected.X, reflected.Y))
+        { Normal = new(normal.X, normal.Y) };
     }
 
     public void Dispose()

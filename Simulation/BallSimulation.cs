@@ -21,21 +21,26 @@ public readonly struct BallState
         => (Position, Velocity, AimDirection, Phase, CatchEligible) = (position, velocity, aimDirection, phase, catchEligible);
 }
 
-/// <summary>One synchronous, allocation-free 120Hz gameplay system. No wall time or platform dependencies.</summary>
-public sealed class BallSimulation
+/// <summary>One owned native world and a synchronous 120Hz gameplay system.</summary>
+public sealed class BallSimulation : IDisposable
 {
     public const double StepSeconds = 1.0 / 120;
+    private readonly NativeArena native = new();
     public BallState State { get; private set; } = InitialState();
 
     private static BallState InitialState() => new(new(640, 612), default, new(0, -1), BallPhase.Aiming, false);
 
-    public WallContact Preview() => Arena.QueryUnit(State.Position, State.AimDirection);
+    public WallContact Preview() => Query(State.Position, State.AimDirection);
+    public WallContact Query(double2 origin, double2 direction) => native.Query(origin, direction);
+    public void Dispose() => native.Dispose();
 
     /// <summary>Commands apply before movement. Launch moves during this tick; catch and restart do not.</summary>
     public void Step(SimulationCommand command = default)
     {
+        native.Guard();
         if (command.RestartPressed)
         {
+            native.Reset();
             State = InitialState();
             return;
         }
@@ -47,47 +52,27 @@ public sealed class BallSimulation
 
         var phase = state.Phase;
         bool eligible = state.CatchEligible;
-        double2 velocity = state.Velocity;
         if (command.PrimaryPressed)
         {
             if (phase == BallPhase.Aiming)
             {
+                native.Launch(aim);
                 phase = BallPhase.Flying;
-                velocity = aim * Arena.Speed;
                 eligible = false;
             }
             else if (eligible)
             {
+                native.Freeze();
                 State = new(state.Position, default, aim, BallPhase.Aiming, false);
                 return; // A catch never fires on the same edge.
             }
         }
 
-        double2 position = state.Position;
         if (phase == BallPhase.Flying)
         {
-            double remaining = Arena.Speed * StepSeconds;
-            double2 travel = velocity / Arena.Speed;
-            // Tick distance is 5 units; inset spans are >=600. At most two distinct
-            // immediate/near-corner contacts plus final travel fit in one tick.
-            for (int i = 0; i < 4 && remaining > 0; i++)
-            {
-                var hit = Arena.QueryUnit(position, travel);
-                if (hit.Distance > remaining)
-                {
-                    position += travel * remaining;
-                    remaining = 0;
-                }
-                else
-                {
-                    position = hit.Position;
-                    remaining -= hit.Distance;
-                    travel = hit.ReflectedDirection;
-                    eligible = true;
-                }
-            }
-            velocity = travel * Arena.Speed;
+            eligible |= native.Step();
+            State = new(native.Position, native.Velocity, aim, phase, eligible);
         }
-        State = new(position, velocity, aim, phase, eligible);
+        else State = new(state.Position, state.Velocity, aim, phase, eligible);
     }
 }

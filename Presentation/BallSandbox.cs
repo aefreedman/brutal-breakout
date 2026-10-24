@@ -31,10 +31,20 @@ public static class BallSandbox
         if (state.Phase == BallPhase.Aiming)
         {
             var hit = simulation.Preview();
-            draw.StrokePolyline([center, Point(hit.Position)], 2, preview);
-            draw.StrokeCircle(Point(hit.Position), (float)Arena.Radius, 2, preview);
-            double reflectedLength = Math.Min(72, Arena.Query(hit.Position, hit.ReflectedDirection).Distance);
-            draw.StrokePolyline([Point(hit.Position), Point(hit.Position + hit.ReflectedDirection * reflectedLength)], 2, preview);
+            if (hit.HasHit)
+            {
+                draw.StrokePolyline([center, Point(hit.Position)], 2, preview);
+                draw.StrokeCircle(Point(hit.Position), (float)Arena.Radius, 2, preview);
+                // Query-only separation from native cast slop; never moves the ball or claims an exact second impact.
+                const double secondaryQuerySkin = 1;
+                var next = simulation.Query(hit.Position + hit.Normal * secondaryQuerySkin, hit.ReflectedDirection);
+                if (next.HasHit)
+                {
+                    double reflectedLength = Math.Min(72, next.Distance);
+                    draw.StrokePolyline([Point(hit.Position), Point(hit.Position + hit.ReflectedDirection * reflectedLength)], 2, preview);
+                }
+            }
+            else draw.StrokePolyline([center, Point(state.Position + state.AimDirection * 48)], 2, preview);
         }
         var frame = draw.Finish();
         // Count actual submitted indices by the three distinct, opaque category colors.
