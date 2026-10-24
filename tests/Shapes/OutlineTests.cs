@@ -127,6 +127,25 @@ public class OutlineTests
         double innerArea = (20 - 2 * inside) * (10 - 2 * inside) - (4 - Math.PI) * Math.Pow(3 - inside, 2);
         Assert.InRange(Area(f), (outerArea - innerArea) * .97, (outerArea - innerArea) * 1.03);
     }
+    [Theory]
+    [InlineData(StrokeSpace.Local, 2f)]
+    [InlineData(StrokeSpace.Framebuffer, 2f)]
+    [InlineData(StrokeSpace.Local, 200000f)]
+    [InlineData(StrokeSpace.Framebuffer, 200000f)]
+    public void ZeroRadiusOutlineMatchesRectangleWithoutCurveLimits(StrokeSpace space, float width)
+    {
+        using var rounded = new ShapeDrawList();
+        using var rectangle = new ShapeDrawList();
+        rounded.BeginFrame(100, 100);
+        rectangle.BeginFrame(100, 100);
+        rounded.StrokeRoundedRect(V(0, 0), V(10, 10), 0, width, White, StrokeAlignment.Outside, space);
+        rectangle.StrokeRect(V(0, 0), V(10, 10), width, White, StrokeAlignment.Outside, space);
+        var a = rounded.Finish(); var b = rectangle.Finish();
+        Assert.Equal(Area(b), Area(a), 5);
+        var actual = a.Vertices.ToArray().Select(v => v.Position).Distinct().OrderBy(p => p.X).ThenBy(p => p.Y).ToArray();
+        var expected = b.Vertices.ToArray().Select(v => v.Position).Distinct().OrderBy(p => p.X).ThenBy(p => p.Y).ToArray();
+        Assert.Equal(expected, actual);
+    }
     [Fact]
     public void ConsumedCircleAndRoundedHoleBecomeSolid()
     {

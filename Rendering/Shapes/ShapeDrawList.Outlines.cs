@@ -49,7 +49,8 @@ public sealed partial class ShapeDrawList
         if (NoOutput(color) || width == 0 || s.X == 0 || s.Y == 0) return;
         double r = Math.Min(radius, Math.Min(s.X, s.Y) / 2);
         var (outside, inside) = Distances(width, alignment);
-        int n = RoundResolution(space == StrokeSpace.Local ? r + outside : r * Scale() + outside, space);
+        // A zero-radius boundary has miter corners only; width does not introduce arcs.
+        int n = r == 0 ? 8 : RoundResolution(space == StrokeSpace.Local ? r + outside : r * Scale() + outside, space);
         if (space == StrokeSpace.Framebuffer)
         {
             RoundedBoundary(outlineBoundary, o, s, r, n / 4);
