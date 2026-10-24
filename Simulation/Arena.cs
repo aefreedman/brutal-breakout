@@ -2,7 +2,10 @@ using Brutal.Numerics;
 
 namespace BrutalBreakout.Simulation;
 
-public readonly record struct WallContact(double Distance, double2 Position, double2 ReflectedDirection);
+public readonly record struct WallContact(double Distance, double2 Position, double2 ReflectedDirection)
+{
+    public bool HasHit { get; init; } = true;
+}
 
 /// <summary>Provisional closed sandbox. Logical units, +X right, +Y down. Bounds describe wall faces.</summary>
 public static class Arena
