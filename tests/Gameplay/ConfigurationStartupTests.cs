@@ -6,7 +6,7 @@ public class ConfigurationStartupTests
 {
     [Theory]
     [InlineData("--gameplay-smoke-test")]
-    [InlineData("--showcase")]
+    [InlineData("--smoke-test")]
     public async Task InvalidExplicitConfigurationExitsBeforePlatformStartup(string mode)
     {
         string path = Path.Combine(Path.GetTempPath(), "brutal-bad-physics-" + Guid.NewGuid().ToString("N") + ".json");

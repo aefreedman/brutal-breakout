@@ -207,6 +207,33 @@ public class PhysicsConfigurationTests
         Assert.NotEqual(position, session.Simulation.State.Position);
     }
 
+    [Fact]
+    public void ConfiguredTouchingPoseRelaunchMovesOnSeparateEdgeAndMayRegainEligibility()
+    {
+        // This explicit fixture reaches a native touching pose; a new begin event on relaunch is valid.
+        var settings = new PhysicsSettings(60, 2, 1, 60, 1);
+        using var session = new BallSandboxSession(settings);
+        var view = new ArenaViewport(1280, 720, 1280, 720);
+        var idle = new InputSnapshot { Focused = true };
+        var press = idle with { KeyboardPrimary = true };
+        session.Advance(idle, 0, view);
+        session.Advance(press, settings.StepSeconds, view);
+        for (int i = 0; i < 120 && !session.Simulation.State.CatchEligible; i++)
+            session.Advance(idle, settings.StepSeconds, view);
+        Assert.True(session.Simulation.State.CatchEligible);
+        var caught = session.Simulation.State.Position;
+        session.Advance(press, settings.StepSeconds, view);
+        Assert.Equal(BallPhase.Aiming, session.Simulation.State.Phase);
+        for (int i = 0; i < 6; i++) session.Advance(press, settings.StepSeconds, view);
+        Assert.Equal(caught, session.Simulation.State.Position);
+        var away = idle with { KeyboardDirection = new(0, -1) };
+        session.Advance(away, settings.StepSeconds, view);
+        session.Advance(away with { KeyboardPrimary = true }, settings.StepSeconds, view);
+        Assert.Equal(BallPhase.Flying, session.Simulation.State.Phase);
+        Assert.True(session.Simulation.State.Position.Y > caught.Y);
+        Assert.True(session.Simulation.State.CatchEligible);
+    }
+
     private static void Reject(string json)
     {
         using var files = new Files();

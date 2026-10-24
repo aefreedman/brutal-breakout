@@ -1,0 +1,7 @@
+{
+  "updateHz": 60,
+  "substeps": 2,
+  "maxCatchUpSteps": 1,
+  "contactHertz": 60,
+  "contactDampingRatio": 1
+}

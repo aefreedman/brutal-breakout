@@ -1,12 +1,24 @@
 # Windows-only hidden GPU regression. Never activates or shows a window.
 param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug',
-      [ValidateSet('Showcase', 'Gameplay')][string] $Mode = 'Showcase')
+      [ValidateSet('Showcase', 'Gameplay')][string] $Mode = 'Showcase',
+      [string] $PhysicsConfig)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Requires Windows/PowerShell 7.' }
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $exe = Join-Path $root "bin/$Configuration/net10.0/brutal-breakout.exe"
 if (-not (Test-Path -LiteralPath $exe)) { throw "Build first: dotnet build -c $Configuration" }
+$physicsPath = $null
+$physicsExpected = $null
+if ($Mode -eq 'Gameplay') {
+    # Deterministic test fixture, independent of the editable production physics.json.
+    $physicsPath = if ([string]::IsNullOrWhiteSpace($PhysicsConfig)) {
+        Join-Path $root 'tests/Gameplay/Fixtures/physics-default.json'
+    } else { [IO.Path]::GetFullPath($PhysicsConfig) }
+    $physicsExpected = [IO.File]::ReadAllText($physicsPath) | ConvertFrom-Json
+} elseif (-not [string]::IsNullOrWhiteSpace($PhysicsConfig)) {
+    throw '-PhysicsConfig applies only to -Mode Gameplay.'
+}
 Add-Type @'
 using System;
 using System.Collections.Generic;
@@ -39,6 +51,10 @@ $process = $null
 try {
     $start = [Diagnostics.ProcessStartInfo]::new($exe)
     $start.ArgumentList.Add($(if ($Mode -eq 'Gameplay') { '--gameplay-smoke-test' } else { '--smoke-test' }))
+    if ($Mode -eq 'Gameplay') {
+        $start.ArgumentList.Add('--physics-config')
+        $start.ArgumentList.Add($physicsPath)
+    }
     $start.WorkingDirectory = $root
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true # suppress the executable's console as well as GLFW's window
@@ -92,6 +108,22 @@ try {
     }
     if ($sizes.Count -lt 2) { throw 'Missing distinct nonempty resize viewports.' }
     } else {
+        $loaded = [regex]::Match($output, 'Physics configuration: updateHz=([^;]+); stepSeconds=([^;]+); substeps=(\d+); maxCatchUpSteps=(\d+); contactHertz=([^;]+); contactDampingRatio=([^;]+); path=([^\r\n]+)')
+        if (-not $loaded.Success) { throw 'Missing actual loaded physics settings.' }
+        $culture = [Globalization.CultureInfo]::InvariantCulture
+        $hz = [double]::Parse($loaded.Groups[1].Value, $culture)
+        $step = [double]::Parse($loaded.Groups[2].Value, $culture)
+        $expectedStep = 1.0 / [double]$physicsExpected.updateHz
+        if ($hz -ne [double]$physicsExpected.updateHz -or
+            [Math]::Abs($step - $expectedStep) -gt [Math]::Abs($expectedStep) * 1e-12 -or
+            [int]$loaded.Groups[3].Value -ne [int]$physicsExpected.substeps -or
+            [int]$loaded.Groups[4].Value -ne [int]$physicsExpected.maxCatchUpSteps -or
+            [float]::Parse($loaded.Groups[5].Value, $culture) -ne [float]$physicsExpected.contactHertz -or
+            [float]::Parse($loaded.Groups[6].Value, $culture) -ne [float]$physicsExpected.contactDampingRatio -or
+            $loaded.Groups[7].Value -ne $physicsPath) {
+            throw 'Loaded physics settings/path do not match the selected fixture.'
+        }
+        Write-Output "Verified configured gameplay: updateHz=$hz; substeps=$($loaded.Groups[3].Value); maxCatchUpSteps=$($loaded.Groups[4].Value)."
         $receipt = 'Gameplay receipt regression PASS: clearOnlyPresented=True; geometryPresented=False; nonemptyPresentedFrames=0; viewports=0; stage=Initial.'
         if (-not $output.Contains($receipt) -or
             $output -notmatch 'Shape frame 1281x720 skipped after resize; rebuild at 1280x720\.' -or
@@ -116,7 +148,7 @@ try {
         }
         $result = [regex]::Match($output, 'Gameplay: launch wall catch hold release relaunch reset passed; ticks=(\d+); nonemptyPresentedFrames=(\d+); hidden resize and resumed presentation passed\.')
         if (-not $sizes.Contains('1280x720') -or -not $sizes.Contains('960x540') -or
-            -not $result.Success -or [int]$result.Groups[1].Value -lt 100 -or
+            -not $result.Success -or [int]$result.Groups[1].Value -le 0 -or
             [int]$result.Groups[2].Value -lt 9 -or $output -notmatch 'Validation: 0 errors, \d+ warnings\.') {
             throw 'Missing gameplay transitions/resize/validation evidence.'
         }

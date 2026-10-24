@@ -61,9 +61,9 @@ internal sealed class BallSandboxSmoke : IDisposable
             case Stage.Release:
                 Require(s.Phase == BallPhase.Aiming && s.Position == caught, "separate release"); break;
             case Stage.Relaunch:
-                // This measured straight-up scenario has no new native begin/hit event on relaunch.
-                // Other contact-point relaunches can legitimately regain eligibility immediately.
-                Require(s.Phase == BallPhase.Flying && !s.CatchEligible && s.Position != caught, "separate repress relaunch"); break;
+                // Different configured timesteps can catch at a touching pose. A real new native
+                // contact may unlock catch again during this launch tick; phase/movement prove relaunch.
+                Require(s.Phase == BallPhase.Flying && s.Position != caught, "separate repress relaunch"); break;
             case Stage.Reset:
                 Require(s.Phase == BallPhase.Aiming && s.Position == new double2(640, 612) &&
                     s.AimDirection == new double2(0, -1), "reset"); break;
