@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Rendering/Shaders/shapes.vert;Rendering/Shaders/shapes.frag" />
+    <None Update="physics.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

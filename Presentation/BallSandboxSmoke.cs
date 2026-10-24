@@ -7,7 +7,8 @@ namespace BrutalBreakout.Presentation;
 /// <summary>Deterministic fake snapshots, never desktop input. Stages only advance after a presentation.</summary>
 internal sealed class BallSandboxSmoke : IDisposable
 {
-    public BallSandboxSession Session { get; } = new();
+    public BallSandboxSession Session { get; }
+    public BallSandboxSmoke(PhysicsSettings settings) => Session = new(settings);
     private enum Stage { Initial, Launch, Travel, Catch, Hold, Release, Relaunch, Reset, Resized, Done }
     private Stage stage;
     private double2 caught;
@@ -25,7 +26,7 @@ internal sealed class BallSandboxSmoke : IDisposable
         {
             Focused = true, KeyboardPrimary = primary, KeyboardRestart = stage == Stage.Reset,
             KeyboardDirection = stage is Stage.Release or Stage.Relaunch ? new(0, -1) : default
-        }, 1.0 / 60, viewport);
+        }, Session.Settings.StepSeconds * 2, viewport);
     }
 
     public void Presented(int width, int height, BallSandbox.GeometryEvidence geometry)

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using BrutalBreakout.Configuration;
 using Brutal.GlfwApi;
 using Brutal.Numerics;
 using BrutalBreakout.Rendering;
@@ -19,6 +20,18 @@ var gallery = showcase || smokeTest || resizeStressTest;
 var cleanupSelfTest = args.Contains("--cleanup-self-test");
 if (smokeTest || cleanupSelfTest) VerifyCleanupFailureHandling();
 if (cleanupSelfTest) return;
+LoadedPhysicsConfiguration? physics;
+try
+{
+    physics = PhysicsConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    if (physics is not null) Console.WriteLine(physics.Describe());
+}
+catch (Exception error) when (error is InvalidDataException or ArgumentException)
+{
+    Console.Error.WriteLine(error.Message);
+    Environment.ExitCode = 1;
+    return; // Configuration failure must precede GLFW initialization or native world creation.
+}
 #if DEBUG
 var validation = !args.Contains("--no-validation");
 #else
@@ -56,9 +69,9 @@ try
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
             "Ball arena: aim, press to launch, bounce to unlock catch; release/repress to relaunch. See README.");
-        using var session = !gallery && !gameplaySmokeTest ? new BallSandboxSession() : null;
+        using var session = !gallery && !gameplaySmokeTest ? new BallSandboxSession(physics!.Settings) : null;
         var poller = new GlfwInputPoller(window);
-        using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke() : null;
+        using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings) : null;
         var gameplayViewports = new HashSet<(int Width, int Height)>();
         var gameplayFrames = 0;
         var staleFrameRegressionPassed = false;

@@ -16,7 +16,7 @@ public class SessionTests
 
     [Fact] public void PendingEdgeSurvivesNoTickAndIsConsumedOnlyOnce()
     {
-        using var s = new BallSandboxSession();
+        using var s = new BallSandboxSession(TestSettings.Baseline);
         s.Advance(Sample(), 0, View);
         Assert.Equal(0, s.Advance(Sample(true), .001, View));
         Assert.Equal(BallPhase.Aiming, s.Simulation.State.Phase);
@@ -27,7 +27,7 @@ public class SessionTests
 
     [Fact] public void CatchHoldsAndSeparateEdgeRelaunches()
     {
-        using var s = new BallSandboxSession();
+        using var s = new BallSandboxSession(TestSettings.Baseline);
         s.Advance(Sample(), 0, View);
         s.Advance(Sample(true), 1.0 / 60, View);
         for (int i = 0; i < 200 && !s.Simulation.State.CatchEligible; i++)
@@ -45,7 +45,7 @@ public class SessionTests
 
     [Fact] public void RestartCancelsPendingPrimaryAndAim()
     {
-        using var s = new BallSandboxSession();
+        using var s = new BallSandboxSession(TestSettings.Baseline);
         s.Advance(Sample(), 0, View);
         s.Advance(Sample(true), 0, View);
         s.Advance(Sample(true, true), 0, View);
@@ -56,7 +56,7 @@ public class SessionTests
 
     [Fact] public void FocusLossDropsPendingAndResumeDropsElapsedAndHeldPress()
     {
-        using var s = new BallSandboxSession();
+        using var s = new BallSandboxSession(TestSettings.Baseline);
         s.Advance(Sample(), 0, View);
         s.Advance(Sample(true), .001, View);
         s.Advance(default, 100, View);
@@ -70,7 +70,7 @@ public class SessionTests
 
     [Fact] public void DirectionYIsConvertedAndStationaryMouseDoesNotOverride()
     {
-        using var s = new BallSandboxSession();
+        using var s = new BallSandboxSession(TestSettings.Baseline);
         var a = Sample() with { KeyboardDirection = new(1, 1), Cursor = new(100, 100) };
         s.Advance(a, 0, View);
         s.Advance(a, 1.0 / 60, View);
@@ -83,7 +83,7 @@ public class SessionTests
 
     [Fact] public void ZeroFramebufferDoesNotPausePhysicsOrChangeAim()
     {
-        using var s = new BallSandboxSession();
+        using var s = new BallSandboxSession(TestSettings.Baseline);
         s.Advance(Sample(), 0, View);
         s.Advance(Sample(true), 1.0 / 60, View);
         var p = s.Simulation.State.Position;
@@ -94,7 +94,7 @@ public class SessionTests
 
     [Fact] public void PointerAimsFromBallCenterNotWorldOrigin()
     {
-        using var s = new BallSandboxSession();
+        using var s = new BallSandboxSession(TestSettings.Baseline);
         s.Advance(Sample(), 0, View);
         s.Advance(Sample() with { Cursor = new(740, 612) }, 1.0 / 60, View);
         Assert.Equal(new double2(1, 0), s.Simulation.State.AimDirection);
@@ -104,7 +104,7 @@ public class SessionTests
 
     [Fact] public void FlyingResumeDoesNotJump()
     {
-        using var s = new BallSandboxSession();
+        using var s = new BallSandboxSession(TestSettings.Baseline);
         s.Advance(Sample(), 0, View);
         s.Advance(Sample(true), 1.0 / 60, View);
         var p = s.Simulation.State.Position;
@@ -138,7 +138,7 @@ public class SessionTests
     public void GeometryIncludesArenaBallAndPhaseCue(int w, int h)
     {
         using var draw = new ShapeDrawList();
-        using var sim = new BallSimulation();
+        using var sim = new BallSimulation(TestSettings.Baseline);
         var frame = BallSandbox.Build(draw, sim, w, h, out var aiming);
         Assert.True(frame.Indices.Length > 0);
         Assert.True(aiming.ArenaIndices > 0 && aiming.BallIndices > 0 && aiming.AimIndices > 0);

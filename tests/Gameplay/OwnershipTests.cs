@@ -17,7 +17,7 @@ public class OwnershipTests
         {
             try
             {
-                using var owner = new BallSandboxSession();
+                using var owner = new BallSandboxSession(TestSettings.Baseline);
                 session = owner;
                 owner.Simulation.Step(new(PrimaryPressed: true));
                 if (fail) throw original;
@@ -41,7 +41,7 @@ public class OwnershipTests
     [InlineData(true, 1)]
     public void DisposedSessionRejectsAdvanceEvenWithoutNativeTick(bool focused, double seconds)
     {
-        using var session = new BallSandboxSession();
+        using var session = new BallSandboxSession(TestSettings.Baseline);
         var snapshot = session.Simulation.State;
         session.Dispose();
         session.Dispose();
@@ -56,7 +56,7 @@ public class OwnershipTests
     [Fact]
     public void WrongThreadCannotAdvanceOrDisposeAndOwnerCanContinue()
     {
-        using var session = new BallSandboxSession();
+        using var session = new BallSandboxSession(TestSettings.Baseline);
         Exception? advance = null, dispose = null;
         var thread = new Thread(() =>
         {
@@ -74,10 +74,10 @@ public class OwnershipTests
     [Fact]
     public void RepeatedIndependentHostLifetimesDoNotInvalidateHeldWorld()
     {
-        using var held = new BallSandboxSession();
+        using var held = new BallSandboxSession(TestSettings.Baseline);
         for (int i = 0; i < 50; i++)
         {
-            using var temporary = new BallSandboxSession();
+            using var temporary = new BallSandboxSession(TestSettings.Baseline);
             temporary.Simulation.Step(new(PrimaryPressed: true));
             Assert.True(temporary.Simulation.Preview().HasHit);
         }
