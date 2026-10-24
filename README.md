@@ -50,7 +50,7 @@ No graphics API is selected yet. A Vulkan SDK/GPU check is deferred until we cho
 
 ## Git
 
-This project starts as a local repository on `main`. No remote is configured or GitHub repository created.
+The repository uses `main` and a private GitHub remote at `https://github.com/aefreedman/brutal-breakout.git` (HTTPS).
 
 Useful commands:
 
