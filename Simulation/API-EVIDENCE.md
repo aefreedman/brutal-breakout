@@ -1,5 +1,65 @@
 # Published Box2D backend evidence
 
+## Gameplay/native geometry settings (current seam; supersedes constructors/constants below)
+
+Public required APIs (no defaults or file IO):
+
+- `ArenaSettings(double width, double height, double left, double top, double right, double bottom, double wallThickness)`;
+  getter-only `Width`, `Height`, `Left`, `Top`, `Right`, `Bottom`, `WallThickness` (double).
+- `BallSettings(double radius, double speed, double spawnX, double spawnY, double initialAimX, double initialAimY)`;
+  getter-only `Radius`, `Speed` (double), `Spawn`, `InitialAim` (double2 value copies). Aim normalizes once.
+- `GameplaySettings(ArenaSettings arena, BallSettings ball)`; exact-reference `Arena`, `Ball`, derived double
+  `MinX`, `MaxX`, `MinY`, `MaxY`. All three settings types are sealed and immutable.
+- `BallSimulation(PhysicsSettings physics, GameplaySettings gameplay)`; exact-reference `Settings`, `Gameplay`.
+- `BallSandboxSession(PhysicsSettings physics, GameplaySettings gameplay, InputSettings input)`;
+  `Settings` and `Simulation` retained; `Router.Settings` is the exact input instance.
+- `ArenaViewport(int WindowWidth, int WindowHeight, int Width, int Height, ArenaSettings Arena)`;
+  the first two sizes are logical window dimensions, the next two physical framebuffer dimensions.
+  `Advance` rejects viewports whose Arena is not the session's exact arena object, before routing input.
+
+Validation before native allocation: finite positive canvas/thickness/radius/speed, finite ordered wall faces,
+finite spawn, finite nonzero robustly normalized aim; walls including thickness fit canvas; radius-inset area
+is nonempty and contains spawn (inclusive). Canvas is limited by the existing renderer 2^20 coordinate
+contract, not a new arbitrary gameplay range. Float rendering/native faces, insets, body positions and
+half extents must not collapse. Native radius/speed/cast reach must be positive finite floats; native
+squared speed must be positive finite; wall squared lengths and inverse, circle mass/inertia and inverse,
+and cast squared length must be finite/nondegenerate. Speed times configured timestep and its square
+must remain finite, checked before CreateWorld. These checks establish numeric representability, not
+stable/accurate physics for every representable combination of scale, speed and timestep.
+
+One unit definition remains: 100 logical units per native meter. Walls are four rectangles matching the
+actual drawn union: top/bottom span outer side edges; side rectangles span inner top/bottom faces.
+Native circle, launch speed, spawn/reset, origin limits and full-circle query all derive from Gameplay.
+Cast reach is canvas diagonal plus twice radius. No per-step speed repair/clamp/custom reflection exists.
+Catch retains the exact application snapshot; reset restores the exact configured application spawn/aim,
+with its corresponding float native transform, rather than copying rounded native state into the snapshot.
+
+Published symbol proof: installed `Ahwoo.BRUTAL.Box2D 2026.10.2` XML entry
+`F:Brutal.Box2DApi.B2WorldDef.MaximumLinearSpeed` documents native meters/sec; reflection test confirms
+actual public field type System.Single and production assignment compiles against that DLL.
+`B2WorldDef.Default.MaximumLinearSpeed` is **400 m/s** on tested assets. World definition sets it to
+at least configured native speed. Actual first-step **80000 logical units/sec (800 m/s)** remains uncapped
+in a 100000x80000 canvas; full-circle cast reaches the configured far face, far beyond the former 16m.
+No package/API additions, custom P/Invoke or solver changes were needed.
+
+Headless Debug and Release: **173/173 tests each** (143 preserved +30 new), zero build warnings/errors,
+locked restores for standalone Simulation and tests/Simulation. Tests serialize native allocation and
+explicitly dispose worlds. New fixtures prove radius/speed **7/350** and **23/950**, canvas1800x1000,
+inner faces80/120/1600/850, thickness24, spawn420/600, initial aim3/-4 -> .6/-.8. Actual native initial
+motion agrees within .01 logical units/velocity units, contact unlocks catch, contact speed within .1,
+cast radius-plane agrees within .51 (documented native slop), hold and reset snapshot are exact.
+Custom ownership cycles prove independent filters and repeated disposal. Actual linked CPU geometry
+proves wall extents56..1624/96..874, radius23 disc and radius+9 halo (+1.5 stroke halfwidth), actual indexed
+categories, 2x DPI fitting/letterbox rejection and session pointer mapping on the same arena instance.
+Native and float precision failures are tested without creating a world.
+
+Integration intentionally outstanding: Program.cs must provide gameplay/input to session and its arena
+to viewport; Presentation/BallSandboxSmoke.cs must replace old constructor/static Arena bounds and
+literal spawn/speed assumptions; tests/Gameplay requires explicit settings fixtures and migrated callers.
+Root JSON/loaders/CLI/assets/locks/README and GPU validation are integration-owned, untouched here.
+No root build, visible window, graphics call, GPU test, push or merge was run. Prior native slop,
+contact tolerances, owner-thread/lifetime rules and query callback policies remain unchanged.
+
 ## Configurable core seam (supersedes fixed timing/public constructor notes below)
 
 `PhysicsSettings(double updateHz, int substeps, int maxCatchUpSteps, double contactHertz,
