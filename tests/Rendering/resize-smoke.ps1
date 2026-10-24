@@ -7,6 +7,9 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# ASYNCWINDOWPOS | NOMOVE | NOZORDER: queue cross-thread changes without waiting
+# on a hung render thread, so timeout/cleanup code can still run.
+$resizeFlags = 0x4000 -bor 0x0002 -bor 0x0004
 if (-not $IsWindows) { throw 'This external-resize regression requires Windows/PowerShell 7.' }
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $exe = Join-Path $root "bin/$Configuration/net10.0/brutal-breakout.exe"
@@ -43,14 +46,14 @@ try {
             if ($window -eq [IntPtr]::Zero) { throw 'Window readiness timed out.' }
             # Give initialization/presentation time, then reproduce the originally failing resize.
             Start-Sleep -Seconds 3
-            if (-not [BrutalBreakout.Tests.ResizeWindow]::SetWindowPos($window, [IntPtr]::Zero, 0, 0, 1600, 760, 6)) {
+            if (-not [BrutalBreakout.Tests.ResizeWindow]::SetWindowPos($window, [IntPtr]::Zero, 0, 0, 1600, 760, $resizeFlags)) {
                 throw 'Initial external resize failed.'
             }
             Start-Sleep -Milliseconds 500
             for ($n = 0; $n -lt 40; $n++) {
                 $process.Refresh()
                 if ($process.HasExited) { throw "Application exited during resize stress: $($process.ExitCode)" }
-                if (-not [BrutalBreakout.Tests.ResizeWindow]::SetWindowPos($window, [IntPtr]::Zero, 0, 0, (840 + ($n % 7) * 110), (600 + ($n % 3) * 70), 6)) {
+                if (-not [BrutalBreakout.Tests.ResizeWindow]::SetWindowPos($window, [IntPtr]::Zero, 0, 0, (840 + ($n % 7) * 110), (600 + ($n % 3) * 70), $resizeFlags)) {
                     throw 'Stress resize failed.'
                 }
                 Start-Sleep -Milliseconds 40
