@@ -9,7 +9,7 @@ namespace BrutalBreakout.Rendering.Shapes;
 /// Finite nonsingular transforms can exceed FLOAT32 representability: inverted quantized tiles are rejected
 /// transactionally rather than submitted with translucent overlap. No arbitrary determinant cutoff is used.
 /// Borrowed frame buffers become invalid at the next BeginFrame or disposal.</summary>
-public sealed class ShapeDrawList : IDisposable
+public sealed partial class ShapeDrawList : IDisposable
 {
     private readonly int maxVertices, maxIndices;
     private ShapeVertex[] vertices = [];
@@ -389,13 +389,17 @@ public sealed class ShapeDrawList : IDisposable
     {
         CleanOutline(polygon);
         ValidateSimpleOutline(polygon, "Self-intersecting/overlapping stroke outline.");
+        EarTriangulate();
+    }
+    private void EarTriangulate(bool hole = false)
+    {
         int n = polygon.Count;
         double area = 0;
         for (int i = 1; i + 1 < n; i++) area += Cross(polygon[i] - polygon[0], polygon[i + 1] - polygon[0]);
         if (area == 0) return;
         double sign = Math.Sign(area);
-        Grow(ref previous, n, 4096); Grow(ref next, n, 4096);
-        Grow(ref live, n, 4096); Grow(ref ear, n, 4096);
+        Grow(ref previous, n, hole ? 16384 : 4096); Grow(ref next, n, hole ? 16384 : 4096);
+        Grow(ref live, n, hole ? 16384 : 4096); Grow(ref ear, n, hole ? 16384 : 4096);
         candidates.Clear();
         for (int i = 0; i < n; i++)
         {
@@ -403,7 +407,7 @@ public sealed class ShapeDrawList : IDisposable
         }
         // An existing ear remains an ear when unrelated vertices disappear. Only the
         // two neighbors of a removed ear need recomputing: bounded quadratic work.
-        for (int i = 0; i < n; i++) UpdateEar(i, n, sign);
+        for (int i = 0; i < n; i++) UpdateEar(i, n, sign, hole);
         int remaining = n;
         while (remaining > 3)
         {
@@ -415,11 +419,11 @@ public sealed class ShapeDrawList : IDisposable
             int a = previous[b], c = next[b];
             Tri(a, b, c); live[b] = false; ear[b] = false;
             next[a] = c; previous[c] = a; remaining--;
-            UpdateEar(a, n, sign); UpdateEar(c, n, sign);
+            UpdateEar(a, n, sign, hole); UpdateEar(c, n, sign, hole);
         }
         for (int i = 0; i < n; i++) if (live[i]) { Tri(previous[i], i, next[i]); break; }
     }
-    private void UpdateEar(int b, int n, double sign)
+    private void UpdateEar(int b, int n, double sign, bool hole = false)
     {
         int a = previous[b], c = next[b];
         ear[b] = false;
@@ -427,18 +431,19 @@ public sealed class ShapeDrawList : IDisposable
         for (int j = 0; j < n; j++)
         {
             if (!live[j] || j == a || j == b || j == c) continue;
+            if (hole && (polygon[j] == polygon[a] || polygon[j] == polygon[b] || polygon[j] == polygon[c])) continue;
             if (sign * Cross(polygon[b] - polygon[a], polygon[j] - polygon[a]) >= 0 &&
                 sign * Cross(polygon[c] - polygon[b], polygon[j] - polygon[b]) >= 0 &&
                 sign * Cross(polygon[a] - polygon[c], polygon[j] - polygon[c]) >= 0) return;
         }
         ear[b] = true; candidates.Enqueue(b);
     }
-    private void Emit(LinearColor color, bool validateOutline = false)
+    private void Emit(LinearColor color, bool validateOutline = false, bool framebuffer = false)
     {
         scratch.Clear(); precise.Clear();
         foreach (var p in polygon)
         {
-            var q = Pixel(p);
+            var q = framebuffer ? p : Pixel(p);
             if (!double.IsFinite(q.X) || !double.IsFinite(q.Y) || Math.Abs(q.X) > 1048576 || Math.Abs(q.Y) > 1048576) throw new ArgumentException("Framebuffer coordinate envelope exceeded.");
             // Validate and remove degeneracies in actual float output, not just double construction.
             precise.Add(q);
