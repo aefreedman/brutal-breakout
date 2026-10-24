@@ -37,6 +37,36 @@ The smoke test enables validation, requires successful presentations after resiz
 
 The cleanup self-test injects failures into the resource-lifetime helper. It does not induce real GPU device loss.
 
+## Project-local Pi support
+
+Review `.pi/` before granting project trust. Start Pi **in this repository/worktree** and approve trusted project resources; use `/reload` after edits. A session started in `C:\Users\aaron\dev` does not automatically discover this child repo's resources: restart here, or explicitly load `.pi/extensions/brutal-support.ts` with `--extension` and each skill directory with `--skill` (absolute paths from another cwd). No settings, global packages, or auto-run hooks are installed.
+
+- `/skill:brutal-package-audit`: published NuGet first, with required symbol/compile-probe evidence and a reuse/gap table. Metadata/assets alone are **not** API verification; no automatic reference edits.
+- `/skill:validate-renderer`: doctor, locked restore/build, headless cleanup test, and explicit opt-in GPU smoke. Always report the 3 known GOG naming warnings separately from validation errors; observed counts vary. Doctor may also show unrelated loader warnings.
+- Optional `brutal_support` tool: the same six bounded operations below, only on user request; `smoke` requires explicit permission for a visible GPU window and SDK validation.
+
+Scripts also work without Pi, from any cwd (Windows, PowerShell 7):
+
+```powershell
+pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation doctor
+pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation build
+pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation cleanup
+pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation smoke # visible window; coordinate GPU use
+pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation package-versions -PackageId Ahwoo.BRUTAL.Core
+pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation package-assets -PackageId Ahwoo.BRUTAL.Core -Version 2026.10.4
+```
+
+`cleanup` includes build; `smoke` includes cleanup. JSON reports root/caller cwd, bounded output tails, timeouts, and nonzero failures. Processes are bounded per stage; the tool adds a six-minute deadline and cancellation of the Windows process tree. Package downloads use public NuGet, are disposable, and require network access. Doctor checks PATH before existing SDK executable paths; it changes no machine configuration. Enumeration does not replace a GPU smoke test. Abrupt process-tree cancellation may leave a temporary download directory. Output truncation means incomplete evidence; there is no full-log artifact or automatic API probe execution.
+
+Support regression checks (no interactive Pi, GPU, or new dependencies):
+
+```powershell
+pwsh -NoProfile -File <repo>/.pi/tests/process.tests.ps1
+node <repo>/.pi/tests/extension.test.mjs <installed-pi-package-root>
+```
+
+The second check uses the installed Pi loader/API and runs doctor plus cancellation checks; it requires a configured local Vulkan toolchain. Validated with Pi 1.4.0; it is not a standalone TypeScript compiler check.
+
 ## How this differs from Unity
 
 - `Program.cs` owns initialization, event processing, and shutdown. There is no Unity player managing the lifecycle.
