@@ -1,6 +1,6 @@
 ---
 name: validate-renderer
-description: Validate this Vulkan renderer with prerequisite diagnostics, locked restore/build, headless cleanup self-test, and explicitly requested visible GPU smoke tests. Use after renderer lifecycle changes or to diagnose the local Windows toolchain.
+description: Validate this Vulkan renderer with prerequisite diagnostics, locked restore/build, headless cleanup self-test, and hidden GPU smoke tests and separately permission-gated visible lifecycle checks. Use after renderer lifecycle changes or to diagnose the local Windows toolchain.
 compatibility: Windows with PowerShell 7 and .NET SDK; smoke requires Vulkan GPU/driver and SDK validation layers.
 ---
 
@@ -11,14 +11,18 @@ Resolve `../../scripts/support.ps1` relative to this skill directory, regardless
 ```powershell
 pwsh -NoProfile -File <resolved-script> -Operation doctor
 pwsh -NoProfile -File <resolved-script> -Operation cleanup
-# Only after explicit user opt-in for a visible GPU window:
+# Hidden GPU test; coordinate exclusive GPU use:
 pwsh -NoProfile -File <resolved-script> -Operation smoke
 ```
 
-- `doctor`: check selected .NET SDK, Git branch/status, glslc resolution/version, Vulkan loader via vulkaninfo, and enumerated VK_LAYER_KHRONOS_validation. PATH is checked before an existing VULKAN_SDK/Bin executable. It does not mutate machine configuration. Missing tooling means failed/unverified prerequisites, not a renderer error. glslc is checked for future shader work but is not used by today's clear-only renderer.
+- `doctor`: check selected .NET SDK, Git branch/status, glslc resolution/version, Vulkan loader via vulkaninfo, and enumerated VK_LAYER_KHRONOS_validation. PATH is checked before an existing VULKAN_SDK/Bin executable. It does not mutate machine configuration. Missing tooling means failed/unverified prerequisites, not a renderer error. glslc is checked for future shader work but is not used by today's shape renderer.
 - `build`: locked restore followed by build --no-restore.
 - `cleanup`: build sequence plus `dotnet run --no-build -- --cleanup-self-test`. Headless; no real device-loss injection.
-- `smoke`: cleanup sequence plus `dotnet run --no-build -- --smoke-test`. Opens a window, exercises resize/minimize/restore, and requires SDK validation; never add --no-validation. Coordinate with other GPU work so only one smoke run occurs. After lifecycle changes this check is required by AGENTS.md; if explicit opt-in or prerequisites are missing, report incomplete validation rather than claiming completion.
+- `smoke`: cleanup sequence plus `dotnet run --no-build -- --smoke-test`. Renders the actual shapes in a hidden GLFW window and exercises resize/resumed presentation, with SDK validation; never add --no-validation. This is GPU-backed, not headless CPU and not minimize/restore coverage. Coordinate with other GPU work so only one smoke run occurs. After lifecycle changes this check is required by AGENTS.md; if prerequisites are missing, report incomplete validation rather than claiming completion.
+
+Visible checks are separate, **only with explicit user permission for desktop/focus disturbance**: `dotnet run --no-build -- --lifecycle-smoke-test` retains resize/minimize/idle/restore recovery (15-second app deadline); `pwsh -NoProfile -File tests/Rendering/resize-smoke.ps1 -Configuration Debug` runs bounded visible external resize stress. Both request nonfocused creation/show; native restore in lifecycle mode can still activate on Windows. Never promise portable zero focus change. The support tool deliberately exposes neither visible action. Do not run them automatically after hidden smoke.
+
+For window metadata evidence, after building use `pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug` (and Release). It samples foreground handles and all process top-level windows every 10ms, asserts unchanged foreground/no visible test windows, and has a 25-second process deadline. It never moves user focus. External focus activity makes the observation inconclusive; sampling cannot prove absence of sub-interval transients.
 
 Each child has a timeout (restore/build default 120 seconds each, cleanup 30, smoke 45; doctor checks 10–30). `-TimeoutSeconds` adjusts restore/build/network limits, from 1 to 600 seconds. A failed stage stops later validation stages and returns nonzero (124 for timeout). The support operations do not run CPU shape tests. Run the actual headless project separately in both configurations:
 

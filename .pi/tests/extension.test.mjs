@@ -20,11 +20,18 @@ assert.equal(extension.tools.size, 1);
 const registered = extension.tools.get('brutal_support');
 const tool = registered.definition;
 assert.ok(tool, 'Tool definition registered with installed Pi API');
+assert.match(tool.description, /hidden GPU shape\/resize/);
+assert.match(tool.description, /No visible lifecycle\/stress operations are exposed/);
+assert.deepEqual(tool.parameters.properties.operation.anyOf.map(s => s.const),
+  ['doctor', 'build', 'cleanup', 'smoke', 'package-versions', 'package-assets']);
 const skills = loadSkillsFromDir({ dir: resolve(repositoryRoot, '.pi/skills'), source: 'project' });
 assert.deepEqual(skills.diagnostics, []);
 assert.deepEqual(skills.skills.map(s => s.name).sort(), ['brutal-package-audit', 'validate-renderer']);
 const context = { cwd: process.cwd() };
 await assert.rejects(() => tool.execute('bad', { operation: 'arbitrary-command' }, undefined, undefined, context), /Unknown/);
+for (const operation of ['lifecycle-smoke', 'visible-resize-stress']) {
+  await assert.rejects(() => tool.execute('visible', { operation }, undefined, undefined, context), /Unknown/);
+}
 await assert.rejects(() => tool.execute('missing', { operation: 'package-assets' }, undefined, undefined, context), /packageId required/);
 const preCancelled = new AbortController();
 preCancelled.abort();

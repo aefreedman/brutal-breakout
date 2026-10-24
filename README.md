@@ -19,7 +19,7 @@ dotnet build --no-restore
 dotnet run --no-build
 ```
 
-Expect a resizable 1280 x 720 **Brutal Breakout** window with six panels of abstract shapes. The wide canvas fits the live physical framebuffer with uniform scale and centered margins, not a phone/paddle layout. Resize/minimize/restore, then close normally. Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation` or `--smoke-test`.
+Expect a resizable 1280 x 720 **Brutal Breakout** window with six panels of abstract shapes. The wide canvas fits the live physical framebuffer with uniform scale and centered margins, not a phone/paddle layout. Resize/minimize/restore, then close normally. Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation`, `--smoke-test`, `--lifecycle-smoke-test`, or `--visible-resize-stress`.
 
 ### Validation
 
@@ -36,13 +36,23 @@ dotnet run -c Debug --no-build -- --smoke-test
 dotnet build -c Release --no-restore
 dotnet run -c Release --no-build -- --smoke-test
 dotnet run -c Debug --no-build -- --cleanup-self-test
+pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug
+pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Release
+```
+
+Routine `--smoke-test` enables validation and renders in a **hidden GLFW window**. It submits the actual 31-shape showcase (asserting minimum vertex/index counts and five clip-command runs), requires presentations after resize, and has a 15-second deadline. This is GPU validation, not headless CPU, screenshot comparison, or real minimize/restore coverage. Hidden presentation is verified on this Windows/RTX 5070 Ti setup; other platforms/drivers remain unverified. The metadata regression above suppresses console creation too, samples foreground/window visibility every 10ms, and asserts unchanged foreground/no visible test windows with a 25-second process deadline. It does not move user focus; external user focus activity invalidates the observation. Sampling cannot exclude shorter transients. CPU generation skips iconified/zero-size windows; `Draw(null)` retains backend throttling. Validation errors cause nonzero exit. The three known Galaxy/GOG layer-naming warnings are upstream loader warnings, not validation errors; report other warnings separately.
+
+Cleanup injects resource-lifetime helper failures, not actual device loss. CPU tests validate geometry/ABI contracts, not GPU image correctness. Visible tests are **separate explicit opt-ins**; obtain user permission for desktop/focus disturbance before running:
+
+```powershell
+# Visible resize/minimize/idle/restore/resumed presentation; 15-second app deadline:
+dotnet run -c Debug --no-build -- --lifecycle-smoke-test
+# Visible external resize stress (bounded, per-iteration cleanup):
 pwsh -NoProfile -File tests/Rendering/resize-smoke.ps1 -Configuration Debug
 pwsh -NoProfile -File tests/Rendering/resize-smoke.ps1 -Configuration Release
 ```
 
-Smoke enables validation, submits the actual 31-shape showcase (asserting minimum vertex/index counts and five clip-command runs), requires presentations after resize/restore, and checks idle minimization, with a 15-second lifecycle deadline. CPU generation skips iconified/zero-size windows; `Draw(null)` retains backend throttling. Validation errors cause nonzero exit. The three known Galaxy/GOG layer-naming warnings are upstream loader warnings, not validation errors; report other warnings separately.
-
-Cleanup injects resource-lifetime helper failures, not actual device loss. CPU tests validate geometry/ABI contracts, not GPU image correctness. Also inspect the visible demo, close a normal run, and repeat startup/shutdown. Smoke is not a screenshot comparison. The Windows-only external-resize regression changes the native window asynchronously during rendering, including 40 rapid resizes per iteration, and retains logs under the system temp directory. This catches acquire/present out-of-date exceptions that between-frame smoke resizing can miss.
+All test-created windows request `Focused=false` and `FocusOnShow=false`; external resize uses `SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS`. Native lifecycle restore can still activate; **no portable zero-focus guarantee** is made for visible lifecycle mode. No test calls focus/foreground activation APIs. Normal interactive `dotnet run` is unchanged. With permission, also inspect/close the visible demo and repeat startup/shutdown. The Windows-only external-resize regression changes the native window asynchronously during rendering, including 40 rapid resizes per iteration, and retains logs under the system temp directory. This catches acquire/present out-of-date exceptions that between-frame smoke resizing can miss.
 
 ## Showcase guide
 
@@ -76,8 +86,8 @@ Text is deferred: the published FreeType package contains native libraries but n
 Review `.pi/` before granting project trust. Start Pi **in this repository/worktree** and approve trusted project resources; use `/reload` after edits. A session started in `C:\Users\aaron\dev` does not automatically discover this child repo's resources: restart here, or explicitly load `.pi/extensions/brutal-support.ts` with `--extension` and each skill directory with `--skill` (absolute paths from another cwd). No settings, global packages, or auto-run hooks are installed.
 
 - `/skill:brutal-package-audit`: published NuGet first, with required symbol/compile-probe evidence and a reuse/gap table. Metadata/assets alone are **not** API verification; no automatic reference edits.
-- `/skill:validate-renderer`: doctor, locked restore/build, headless cleanup test, and explicit opt-in GPU smoke. Always report the 3 known GOG naming warnings separately from validation errors; observed counts vary. Doctor may also show unrelated loader warnings.
-- Optional `brutal_support` tool: the same six bounded operations below, only on user request; `smoke` requires explicit permission for a visible GPU window and SDK validation.
+- `/skill:validate-renderer`: doctor, locked restore/build, headless cleanup test, and hidden GPU smoke; visible lifecycle/stress needs separate explicit permission. Always report the 3 known GOG naming warnings separately from validation errors; observed counts vary. Doctor may also show unrelated loader warnings.
+- Optional `brutal_support` tool: the same six bounded operations below, only on user request; `smoke` runs hidden GPU validation with SDK layers. The allowlist exposes no visible lifecycle/stress operation.
 
 Scripts also work without Pi, from any cwd (Windows, PowerShell 7):
 
@@ -85,7 +95,7 @@ Scripts also work without Pi, from any cwd (Windows, PowerShell 7):
 pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation doctor
 pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation build
 pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation cleanup
-pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation smoke # visible window; coordinate GPU use
+pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation smoke # hidden GPU shapes/resize; coordinate GPU use
 pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation package-versions -PackageId Ahwoo.BRUTAL.Core
 pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation package-assets -PackageId Ahwoo.BRUTAL.Core -Version 2026.10.4
 ```

@@ -12,7 +12,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool(defineTool({
     name: "brutal_support",
     label: "Brutal project support",
-    description: "Only on user request: run a bounded project support operation, not arbitrary shell. doctor checks prerequisites; build performs locked restore/build; cleanup adds headless cleanup self-test; smoke additionally opens a GPU window with mandatory validation (explicit user opt-in only). Package operations query published NuGet metadata/assets, NOT API verification. No reference edits. Windows/PowerShell 7 required. Output includes script-root repository and caller cwd; capped at 32K characters.",
+    description: "Only on user request: run a bounded project support operation, not arbitrary shell. doctor checks prerequisites; build performs locked restore/build; cleanup adds headless cleanup self-test; smoke additionally runs hidden GPU shape/resize validation, not minimize/restore coverage. No visible lifecycle/stress operations are exposed; those require separate explicit user permission. Package operations query published NuGet metadata/assets, NOT API verification. No reference edits. Windows/PowerShell 7 required. Output includes script-root repository and caller cwd; capped at 32K characters.",
     parameters: Type.Object({
       operation: Type.Union(operations.map((operation) => Type.Literal(operation))),
       packageId: Type.Optional(Type.String({ pattern: "^[Aa][Hh][Ww][Oo][Oo]\\.[Bb][Rr][Uu][Tt][Aa][Ll]\\.[A-Za-z0-9_.-]+$" })),
@@ -58,7 +58,7 @@ export default function (pi: ExtensionAPI) {
         const stopTree = () => {
           if (settled || killDeadline) return;
           // Pi's generic exec cancellation only kills its immediate child. On Windows
-          // use taskkill /T so dotnet and the visible smoke window cannot be orphaned.
+          // use taskkill /T so dotnet and the hidden smoke process cannot be orphaned.
           if (child.pid) {
             const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
             killer.on("error", () => { child.kill(); });

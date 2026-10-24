@@ -64,7 +64,7 @@ try {
                 $null = Add-Step 'dotnet' @('run', '--no-build', '--', '--cleanup-self-test') 30
             }
             if ($Operation -eq 'smoke') {
-                $notes.Add('Explicit GPU smoke requested: visible window; SDK validation is mandatory in the application.')
+                $notes.Add('Hidden GPU shape/resize smoke requested; no minimize/restore coverage. SDK validation is mandatory in the application.')
                 $null = Add-Step 'dotnet' @('run', '--no-build', '--', '--smoke-test') 45
             }
         }
