@@ -299,11 +299,24 @@
         "resolved": "10.0.0",
         "contentHash": "inRnbpCS0nwO/RuoZIAqxQUuyjaknOOnCEZB55KSMMjRhl0RQDttSmLSGsUJN3RQ3ocf5NDLFd2mOQViHqMK5w=="
       },
+      "brutalbreakout.input": {
+        "type": "Project",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Glfw": "[2026.10.5, 2026.10.5]",
+          "Ahwoo.BRUTAL.Numerics": "[2026.10.2, 2026.10.2]"
+        }
+      },
       "brutalbreakout.shapes": {
         "type": "Project",
         "dependencies": {
           "Ahwoo.BRUTAL.Numerics": "[2026.10.2, )",
           "Ahwoo.BRUTAL.Render.Mesh": "[2026.10.2, )"
+        }
+      },
+      "brutalbreakout.simulation": {
+        "type": "Project",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Numerics": "[2026.10.2, )"
         }
       }
     }
