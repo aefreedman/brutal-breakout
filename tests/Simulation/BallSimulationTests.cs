@@ -1,10 +1,11 @@
 using Brutal.Numerics;
 using BrutalBreakout.Simulation;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Simulation.Tests;
 
-public class BallSimulationTests
+public class BallSimulationTests(ITestOutputHelper output)
 {
     [Fact]
     public void InitialStateAndLaunch()
@@ -96,6 +97,7 @@ public class BallSimulationTests
             if (sim.State.CatchEligible && sim.State.Velocity.X * normal.X + sim.State.Velocity.Y * normal.Y > 0) break;
         }
         Assert.True(sim.State.CatchEligible);
+        output.WriteLine($"Shot ({x},{y}): closest preview-plane approach {closest:F9} logical units");
         Assert.InRange(closest, 0, 1);
         ArenaTests.Near(preview.ReflectedDirection * Arena.Speed, sim.State.Velocity, .1);
     }
@@ -104,18 +106,25 @@ public class BallSimulationTests
         double2.Normalize(reflected - incoming);
 
     [Theory]
+    [InlineData(1, 0)] [InlineData(-1, 0)] [InlineData(0, 1)] [InlineData(0, -1)]
     [InlineData(1, -0.731)] [InlineData(580, -552)] [InlineData(-580, -552)]
     [InlineData(580, 48)] [InlineData(-580, 48)] [InlineData(1, 0.000001)]
     public void LongRunNativeSolverDoesNotEscapeStallOrLoseEnergy(double x, double y)
     {
         using var sim = new BallSimulation();
         sim.Step(new(new double2(x, y), true));
+        const double nativeContactAllowance = 2, coordinateRoundoffAllowance = .001;
+        double penetration = 0, drift = 0;
         for (int i = 0; i < 10000; i++)
         {
             sim.Step();
-            Assert.InRange(sim.State.Position.X, Arena.MinX - 2, Arena.MaxX + 2);
-            Assert.InRange(sim.State.Position.Y, Arena.MinY - 2, Arena.MaxY + 2);
+            penetration = Math.Max(penetration, Math.Max(Math.Max(Arena.MinX - sim.State.Position.X, sim.State.Position.X - Arena.MaxX),
+                Math.Max(Arena.MinY - sim.State.Position.Y, sim.State.Position.Y - Arena.MaxY)));
+            drift = Math.Max(drift, Math.Abs(double2.Distance(default, sim.State.Velocity) - Arena.Speed));
+            Assert.InRange(sim.State.Position.X, Arena.MinX - nativeContactAllowance - coordinateRoundoffAllowance, Arena.MaxX + nativeContactAllowance + coordinateRoundoffAllowance);
+            Assert.InRange(sim.State.Position.Y, Arena.MinY - nativeContactAllowance - coordinateRoundoffAllowance, Arena.MaxY + nativeContactAllowance + coordinateRoundoffAllowance);
             Assert.InRange(double2.Distance(default, sim.State.Velocity), 599, 601);
         }
+        output.WriteLine($"Shot ({x},{y}), 10000 ticks: worst penetration {penetration:F9}, speed drift {drift:F9}");
     }
 }

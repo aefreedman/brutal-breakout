@@ -18,3 +18,30 @@ The initial <=1-unit bounds target failed with native CCD penetration of 1.25911
 Actual corner casts generally report one meaningful wall normal; return that, never synthesize a combined normal. If the callback does report distinct equal-fraction normals, return no hit. Exact touching/overlapping cast origins may return zero normal/no hit, including a reflected cast directly from the previous native cast center. Presentation uses a named **1 logical-unit query-only skin along the native surface normal** for the second leg; no world/body position or circle radius is changed. If the second cast is unavailable the reflected segment is omitted. No-hit first leg shows only a short aim indicator.
 
 Launch clears eligibility before stepping; an actual same-step new ball-wall begin/hit event may legitimately set it again on a tangential relaunch at contact. Catch still returns without stepping/relaunching. Event buffers are read immediately after each native step and never retained across mutations.
+
+## Final bounded runtime gates and integration handoff
+
+Windows 10.0.26300 win-x64, SDK 10.0.201, .NET runtime 10.0.5; actual published box2d.dll loaded from NuGet runtime assets. Locked restores and standalone library builds succeeded with zero warnings/errors in Debug and Release. **70/70 simulation/backend/CPU-consumer tests**, unchanged **147/147 shape tests**, and unchanged **28/28 input tests** passed in each configuration. Actual `Presentation/BallSandbox.cs` and its existing session/viewport source are linked into the simulation test project, without referencing/restoring the root app; no test creates the still-integration-owned session. World tests are serialized.
+
+Ten shots, 10,000 steps each (four cardinal, four corner-targeting, diagonal `(1,-.731)`, grazing `(1,1e-6)`) had no escape/stall/energy failure. Worst values were identical in Debug/Release:
+
+| Measurement | Observed worst | Test allowance |
+| --- | ---: | ---: |
+| Native center penetration past ideal radius-inset bounds | 2.000179291 logical units (straight down) | 2 native contact + .001 coordinate roundoff |
+| Speed drift from launch 600 | .000190735 logical units/sec | 1 |
+| Seven non-corner first-contact preview-plane closest approaches | .500005960 logical units | 1 |
+| 50 catch/hold/relaunch/reset cycles penetration | 1.259117126 logical units | 2 |
+| Same cycles speed drift | .000047684 logical units/sec | 1 |
+| 10,000 warmed native Step calls managed allocation (owner thread) | 0 bytes | measurement only, not a binding-wide guarantee |
+
+The **.001 logical-unit coordinate-roundoff allowance is separate** from the 2-unit native-contact allowance, specifically approved after observing 2.000179291. Measurements are not truncated to claim penetration <=2. No solver tuning beyond the one contact Hz/damping trial, and no clamps, custom reflections, speed normalization, per-query worlds, or analytic cast fallback.
+
+Additional tests: 100 create/step/query/destroy cycles beside an independent held world; wrong-thread Step/Query/Preview/Dispose rejected; idempotent destruction and use-after-disposal rejected; fixed elapsed travel; robust extreme finite aims/casts; zero/nonfinite argument policies; overlap/default no-hit; radius/filter correctness; exact-origin reflected no-hit vs separated second native cast; actual CPU geometry in two viewports across aiming/corner/flying/caught/reset. All loops bounded, all worlds disposed.
+
+Public seam:
+- `BallSimulation : IDisposable`, `Step(SimulationCommand command = default)`, `const double StepSeconds`, snapshot `State` and `Preview()` retained.
+- New `WallContact Query(double2 origin, double2 direction)` on simulation; static `Arena.Query` and custom `QueryUnit` deleted.
+- `WallContact` retains positional `(double Distance, double2 Position, double2 ReflectedDirection)` and adds `HasHit` (default false; positional construction true) and native `Normal` (toward free space).
+- Native operations (Step, queries, Dispose) require construction thread. Snapshot State may be read after disposal. No finalizer/global world; partial-construction failures dispose the created world.
+
+Integration owner still must update **root and Gameplay transitive locks**, make `BallSandboxSession`/smoke owners disposable and dispose every app/session/direct test simulation on the native owner thread, adapt old strict/8-decimal analytic assertions to documented engine tolerances, and run root/Gameplay/hidden renderer gates. No root app build or GPU/window activity was attempted here. Native assets only cover win-x64/linux-x64/osx-arm64; only Windows x64 runtime is proved. This backend does not claim exact simultaneous both-axis corner reversal or analytic elapsed-distance post-impact identity. The one-unit second-cast query skin is an explicitly approximate drawing aid, never physical motion.

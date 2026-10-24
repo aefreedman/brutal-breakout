@@ -75,6 +75,18 @@ public class ArenaTests
         Assert.Throws<ArgumentOutOfRangeException>(() => sim.Query(new(640, 360), new(1, invalid)));
     }
 
+    [Theory]
+    [InlineData(double.MaxValue, double.MaxValue)]
+    [InlineData(double.Epsilon, double.Epsilon)]
+    public void NativeCastNormalizesExtremeFiniteDirections(double x, double y)
+    {
+        using var sim = new BallSimulation();
+        var hit = sim.Query(new(640, 360), new(x, y));
+        Assert.True(hit.HasHit);
+        Assert.InRange(hit.Distance, 400, 430);
+        Assert.InRange(double2.Distance(default, hit.ReflectedDirection), .999, 1.001);
+    }
+
     [Fact]
     public void RejectsInvalidArgumentsSeparatelyFromOrdinaryOverlap()
     {
