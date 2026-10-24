@@ -1,3 +1,4 @@
+# Explicit opt-in VISIBLE test: may disturb the desktop; never run without user permission.
 # Windows-only asynchronous swapchain resize regression. Run after building the app.
 # Unlike --smoke-test's between-frame resize, this changes the native window while
 # the render thread may be inside acquire/present. Requires SDK validation layers.
@@ -7,9 +8,9 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-# ASYNCWINDOWPOS | NOMOVE | NOZORDER: queue cross-thread changes without waiting
+# ASYNCWINDOWPOS | NOACTIVATE | NOMOVE | NOZORDER: queue cross-thread changes without waiting
 # on a hung render thread, so timeout/cleanup code can still run.
-$resizeFlags = 0x4000 -bor 0x0002 -bor 0x0004
+$resizeFlags = 0x4000 -bor 0x0010 -bor 0x0002 -bor 0x0004
 if (-not $IsWindows) { throw 'This external-resize regression requires Windows/PowerShell 7.' }
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $exe = Join-Path $root "bin/$Configuration/net10.0/brutal-breakout.exe"
@@ -30,7 +31,7 @@ try {
     for ($iteration = 1; $iteration -le $Iterations; $iteration++) {
         $stdout = Join-Path $logs "$iteration.stdout.log"
         $stderr = Join-Path $logs "$iteration.stderr.log"
-        $process = Start-Process -FilePath $exe -ArgumentList '--validation' -WorkingDirectory $root -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $process = Start-Process -FilePath $exe -ArgumentList '--visible-resize-stress' -WorkingDirectory $root -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
         # Retain the native handle before exit; otherwise Windows can return null ExitCode.
         $handle = $process.Handle
         try {

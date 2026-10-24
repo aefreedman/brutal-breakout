@@ -1,0 +1,87 @@
+# Windows-only hidden GPU regression. Never activates or shows a window.
+param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug')
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+if (-not $IsWindows) { throw 'Requires Windows/PowerShell 7.' }
+$root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+$exe = Join-Path $root "bin/$Configuration/net10.0/brutal-breakout.exe"
+if (-not (Test-Path -LiteralPath $exe)) { throw "Build first: dotnet build -c $Configuration" }
+Add-Type @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+namespace BrutalBreakout.Tests {
+ public static class HiddenWindow {
+  public delegate bool Callback(IntPtr window, IntPtr data);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+  [DllImport("user32.dll")] static extern bool EnumWindows(Callback callback, IntPtr data);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
+  public static IntPtr[] Windows(uint process) {
+   var windows = new List<IntPtr>();
+   EnumWindows((window, data) => { uint pid; GetWindowThreadProcessId(window, out pid);
+    if (pid == process) windows.Add(window); return true; }, IntPtr.Zero);
+   return windows.ToArray();
+  }
+ }
+}
+'@
+$logs = Join-Path ([IO.Path]::GetTempPath()) ('brutal-hidden-' + [Guid]::NewGuid().ToString('N'))
+[void][IO.Directory]::CreateDirectory($logs)
+$stdout = Join-Path $logs 'stdout.log'
+$stderr = Join-Path $logs 'stderr.log'
+$before = [BrutalBreakout.Tests.HiddenWindow]::GetForegroundWindow()
+$foregrounds = [Collections.Generic.HashSet[long]]::new()
+$windows = [Collections.Generic.HashSet[long]]::new()
+$visible = [Collections.Generic.HashSet[long]]::new()
+$process = $null
+try {
+    $start = [Diagnostics.ProcessStartInfo]::new($exe)
+    $start.ArgumentList.Add('--smoke-test')
+    $start.WorkingDirectory = $root
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true # suppress the executable's console as well as GLFW's window
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = [Diagnostics.Process]::Start($start)
+    $outputTask = $process.StandardOutput.ReadToEndAsync()
+    $errorTask = $process.StandardError.ReadToEndAsync()
+    $handle = $process.Handle # retain ExitCode after process exit
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    do {
+        [void]$foregrounds.Add([BrutalBreakout.Tests.HiddenWindow]::GetForegroundWindow().ToInt64())
+        foreach ($window in [BrutalBreakout.Tests.HiddenWindow]::Windows($process.Id)) {
+            [void]$windows.Add($window.ToInt64())
+            if ([BrutalBreakout.Tests.HiddenWindow]::IsWindowVisible($window)) { [void]$visible.Add($window.ToInt64()) }
+        }
+        if ($clock.Elapsed.TotalSeconds -gt 25) { throw 'Hidden smoke hard deadline exceeded.' }
+        Start-Sleep -Milliseconds 10
+        $process.Refresh()
+    } while (-not $process.HasExited)
+    if (-not $process.WaitForExit(5000)) { throw 'Output drain timed out.' }
+    $after = [BrutalBreakout.Tests.HiddenWindow]::GetForegroundWindow()
+    [void]$foregrounds.Add($after.ToInt64())
+    if (-not $outputTask.Wait(5000) -or -not $errorTask.Wait(5000)) { throw 'Output read timed out.' }
+    $output = $outputTask.Result
+    $errors = $errorTask.Result
+    [IO.File]::WriteAllText($stdout, $output)
+    [IO.File]::WriteAllText($stderr, $errors)
+    Write-Output $output
+    Write-Output $errors
+    Write-Output "Window metadata ($Configuration): before=$before; during/after=$($foregrounds -join ','); after=$after; test handles=$($windows -join ','); visible test handles=$($visible -join ',')."
+    if ($process.ExitCode -ne 0) { throw "Hidden smoke exit code: $($process.ExitCode)" }
+    if ($windows.Count -eq 0) { throw 'No test window observed; hidden-state evidence incomplete.' }
+    if ($visible.Count -ne 0) { throw 'A test window became visible.' }
+    if ($foregrounds.Count -ne 1 -or -not $foregrounds.Contains($before.ToInt64())) { throw 'Foreground changed during observation (possibly external user activity); nonactivation evidence incomplete.' }
+    if ($output -notmatch '31 shapes/frame, \d+ nonempty frames; hidden resize and resumed presentation passed' -or
+        $output -notmatch 'Validation: 0 errors, \d+ warnings\.') { throw 'Missing shape/resize/validation evidence.' }
+    if ($errors -match 'VkResultError|\[Vulkan Error') { throw 'Unexpected Vulkan error.' }
+    Write-Output "PASS hidden GPU smoke ($Configuration): foreground unchanged; no visible test windows observed (10ms sampling)."
+}
+finally {
+    if ($null -ne $process) {
+        if (-not $process.HasExited) { $process.Kill($true); [void]$process.WaitForExit(5000) }
+        $process.Dispose()
+    }
+    Write-Output "Hidden regression logs: $logs"
+}

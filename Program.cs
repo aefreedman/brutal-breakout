@@ -5,7 +5,13 @@ using BrutalBreakout.Rendering;
 using BrutalBreakout.Rendering.Shapes;
 using BrutalBreakout.Presentation;
 
-var smokeTest = args.Contains("--smoke-test");
+var hiddenSmokeTest = args.Contains("--smoke-test");
+var lifecycleSmokeTest = args.Contains("--lifecycle-smoke-test");
+var resizeStressTest = args.Contains("--visible-resize-stress");
+if (new[] { hiddenSmokeTest, lifecycleSmokeTest, resizeStressTest }.Count(enabled => enabled) > 1)
+    throw new ArgumentException("Select only one GPU test mode.");
+var smokeTest = hiddenSmokeTest || lifecycleSmokeTest;
+var gpuTest = smokeTest || resizeStressTest;
 var cleanupSelfTest = args.Contains("--cleanup-self-test");
 if (smokeTest || cleanupSelfTest) VerifyCleanupFailureHandling();
 if (cleanupSelfTest) return;
@@ -14,7 +20,7 @@ var validation = !args.Contains("--no-validation");
 #else
 var validation = args.Contains("--validation");
 #endif
-if (smokeTest) validation = true;
+if (gpuTest) validation = true;
 
 if (!Glfw.Init())
     throw new InvalidOperationException("Failed to initialize GLFW.");
@@ -23,6 +29,13 @@ try
 {
     // Vulkan owns presentation; GLFW must not create an OpenGL context.
     Glfw.WindowHint(GlfwWindowHint.ClientApi, 0);
+    if (gpuTest)
+    {
+        // Published BRUTAL GLFW hints take integer GLFW_FALSE (0).
+        Glfw.WindowHint(GlfwWindowHint.Focused, 0);
+        Glfw.WindowHint(GlfwWindowHint.FocusOnShow, 0);
+        Glfw.WindowHint(GlfwWindowHint.Visible, hiddenSmokeTest ? 0 : 1);
+    }
     var window = Glfw.CreateWindow(new GlfwWindow.CreateInfo
     {
         Title = "Brutal Breakout",
@@ -35,7 +48,8 @@ try
     ResourceLifetime.Run(() =>
     {
         using var shapes = new ShapeDrawList();
-        Console.WriteLine("Close the window to exit. Expect six panels of Vulkan primitives (see README).");
+        Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
+            "Close the window to exit. Expect six panels of Vulkan primitives (see README).");
         var shapeFrames = 0;
         var timer = Stopwatch.StartNew();
         var phase = SmokePhase.Warmup;
@@ -65,7 +79,10 @@ try
                         phase = SmokePhase.ResizedFrames;
                         Console.WriteLine("Smoke: resized window observed; waiting for new presentations.");
                         break;
-                    case SmokePhase.ResizedFrames when renderer.PresentedFrames >= framesAtTransition + 3:
+                    case SmokePhase.ResizedFrames when hiddenSmokeTest && renderer.PresentedFrames >= framesAtTransition + 6:
+                        completed = true;
+                        break;
+                    case SmokePhase.ResizedFrames when lifecycleSmokeTest && renderer.PresentedFrames >= framesAtTransition + 3:
                         window.Iconify();
                         phase = SmokePhase.IconifiedState;
                         Console.WriteLine("Smoke: presented after resize; minimize requested.");
@@ -115,10 +132,12 @@ try
         }
         Console.WriteLine($"Presented frames: {renderer.PresentedFrames}.");
         if (smokeTest && !completed)
-            throw new InvalidOperationException($"Smoke interrupted before completing lifecycle recovery in {phase}.");
+            throw new InvalidOperationException($"Smoke interrupted before completing test stages in {phase}.");
         if (smokeTest && shapeFrames < 9)
             throw new InvalidOperationException("Smoke: insufficient nonempty shape frames.");
-        if (smokeTest) Console.WriteLine($"Smoke: {ShapeShowcase.ShapeCount} shapes/frame, {shapeFrames} nonempty frames; resize, idle minimize, restore and resumed presentation passed.");
+        if (smokeTest) Console.WriteLine($"Smoke: {ShapeShowcase.ShapeCount} shapes/frame, {shapeFrames} nonempty frames; " +
+            (hiddenSmokeTest ? "hidden resize and resumed presentation passed (no minimize/restore coverage)." :
+                "visible resize, idle minimize, restore and resumed presentation passed."));
     }, renderer.Dispose); // Dispose GPU resources before GLFW destroys the native window.
 }
 catch (Exception exception)
