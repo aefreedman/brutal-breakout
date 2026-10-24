@@ -36,11 +36,13 @@ dotnet run -c Debug --no-build -- --smoke-test
 dotnet build -c Release --no-restore
 dotnet run -c Release --no-build -- --smoke-test
 dotnet run -c Debug --no-build -- --cleanup-self-test
+pwsh -NoProfile -File tests/Rendering/resize-smoke.ps1 -Configuration Debug
+pwsh -NoProfile -File tests/Rendering/resize-smoke.ps1 -Configuration Release
 ```
 
 Smoke enables validation, submits the actual 31-shape showcase (asserting minimum vertex/index counts and five clip-command runs), requires presentations after resize/restore, and checks idle minimization, with a 15-second lifecycle deadline. CPU generation skips iconified/zero-size windows; `Draw(null)` retains backend throttling. Validation errors cause nonzero exit. The three known Galaxy/GOG layer-naming warnings are upstream loader warnings, not validation errors; report other warnings separately.
 
-Cleanup injects resource-lifetime helper failures, not actual device loss. CPU tests validate geometry/ABI contracts, not GPU image correctness. Also inspect the visible demo, close a normal run, and repeat startup/shutdown. Smoke is not a screenshot comparison.
+Cleanup injects resource-lifetime helper failures, not actual device loss. CPU tests validate geometry/ABI contracts, not GPU image correctness. Also inspect the visible demo, close a normal run, and repeat startup/shutdown. Smoke is not a screenshot comparison. The Windows-only external-resize regression changes the native window asynchronously during rendering, including 40 rapid resizes per iteration, and retains logs under the system temp directory. This catches acquire/present out-of-date exceptions that between-frame smoke resizing can miss.
 
 ## Showcase guide
 
