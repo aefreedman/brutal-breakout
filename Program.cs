@@ -49,8 +49,11 @@ try
     {
         using var shapes = new ShapeDrawList();
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
-            "Close the window to exit. Expect six panels of Vulkan primitives (see README).");
+            "Close the window to exit. Expect nine panels of Vulkan primitives (see README).");
         var shapeFrames = 0;
+        var shapeViewports = new HashSet<(int Width, int Height)>();
+        if (smokeTest) Console.WriteLine($"Smoke showcase: expectedShapes={ShapeShowcase.ShapeCount}; " +
+            "filled=5; outlines=14; patterned=8; transforms=4; clipped=5; blend=6; panels=9; markers=2.");
         var timer = Stopwatch.StartNew();
         var phase = SmokePhase.Warmup;
         var phaseStarted = TimeSpan.Zero;
@@ -124,6 +127,9 @@ try
                 if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
                     frame.Value.Indices.Length < ShapeShowcase.ShapeCount * 3 || frame.Value.Commands.Length < 5))
                     throw new InvalidOperationException("Smoke: showcase lost shapes or nested clip commands.");
+                if (smokeTest && shapeViewports.Add((framebuffer.X, framebuffer.Y)))
+                    Console.WriteLine($"Smoke viewport: {framebuffer.X}x{framebuffer.Y}; " +
+                        $"vertices={frame.Value.Vertices.Length}; indices={frame.Value.Indices.Length}; commands={frame.Value.Commands.Length}.");
                 shapeFrames++;
             }
             renderer.Draw(frame); // Consumes borrowed CPU buffers before the next BeginFrame.
@@ -133,8 +139,8 @@ try
         Console.WriteLine($"Presented frames: {renderer.PresentedFrames}.");
         if (smokeTest && !completed)
             throw new InvalidOperationException($"Smoke interrupted before completing test stages in {phase}.");
-        if (smokeTest && shapeFrames < 9)
-            throw new InvalidOperationException("Smoke: insufficient nonempty shape frames.");
+        if (smokeTest && (shapeFrames < 9 || shapeViewports.Count < 2))
+            throw new InvalidOperationException("Smoke: insufficient nonempty shape frames or distinct viewports.");
         if (smokeTest) Console.WriteLine($"Smoke: {ShapeShowcase.ShapeCount} shapes/frame, {shapeFrames} nonempty frames; " +
             (hiddenSmokeTest ? "hidden resize and resumed presentation passed (no minimize/restore coverage)." :
                 "visible resize, idle minimize, restore and resumed presentation passed."));

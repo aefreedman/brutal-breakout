@@ -6,71 +6,112 @@ namespace BrutalBreakout.Presentation;
 /// <summary>A fixed design canvas fitted to the current physical framebuffer, without text assets.</summary>
 internal static class ShapeShowcase
 {
-    public const int ShapeCount = 31;
+    public const int ShapeCount = 53;
 
     public static ShapeFrame Build(ShapeDrawList draw, int width, int height)
     {
-        var scale = MathF.Min(width / 1200f, height / 660f);
+        var scale = MathF.Min(width / 1200f, height / 960f);
         var x = (width - 1200 * scale) / 2;
-        var y = (height - 660 * scale) / 2;
+        var y = (height - 960 * scale) / 2;
         draw.BeginFrame(width, height, new float3x2(scale, 0, 0, scale, x, y));
         var panel = LinearColor.FromSrgb(.12f, .17f, .23f);
         var cyan = LinearColor.FromSrgb(.24f, .84f, .85f);
         var gold = LinearColor.FromSrgb(1, .73f, .30f);
         var coral = LinearColor.FromSrgb(.98f, .40f, .42f);
         var white = LinearColor.FromSrgb(.88f, .94f, 1);
-        for (var row = 0; row < 2; row++)
+        for (var row = 0; row < 3; row++)
             for (var column = 0; column < 3; column++)
                 draw.FillRoundedRect(new(24 + column * 392, 48 + row * 300), new(368, 276), 18, panel);
         // Asymmetric orientation markers: red at upper left, green at upper right.
         draw.FillRect(new(24, 20), new(44, 8), new(1, 0, 0));
         draw.FillRect(new(1132, 20), new(44, 8), new(0, 1, 0));
 
-        draw.FillDisc(new(123, 184), 62, cyan);
-        draw.FillRing(new(290, 184), 38, 62, gold);
+        // Filled primitives retained as the first panel's vocabulary.
+        draw.FillDisc(new(104, 132), 42, cyan);
+        draw.FillRing(new(264, 132), 25, 42, gold);
+        draw.FillRect(new(60, 222), new(70, 54), coral);
+        draw.FillRoundedRect(new(160, 222), new(80, 54), 16, cyan);
+        draw.FillTriangle(new(278, 276), new(314, 218), new(350, 276), gold);
 
-        draw.FillRect(new(444, 105), new(120, 72), coral);
-        draw.FillRoundedRect(new(602, 105), new(150, 72), 24, cyan);
-        draw.FillTriangle(new(524, 274), new(600, 199), new(676, 274), gold);
+        // Solid hollow shapes, all centered on their input boundaries.
+        draw.StrokeCircle(new(500, 132), 44, 9, cyan);
+        draw.StrokeRect(new(598, 88), new(112, 88), 9, gold);
+        draw.StrokeRoundedRect(new(452, 218), new(112, 66), 20, 9, coral);
+        draw.StrokeTriangle(new(618, 280), new(662, 210), new(718, 280), 9, white);
 
-        draw.StrokeSegment(new(884, 116), new(1100, 116), 28, LineCap.Butt, cyan);
-        draw.StrokeSegment(new(884, 184), new(1100, 184), 28, LineCap.Square, gold);
-        draw.StrokeSegment(new(884, 252), new(1100, 252), 28, LineCap.Round, coral);
+        // Thin white input boundaries: inside, centered, outside, left to right.
+        for (var i = 0; i < 3; i++)
+        {
+            var center = new float2(870 + i * 120, 184);
+            draw.StrokeCircle(center, 38, 16, i == 0 ? cyan : i == 1 ? gold : coral,
+                i == 0 ? StrokeAlignment.Inside : i == 1 ? StrokeAlignment.Center : StrokeAlignment.Outside);
+            draw.StrokeCircle(center, 38, 1, white);
+        }
 
-        // Local rotation, nonuniform scale/shear, and reflection, all before canvas fitting.
-        draw.SetTransform(new float3x2(.866f, .5f, -.5f, .866f, 115, 425));
+        // Same 6-unit widths under two nonuniform scales: Local above, framebuffer below.
+        for (var i = 0; i < 2; i++)
+        {
+            draw.SetTransform(new float3x2(1.2f + i * .6f, 0, 0, .8f, 70 + i * 164, 390));
+            draw.StrokeRect(new(0, 0), new(64, 70), 6, cyan, space: StrokeSpace.Local);
+            draw.StrokeRect(new(0, 150), new(64, 70), 6, gold, space: StrokeSpace.Framebuffer);
+        }
+        draw.SetTransform(float3x2.Identity);
+
+        // Equal occupied intervals: basic/butt, square, round. Gaps allow cap extensions.
+        draw.StrokePatternedSegment(new(456, 398), new(744, 398), 12,
+            StrokePattern.Dashes(32, 24), cyan);
+        draw.StrokePatternedSegment(new(456, 454), new(744, 454), 12,
+            StrokePattern.RelativeDashes(2.6666667, 2), gold, LineCap.Square);
+        draw.StrokePatternedSegment(new(456, 510), new(744, 510), 12,
+            StrokePattern.Dashes(32, 24), coral, LineCap.Round);
+        draw.StrokePatternedSegment(new(456, 566), new(744, 566), 12,
+            StrokePattern.RelativeDots(2.5), white);
+
+        // Continuous arc length through a corner; no phase restart at the vertex.
+        draw.StrokePatternedPolyline([new(852, 400), new(920, 400), new(920, 480)], 8,
+            StrokePattern.Dashes(34, 22, offsetCycles: -.2), white);
+        // Closed rings: phased fixed periods, natural spacing fitted to closure, true fixed dots.
+        draw.StrokePatternedCircle(new(1064, 422), 46, 8,
+            StrokePattern.FixedDashes(8, .5, .25), cyan, LineCap.Round);
+        draw.StrokePatternedCircle(new(902, 556), 40, 8,
+            StrokePattern.Dashes(22, 17, -.2, fitClosed: true), gold);
+        draw.StrokePatternedCircle(new(1064, 556), 42, 9,
+            StrokePattern.FixedDots(12, .25), coral);
+
+        // Filled transform references and an open solid bevel path.
+        draw.SetTransform(new float3x2(.866f, .5f, -.5f, .866f, 115, 725));
         draw.FillRoundedRect(new(-42, -24), new(84, 48), 12, cyan);
-        draw.SetTransform(new float3x2(1.5f, .15f, .65f, .7f, 275, 425));
+        draw.SetTransform(new float3x2(1.5f, .15f, .65f, .7f, 275, 725));
         draw.FillRing(new(0, 0), 22, 36, gold);
-        draw.SetTransform(new float3x2(-1, 0, .3f, 1, 140, 545));
+        draw.SetTransform(new float3x2(-1, 0, .3f, 1, 140, 845));
         draw.FillTriangle(new(-40, -28), new(40, -28), new(-40, 32), coral);
         draw.SetTransform(float3x2.Identity);
-        draw.StrokePolyline([new(216, 556), new(251, 507), new(293, 552), new(340, 499)], 13, white);
+        draw.StrokePolyline([new(216, 856), new(251, 807), new(293, 852), new(340, 799)], 13, white);
 
         // Scissors are framebuffer pixels, independent of the current local/world transforms.
         PixelRect Clip(float left, float top, float right, float bottom) => new(
             (int)MathF.Round(x + left * scale), (int)MathF.Round(y + top * scale),
             (int)MathF.Round(x + right * scale), (int)MathF.Round(y + bottom * scale));
-        draw.FillRect(new(452, 382), new(296, 204), new(.025f, .04f, .055f));
-        draw.PushClip(Clip(468, 398, 732, 570));
-        draw.FillDisc(new(468, 480), 92, cyan);
-        draw.PushClip(Clip(550, 420, 700, 548));
-        draw.FillRect(new(500, 380), new(260, 220), coral);
-        draw.FillRing(new(625, 480), 42, 80, gold);
+        draw.FillRect(new(452, 682), new(296, 204), new(.025f, .04f, .055f));
+        draw.PushClip(Clip(468, 698, 732, 870));
+        draw.FillDisc(new(468, 780), 92, cyan);
+        draw.PushClip(Clip(550, 720, 700, 848));
+        draw.FillRect(new(500, 680), new(260, 220), coral);
+        draw.FillRing(new(625, 780), 42, 80, gold);
         draw.PopClip();
-        draw.StrokeSegment(new(450, 558), new(760, 558), 12, LineCap.Round, white);
+        draw.StrokeSegment(new(450, 858), new(760, 858), 12, LineCap.Round, white);
         draw.PopClip();
 
         // Linear half-alpha red/blue, with opposite submission order in the two rows.
         var red = new LinearColor(1, 0, 0, .5f);
         var blue = new LinearColor(0, 0, 1, .5f);
-        draw.FillRect(new(852, 382), new(304, 204), new(0, 0, 0));
-        draw.FillRect(new(876, 402), new(140, 64), red);
-        draw.FillRect(new(956, 402), new(140, 64), blue);
-        draw.FillRect(new(956, 500), new(140, 64), blue);
-        draw.FillRect(new(876, 500), new(140, 64), red);
+        draw.FillRect(new(852, 682), new(304, 204), new(0, 0, 0));
+        draw.FillRect(new(876, 702), new(140, 64), red);
+        draw.FillRect(new(956, 702), new(140, 64), blue);
+        draw.FillRect(new(956, 800), new(140, 64), blue);
+        draw.FillRect(new(876, 800), new(140, 64), red);
         // Opaque linear mid-gray reference for the sRGB attachment encode.
-        draw.FillRect(new(1120, 402), new(16, 162), new(.5f, .5f, .5f));
+        draw.FillRect(new(1120, 702), new(16, 162), new(.5f, .5f, .5f));
         return draw.Finish();
     }
 }

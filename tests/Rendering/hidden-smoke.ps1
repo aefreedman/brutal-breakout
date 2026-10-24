@@ -73,8 +73,22 @@ try {
     if ($windows.Count -eq 0) { throw 'No test window observed; hidden-state evidence incomplete.' }
     if ($visible.Count -ne 0) { throw 'A test window became visible.' }
     if ($foregrounds.Count -ne 1 -or -not $foregrounds.Contains($before.ToInt64())) { throw 'Foreground changed during observation (possibly external user activity); nonactivation evidence incomplete.' }
-    if ($output -notmatch '31 shapes/frame, \d+ nonempty frames; hidden resize and resumed presentation passed' -or
+    $expected = [regex]::Match($output, 'Smoke showcase: expectedShapes=(\d+);')
+    $frames = [regex]::Match($output, 'Smoke: (\d+) shapes/frame, (\d+) nonempty frames; hidden resize and resumed presentation passed')
+    $viewports = [regex]::Matches($output, 'Smoke viewport: (\d+)x(\d+); vertices=(\d+); indices=(\d+); commands=(\d+)\.')
+    if (-not $expected.Success -or [int]$expected.Groups[1].Value -le 0 -or
+        -not $frames.Success -or $frames.Groups[1].Value -ne $expected.Groups[1].Value -or
+        [int]$frames.Groups[2].Value -lt 9 -or $viewports.Count -lt 2 -or
         $output -notmatch 'Validation: 0 errors, \d+ warnings\.') { throw 'Missing shape/resize/validation evidence.' }
+    $sizes = [Collections.Generic.HashSet[string]]::new()
+    foreach ($viewport in $viewports) {
+        if ([int]$viewport.Groups[1].Value -le 0 -or [int]$viewport.Groups[2].Value -le 0 -or
+            [int]$viewport.Groups[3].Value -lt 3 * [int]$expected.Groups[1].Value -or
+            [int]$viewport.Groups[4].Value -lt 3 * [int]$expected.Groups[1].Value -or
+            [int]$viewport.Groups[5].Value -lt 5) { throw 'Empty/incomplete showcase viewport.' }
+        [void]$sizes.Add("$($viewport.Groups[1].Value)x$($viewport.Groups[2].Value)")
+    }
+    if ($sizes.Count -lt 2) { throw 'Missing distinct nonempty resize viewports.' }
     if ($errors -match 'VkResultError|\[Vulkan Error') { throw 'Unexpected Vulkan error.' }
     Write-Output "PASS hidden GPU smoke ($Configuration): foreground unchanged; no visible test windows observed (10ms sampling)."
 }
