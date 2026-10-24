@@ -1,6 +1,6 @@
 # brutal-breakout
 
-A Windows-first 2D game built with C# and [BRUTAL](https://github.com/ahwootech/BRUTAL). Current milestone: a small, direct Vulkan primitive renderer, not gameplay or a general engine.
+A Windows-first 2D game built with C# and [BRUTAL](https://github.com/ahwootech/BRUTAL). Current milestone: a first playable, wide single-ball catch/aim/relaunch sandbox on a small direct Vulkan renderer, not a general engine.
 
 ## Requirements
 
@@ -19,7 +19,19 @@ dotnet build --no-restore
 dotnet run --no-build
 ```
 
-Expect a resizable 1280 x 720 **Brutal Breakout** window with twelve panels of abstract shapes on a 1600 x 960 design canvas. The wide canvas fits the live physical framebuffer with uniform scale and centered margins, not a phone/paddle layout. Resize/minimize/restore, then close normally. Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation`, `--smoke-test`, `--lifecycle-smoke-test`, or `--visible-resize-stress`.
+Normal `dotnet run --no-build` opens a resizable 1280 x 720 **ball arena**. Use `dotnet run --no-build -- --showcase` for the existing twelve-panel primitive gallery. These interactive commands open visible windows; automated validation below uses hidden windows only. Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation` or any GPU test mode.
+
+### Ball sandbox: provisional rules and controls
+
+- Aim with **WASD / arrows / left stick / mouse movement**. Active keyboard direction wins over stick, then moved/clicked mouse; a stationary unused mouse does not override direction input. Centered stick preserves the last aim. Initial aim is up.
+- **Space / left mouse button / gamepad south (A)** launches or catches. Shots have fixed speed (600 logical units/second), no gravity or drag. Four reflecting wall faces enclose the arena; the ball has radius 12.
+- Launch locks catching until the first wall bounce. The ball turns **cyan** when catch-eligible; gold indicates aiming or catch-locked flight. Aiming has a larger halo and white radius-aware first-contact circle/path plus a short reflected leg (clipped at the next contact).
+- Once eligible, catch from anywhere. Catch holds the ball at its actual position, not a spawn point. **Release and press separately** to relaunch; a catch never fires on the same action.
+- **R / gamepad Start** restarts to the initial position/aim, taking priority over a pending action.
+- Unfocused or minimized windows pause simulation and discard accumulated time/pending edges. The first active frame consumes zero elapsed time; held actions on return are baselined, requiring release/repress. Physics continues when rendering is merely unavailable/out-of-date, not minimized.
+- The logical 1280 x 720 arena uniformly fits the physical framebuffer with centered letterboxing. Mouse coordinates convert from logical-window units through framebuffer DPI and fit margins, then aim from the ball center. Zero-size/nonfinite/letterbox targets are ignored.
+
+These are provisional sandbox choices, not exact old-game feel: no paddle, bricks, damage, failure, progression, power, restricted catch zone, or drag. Input uses standardized GLFW gamepad mappings. Polling can miss a full press/release or disconnect/reconnect between frames (including replacement at the same pad ID). No physical controller compatibility, hardware playtest, visible gameplay inspection, or screenshot correctness is claimed. Published input API evidence is in `Platform/Input/API-EVIDENCE.md`; the simulation's published Numerics reuse/gap audit is in `Simulation/Arena.cs`.
 
 ### Validation
 
@@ -29,16 +41,30 @@ Run GPU commands sequentially, with no other lane using the GPU:
 dotnet restore --locked-mode
 dotnet restore Rendering/Shapes/BrutalBreakout.Shapes.csproj --locked-mode
 dotnet restore tests/Shapes/Shapes.Tests.csproj --locked-mode
+dotnet restore tests/Simulation/Simulation.Tests.csproj --locked-mode
+dotnet restore tests/Input/BrutalBreakout.Input.Tests.csproj --locked-mode
+dotnet restore tests/Gameplay/Gameplay.Tests.csproj --locked-mode
 dotnet test tests/Shapes/Shapes.Tests.csproj -c Debug --no-restore
 dotnet test tests/Shapes/Shapes.Tests.csproj -c Release --no-restore
+foreach ($configuration in 'Debug', 'Release') {
+    dotnet test tests/Simulation/Simulation.Tests.csproj -c $configuration --no-restore
+    dotnet test tests/Input/BrutalBreakout.Input.Tests.csproj -c $configuration --no-restore
+    dotnet test tests/Gameplay/Gameplay.Tests.csproj -c $configuration --no-restore
+}
 dotnet build -c Debug --no-restore
 dotnet build -c Release --no-restore
 dotnet run -c Debug --no-build -- --cleanup-self-test
 pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug
 pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Release
+pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug -Mode Gameplay
+pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Release -Mode Gameplay
 ```
 
 Routine `--smoke-test` enables validation and renders in a **hidden GLFW window**. It submits the actual 64-call showcase (14 solid outlines, 8 Basic/dot patterned paths, and 4 angled + 4 chevron paths, plus filled/transform/clip/blend references and panel/marker shapes), reports expected shape counts and nonempty geometry at both 1280 x 720 and 960 x 540, asserts minimum vertex/index counts and five clip-command runs, plus per-appearance counters and nonempty indexed geometry tagged by dedicated showcase colors, requires presentations after resize, and has a 15-second deadline. This is GPU validation, not headless CPU, screenshot comparison, or real minimize/restore coverage. Hidden presentation is verified on this Windows/RTX 5070 Ti setup; other platforms/drivers remain unverified. The metadata regression above suppresses console creation too, samples foreground/window visibility every 10ms, and asserts unchanged foreground/no visible test windows with a 25-second process deadline. It does not move user focus; external user focus activity invalidates the observation. Sampling cannot exclude shorter transients. CPU generation skips iconified/zero-size windows; `Draw(null)` retains backend throttling. Validation errors cause nonzero exit. The three known Galaxy/GOG layer-naming warnings are upstream loader warnings, not validation errors; report other warnings separately.
+
+`-Mode Showcase` is the hidden harness default and retains all gallery geometry/resize checks. `-Mode Gameplay` passes `--gameplay-smoke-test`: controlled fake raw snapshots traverse the **same InputRouter and BallSandboxSession** as live polling, at 1/60-second advances (two 120Hz ticks), without OS input injection. Critical stages advance only after actual presentations: initial aim, launch, wall/catch eligibility, catch at the preserved position, six held frames, separate release/repress relaunch, restart, and six resumed 960 x 540 presentations. It asserts states, bounds and position preservation, and reports actual indexed arena/ball-plus-halo/aim geometry at both 1280 x 720 and 960 x 540. Both hidden modes always request `Visible=0`, `Focused=0`, `FocusOnShow=0`; the shared harness uses `CreateNoWindow=true`. GPU modes and `--showcase` are mutually exclusive. There is no minimize/restore or hardware-input coverage in hidden gameplay.
+
+CPU suites preserve 147 shape, 51 simulation and 28 input tests, and add 17 host integration cases covering edge latching/one-time consumption, catch/relaunch, restart precedence, focus loss/resume, direction mapping, pointer/DPI/letterbox/zero-framebuffer behavior and phase geometry. Gameplay tests reference the executable assembly without executing its entry point.
 
 Cleanup injects resource-lifetime helper failures, not actual device loss. CPU tests validate geometry/ABI contracts, not GPU image correctness. Visible tests are **separate explicit opt-ins**; obtain user permission for desktop/focus disturbance before running:
 
@@ -50,7 +76,7 @@ pwsh -NoProfile -File tests/Rendering/resize-smoke.ps1 -Configuration Debug
 pwsh -NoProfile -File tests/Rendering/resize-smoke.ps1 -Configuration Release
 ```
 
-All test-created windows request `Focused=false` and `FocusOnShow=false`; external resize uses `SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS`. Native lifecycle restore can still activate; **no portable zero-focus guarantee** is made for visible lifecycle mode. No test calls focus/foreground activation APIs. Normal interactive `dotnet run` is unchanged. With permission, also inspect/close the visible demo and repeat startup/shutdown. The Windows-only external-resize regression changes the native window asynchronously during rendering, including 40 rapid resizes per iteration, and retains logs under the system temp directory. This catches acquire/present out-of-date exceptions that between-frame smoke resizing can miss.
+All test-created windows request `Focused=false` and `FocusOnShow=false`; external resize uses `SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS`. Native lifecycle restore can still activate; **no portable zero-focus guarantee** is made for visible lifecycle mode. No test calls focus/foreground activation APIs. Normal interactive `dotnet run` now selects the ball sandbox; `--showcase` selects the gallery. With permission, also inspect/close the visible demo and repeat startup/shutdown. The Windows-only external-resize regression changes the native window asynchronously during rendering, including 40 rapid resizes per iteration, and retains logs under the system temp directory. This catches acquire/present out-of-date exceptions that between-frame smoke resizing can miss.
 
 ## Showcase guide
 
@@ -69,7 +95,7 @@ Four columns by three rows, left to right then top to bottom, without font depen
 11. Ordered half-alpha linear red/blue over black: blue-over-red above, red-over-blue below; a linear 0.5 gray bar at right.
 12. Closed, corner-crossing mint angled (-1) and lilac chevron (+1) paths, using fixed counts and periodic phase. Red/green top markers retain orientation cues.
 
-Both decorative appearances use the same actual submissions in normal interaction and hidden smoke. The new layout/visuals have **not been capture-checked**; the user can inspect them interactively later. Hidden tests are not image goldens or minimize/restore tests.
+Both decorative appearances use the same actual submissions in `--showcase` and hidden renderer smoke. The new layout/visuals have **not been capture-checked**; the user can inspect them interactively later. Hidden tests are not image goldens or minimize/restore tests.
 
 Prior to this outline/pattern layout, targeted client-area samples on the RTX 5070 Ti measured red-only `(188,0,0)`, blue-only `(0,0,188)`, blue-over-red `(138,0,188)`, red-over-blue `(188,0,138)`, gray `(188,188,188)`. These historical blend/sRGB checks are not new visual evidence for this layout, image goldens, or evidence for other devices. Hidden GPU tests validate submission and resize, not visual appearance or minimize/restore.
 
@@ -165,14 +191,19 @@ The second check uses the installed Pi loader/API and runs doctor plus cancellat
 ## How this differs from Unity
 
 - `Program.cs` owns initialization, OS event processing and shutdown; no Unity player lifecycle.
-- GLFW creates the window, not graphics. The main thread polls and renders; minimization waits briefly for events. Future simulation needs explicit fixed-step timing.
+- GLFW creates the window, not graphics. The main thread polls and renders; minimization waits briefly for events. The host session uses a synchronous fixed 120Hz accumulator, bounded to eight catch-up ticks; input edges apply only on the first tick, not once per render or catch-up tick.
 - Vulkan acquires an image, records a render pass and ordered indexed draws, submits and presents. A fence protects command/upload reuse; semaphores coordinate acquisition/presentation.
+- `BallSimulation.Step` is the small explicit equivalent of gameplay `FixedUpdate`; state is plain data, not a GameObject/MonoBehaviour. Input snapshots are the equivalent of sampled player controls, and `BallSandbox.Build` is a state-to-draw-list presentation pass. There are no per-ball tasks or awaited frame continuations.
 - BRUTAL is a framework; scene/entity/loading policy remains our responsibility. Add only what the game needs.
 
 ## Project files and dependencies
 
 - `Program.cs`: main-thread lifecycle and bounded smoke/self-tests.
-- `Presentation/ShapeShowcase.cs`: fitted twelve-panel demo.
+- `Presentation/ShapeShowcase.cs`: fitted twelve-panel demo (`--showcase`).
+- `Presentation/BallSandbox*.cs`: arena geometry, pure session/viewport bridge and hidden scripted scenario.
+- `Simulation/`: standalone pure rules, radius-aware sweep/preview and fixed-step clock.
+- `Platform/Input/`: owner-thread GLFW poller, pure input router and published API evidence.
+- `tests/Gameplay/`, `tests/Simulation/`, `tests/Input/`: standalone CPU suites; `tests/Rendering/hidden-smoke.ps1`: shared hidden GPU harness.
 - `Rendering/Shapes/`: headless geometry/contracts/colors/clips and borrowed buffers.
 - `tests/Shapes/`: CPU geometry and ABI tests.
 - `Rendering/VulkanRenderer.cs`, `Rendering/VulkanRenderer.Shapes.cs`, `Rendering/Shaders/`: lifecycle, pipeline, uploads, MSAA and disposal.
@@ -189,6 +220,6 @@ Before distribution review the current [BRUTAL license](https://github.com/ahwoo
 
 ## Next milestone
 
-Primitive rendering is implemented. Future gamepad input and timed simulation require interaction decisions. Gameplay direction is direct ball catch/aim/relaunch, informed by read-only PrototypeStudio reference, not an assumed paddle game. Text needs a verified managed wrapper first.
+The first ball interaction slice is implemented with provisional rules. Next: independently review integration and, only with user permission, inspect the visible arena and try real controls. Further gameplay choices remain unapproved. Text needs a verified managed wrapper first.
 
 Planning lives outside the repo at `C:\Users\aaron\obs-mono\vaults\personal\brutal-breakout`, using `YY-MM-DD-kebab-case.md`. Avoid building a general engine ahead of the game.
