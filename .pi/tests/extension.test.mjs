@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { cancellationRegression } from './cancellation-regression.mjs';
 
 const piRoot = process.argv[2];
 assert.ok(piRoot, 'Usage: node .pi/tests/extension.test.mjs <installed-pi-package-root>');
@@ -37,12 +38,5 @@ assert.equal(result.structuredContent.callerCwd, process.cwd());
 const summary = JSON.parse(result.structuredContent.output);
 assert.equal(summary.exitCode, 0);
 assert.ok(summary.steps.some(s => s.command.endsWith('vulkaninfo.exe')));
-// Cancellation during a real bounded doctor call must terminate the process tree.
-const cancellation = new AbortController();
-const pending = tool.execute('abort', { operation: 'doctor' }, cancellation.signal, undefined, context);
-setTimeout(() => cancellation.abort(), 100);
-const cancelled = await pending;
-assert.equal(cancelled.isError, true);
-assert.equal(cancelled.structuredContent.cancelled, true);
-assert.equal(cancelled.structuredContent.exitCode, 130);
-console.log('PASS: installed Pi loader/API, two skill resources, no hooks, allowlist, real doctor, pre/in-flight cancellation.');
+await cancellationRegression(loadExtensions, repositoryRoot);
+console.log('PASS: installed Pi loader/API, two skill resources, no hooks, allowlist, real doctor, pre-cancellation and descendant cleanup.');
