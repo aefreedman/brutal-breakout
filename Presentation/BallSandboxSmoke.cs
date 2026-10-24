@@ -5,7 +5,7 @@ using BrutalBreakout.Simulation;
 namespace BrutalBreakout.Presentation;
 
 /// <summary>Deterministic fake snapshots, never desktop input. Stages only advance after a presentation.</summary>
-internal sealed class BallSandboxSmoke
+internal sealed class BallSandboxSmoke : IDisposable
 {
     public BallSandboxSession Session { get; } = new();
     private enum Stage { Initial, Launch, Travel, Catch, Hold, Release, Relaunch, Reset, Resized, Done }
@@ -15,6 +15,8 @@ internal sealed class BallSandboxSmoke
     public bool IsInitial => stage == Stage.Initial;
     public bool ResizeRequested => stage == Stage.Resized;
     public bool Completed => stage == Stage.Done;
+
+    public void Dispose() => Session.Dispose();
 
     public void Advance(ArenaViewport viewport)
     {
@@ -31,9 +33,12 @@ internal sealed class BallSandboxSmoke
         if (geometry.ArenaIndices <= 0 || geometry.BallIndices <= 0)
             throw new InvalidOperationException("Gameplay: empty arena or ball.");
         var s = Session.Simulation.State;
-        if (s.Position.X < Arena.MinX || s.Position.X > Arena.MaxX ||
-            s.Position.Y < Arena.MinY || s.Position.Y > Arena.MaxY)
-            throw new InvalidOperationException("Gameplay: escaped radius-inset arena.");
+        const double NativeContactAllowance = 2;
+        const double CoordinateRoundoff = .001;
+        const double boundsAllowance = NativeContactAllowance + CoordinateRoundoff;
+        if (s.Position.X < Arena.MinX - boundsAllowance || s.Position.X > Arena.MaxX + boundsAllowance ||
+            s.Position.Y < Arena.MinY - boundsAllowance || s.Position.Y > Arena.MaxY + boundsAllowance)
+            throw new InvalidOperationException("Gameplay: escaped native contact allowance.");
         if (s.Phase == BallPhase.Aiming && geometry.AimIndices <= 0)
             throw new InvalidOperationException("Gameplay: missing aiming preview.");
         bool ready = true;
@@ -55,6 +60,8 @@ internal sealed class BallSandboxSmoke
             case Stage.Release:
                 Require(s.Phase == BallPhase.Aiming && s.Position == caught, "separate release"); break;
             case Stage.Relaunch:
+                // This measured straight-up scenario has no new native begin/hit event on relaunch.
+                // Other contact-point relaunches can legitimately regain eligibility immediately.
                 Require(s.Phase == BallPhase.Flying && !s.CatchEligible && s.Position != caught, "separate repress relaunch"); break;
             case Stage.Reset:
                 Require(s.Phase == BallPhase.Aiming && s.Position == new double2(640, 612) &&

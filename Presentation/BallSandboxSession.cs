@@ -24,17 +24,28 @@ public readonly record struct ArenaViewport(int WindowWidth, int WindowHeight, i
 }
 
 /// <summary>Single-threaded host bridge: input edges survive render-only frames, never catch-up ticks.</summary>
-public sealed class BallSandboxSession
+public sealed class BallSandboxSession : IDisposable
 {
     public BallSimulation Simulation { get; } = new();
     public InputRouter Router { get; } = new();
     private readonly FixedStepClock clock = new();
+    private readonly int ownerThread = Environment.CurrentManagedThreadId;
+    private bool disposed;
     private bool active, primary, restart;
     private double2? aim;
     public int TotalTicks { get; private set; }
 
+    public void Dispose()
+    {
+        Simulation.Dispose(); // Enforces owner-thread destruction, including repeated disposal.
+        disposed = true;
+    }
+
     public int Advance(InputSnapshot snapshot, double seconds, ArenaViewport viewport)
     {
+        if (Environment.CurrentManagedThreadId != ownerThread)
+            throw new InvalidOperationException("The session must be advanced on its owner thread.");
+        ObjectDisposedException.ThrowIf(disposed, this);
         var input = Router.Route(snapshot);
         if (!input.Active)
         {

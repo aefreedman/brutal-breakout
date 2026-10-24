@@ -56,9 +56,9 @@ try
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
             "Ball arena: aim, press to launch, bounce to unlock catch; release/repress to relaunch. See README.");
-        var session = new BallSandboxSession();
+        using var session = !gallery && !gameplaySmokeTest ? new BallSandboxSession() : null;
         var poller = new GlfwInputPoller(window);
-        var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke() : null;
+        using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke() : null;
         var gameplayViewports = new HashSet<(int Width, int Height)>();
         var gameplayFrames = 0;
         var staleFrameRegressionPassed = false;
@@ -99,7 +99,7 @@ try
                     if (gameplayScript.Completed) break;
                     gameplayScript.Advance(viewport);
                 }
-                else session.Advance(poller.Poll(), elapsedSeconds, viewport);
+                else session!.Advance(poller.Poll(), elapsedSeconds, viewport);
             }
             if (smokeTest)
             {
@@ -163,7 +163,7 @@ try
             if (!wasIconified && framebuffer.X > 0 && framebuffer.Y > 0)
             {
                 frame = gallery ? ShapeShowcase.Build(shapes, framebuffer.X, framebuffer.Y, out decorative) :
-                    BallSandbox.Build(shapes, (gameplayScript?.Session ?? session).Simulation,
+                    BallSandbox.Build(shapes, (gameplayScript?.Session ?? session!).Simulation,
                         framebuffer.X + (injectStaleFrame ? 1 : 0), framebuffer.Y, out gameplayGeometry);
                 if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
                     frame.Value.Indices.Length < ShapeShowcase.ShapeCount * 3 || frame.Value.Commands.Length < 5))

@@ -5,29 +5,34 @@ using BrutalBreakout.Rendering.Shapes;
 using BrutalBreakout.Simulation;
 using Xunit;
 
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
+
 public class SessionTests
 {
+    private const double CoordinateRoundoff = .001;
     private static readonly ArenaViewport View = new(1280, 720, 1280, 720);
     private static InputSnapshot Sample(bool press = false, bool restart = false) =>
         new() { Focused = true, KeyboardPrimary = press, KeyboardRestart = restart };
 
     [Fact] public void PendingEdgeSurvivesNoTickAndIsConsumedOnlyOnce()
     {
-        var s = new BallSandboxSession();
+        using var s = new BallSandboxSession();
         s.Advance(Sample(), 0, View);
         Assert.Equal(0, s.Advance(Sample(true), .001, View));
         Assert.Equal(BallPhase.Aiming, s.Simulation.State.Phase);
         Assert.Equal(8, s.Advance(Sample(), 1, View));
         Assert.Equal(BallPhase.Flying, s.Simulation.State.Phase);
-        Assert.Equal(572, s.Simulation.State.Position.Y, 8);
+        Assert.InRange(Math.Abs(572 - s.Simulation.State.Position.Y), 0, CoordinateRoundoff);
     }
 
     [Fact] public void CatchHoldsAndSeparateEdgeRelaunches()
     {
-        var s = new BallSandboxSession();
+        using var s = new BallSandboxSession();
         s.Advance(Sample(), 0, View);
         s.Advance(Sample(true), 1.0 / 60, View);
-        while (!s.Simulation.State.CatchEligible) s.Advance(Sample(), 1.0 / 60, View);
+        for (int i = 0; i < 200 && !s.Simulation.State.CatchEligible; i++)
+            s.Advance(Sample(), 1.0 / 60, View);
+        Assert.True(s.Simulation.State.CatchEligible);
         var p = s.Simulation.State.Position;
         s.Advance(Sample(true), 1.0 / 60, View);
         Assert.Equal(BallPhase.Aiming, s.Simulation.State.Phase);
@@ -40,7 +45,7 @@ public class SessionTests
 
     [Fact] public void RestartCancelsPendingPrimaryAndAim()
     {
-        var s = new BallSandboxSession();
+        using var s = new BallSandboxSession();
         s.Advance(Sample(), 0, View);
         s.Advance(Sample(true), 0, View);
         s.Advance(Sample(true, true), 0, View);
@@ -51,7 +56,7 @@ public class SessionTests
 
     [Fact] public void FocusLossDropsPendingAndResumeDropsElapsedAndHeldPress()
     {
-        var s = new BallSandboxSession();
+        using var s = new BallSandboxSession();
         s.Advance(Sample(), 0, View);
         s.Advance(Sample(true), .001, View);
         s.Advance(default, 100, View);
@@ -65,7 +70,7 @@ public class SessionTests
 
     [Fact] public void DirectionYIsConvertedAndStationaryMouseDoesNotOverride()
     {
-        var s = new BallSandboxSession();
+        using var s = new BallSandboxSession();
         var a = Sample() with { KeyboardDirection = new(1, 1), Cursor = new(100, 100) };
         s.Advance(a, 0, View);
         s.Advance(a, 1.0 / 60, View);
@@ -78,18 +83,18 @@ public class SessionTests
 
     [Fact] public void ZeroFramebufferDoesNotPausePhysicsOrChangeAim()
     {
-        var s = new BallSandboxSession();
+        using var s = new BallSandboxSession();
         s.Advance(Sample(), 0, View);
         s.Advance(Sample(true), 1.0 / 60, View);
         var p = s.Simulation.State.Position;
         s.Advance(Sample() with { Cursor = new(100, 100) }, 1.0 / 60, new(1280, 720, 0, 0));
-        Assert.Equal(p.Y - 10, s.Simulation.State.Position.Y, 8);
+        Assert.InRange(Math.Abs(p.Y - 10 - s.Simulation.State.Position.Y), 0, CoordinateRoundoff);
         Assert.Equal(new double2(0, -1), s.Simulation.State.AimDirection);
     }
 
     [Fact] public void PointerAimsFromBallCenterNotWorldOrigin()
     {
-        var s = new BallSandboxSession();
+        using var s = new BallSandboxSession();
         s.Advance(Sample(), 0, View);
         s.Advance(Sample() with { Cursor = new(740, 612) }, 1.0 / 60, View);
         Assert.Equal(new double2(1, 0), s.Simulation.State.AimDirection);
@@ -99,7 +104,7 @@ public class SessionTests
 
     [Fact] public void FlyingResumeDoesNotJump()
     {
-        var s = new BallSandboxSession();
+        using var s = new BallSandboxSession();
         s.Advance(Sample(), 0, View);
         s.Advance(Sample(true), 1.0 / 60, View);
         var p = s.Simulation.State.Position;
@@ -107,7 +112,7 @@ public class SessionTests
         Assert.Equal(0, s.Advance(Sample(true), 10, View));
         Assert.Equal(p, s.Simulation.State.Position);
         s.Advance(Sample(true), 1.0 / 60, View);
-        Assert.Equal(p.Y - 10, s.Simulation.State.Position.Y, 8);
+        Assert.InRange(Math.Abs(p.Y - 10 - s.Simulation.State.Position.Y), 0, CoordinateRoundoff);
     }
 
     [Theory]
@@ -133,14 +138,15 @@ public class SessionTests
     public void GeometryIncludesArenaBallAndPhaseCue(int w, int h)
     {
         using var draw = new ShapeDrawList();
-        var sim = new BallSimulation();
+        using var sim = new BallSimulation();
         var frame = BallSandbox.Build(draw, sim, w, h, out var aiming);
         Assert.True(frame.Indices.Length > 0);
         Assert.True(aiming.ArenaIndices > 0 && aiming.BallIndices > 0 && aiming.AimIndices > 0);
         sim.Step(new(PrimaryPressed: true));
         BallSandbox.Build(draw, sim, w, h, out var flying);
         Assert.Equal(0, flying.AimIndices);
-        while (!sim.State.CatchEligible) sim.Step();
+        for (int i = 0; i < 400 && !sim.State.CatchEligible; i++) sim.Step();
+        Assert.True(sim.State.CatchEligible);
         Assert.True(BallSandbox.Build(draw, sim, w, h, out _).Indices.Length > 0);
     }
 }
