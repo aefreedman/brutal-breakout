@@ -1,5 +1,79 @@
 # Published Box2D backend evidence
 
+## Basic breakout and Unity catch line (current seam)
+
+Required constructor is now `GameplaySettings(ArenaSettings arena, BallSettings ball,
+BreakoutSettings? breakout)`. Explicit `null` selects the existing physics-reference fixture;
+there is no optional argument, default rule set or default layout. The application configuration
+must supply a non-null rule set. All older constructor notes below are historical.
+
+New immutable settings:
+
+- `BrickSettings(double x, double y, double width, double height)` uses top-left logical coordinates.
+- `BreakoutSettings(int startingBalls, double catchZoneHeightFraction,
+  int maxBouncesWithoutBrick, IReadOnlyList<BrickSettings> bricks)` copies the list and exposes a
+  `ReadOnlyCollection<BrickSettings>`. Getters have corresponding PascalCase names.
+- Starting balls must be positive, fraction finite and strictly between 0 and 1, bounce limit
+  nonnegative (zero disables expiry, as in Unity), and layout nonempty with at most 1024 rectangles.
+  The brick cap bounds validation/layout work, not the default number of bricks.
+- Gameplay cross-validates spawn in the lower zone, full-circle spawn clearance (including native
+  float conversion), brick fit inside the walls and above the line, non-overlap (touching edges
+  permitted), finite edges and noncollapsing float/render/native rectangle half extents.
+- `GameplaySettings.CatchLineY` and `BallSimulation.CatchLineY` use
+  `height - height * fraction`, algebraically `height * (1 - fraction)` but avoiding an extra
+  rounding of the complementary fraction. The explicit physics reference has NaN for this line.
+
+Read-only simulation outputs: `ReadOnlySpan<BrickState> Bricks`, where
+`BrickState(int Id, BrickSettings Bounds, bool Alive)` retains its zero-based layout ID even after
+removal; `int RemainingBricks`, `int BallsRemaining` (includes the active ball),
+`RoundPhase RoundPhase` (`Playing`, `Won`, `Lost`), and `long BouncesWithoutBrick`.
+Existing `Settings`, `Gameplay`, `State`, `Step`, `Query`, `Preview`, and `Dispose` remain.
+
+Reference: read-only PrototypeStudio `GameSettings-Breakout.asset` has BottomThird restriction3,
+AlwaysDependent catch4, wall flags13 (top/left/right), MaxSpawns3 and bounce limit12.
+`Projectile.cs`193-195 records leaving the shot zone;404-424 requires both leaving and hitting
+something since firing. `ProjectileFactory.cs`458-493 restricts the BALL center, not the cursor;
+the input-position check is commented out. The implemented Y-down zone boundary is inclusive.
+A catch requires a primary edge after both shot facts and return to the lower zone; it freezes the
+current snapshot without stepping or relaunching. Launch/catch/reset clear historical facts.
+New ball-wall or ball-brick contact qualifies; a wall hit wholly inside the lower zone does not.
+Native fixed-step snapshots track leaving the zone, as Unity tracks updated projectile positions.
+
+In breakout mode there is no bottom fixture. A whole circle passing the inner bottom face loses a
+ball; surviving bricks remain, and the next shot resets to configured spawn/aim. Wall-only contacts
+expire the ball strictly after the configured limit; any brick hit resets that budget. Final brick
+wins, final miss loses, terminal rounds freeze and ignore commands other than restart. Restart
+recreates all bricks and restores lives and shot state. No paddle, progression or manual reflection,
+clamp, per-tick speed repair or catch teleport was added.
+
+Published native API proof: actual installed `Ahwoo.BRUTAL.Box2D 2026.10.2` DLL reflection exposes
+`public void B2Body.Dispose()`, not a guessed world DestroyBody helper. A separate console probe at
+`C:/Users/aaron/AppData/Local/Temp/brutal-breakout-core-api-probe` references that exact package,
+compiles this instance call, and executes create-body/create-polygon/dispose/recreate/dispose/world
+cleanup successfully headlessly. Contact structs were also reflected: begin carries ShapeIdA/B
+and Manifold; hit carries ShapeIdA/B, Point, Normal, ApproachSpeed. No new imports or package change.
+Native brick bodies use the existing polygon creation/material path, category4 against ball2;
+wall category1 and ball/query masks1|4 include only surviving obstacles. Both complete begin/hit
+buffers are consumed into owned per-shape flags before any body disposal; each body is removed
+once. A seam test actually destroys two adjacent bricks in one native step. Restart discards old
+handles, recreates bodies and preserves stable application IDs. Queries cast the configured full
+circle against the same world and ignore destroyed shapes and the ball.
+
+Component validation: **227/227 Simulation tests in Debug and Release** (179 previous fixture cases
+preserved, 48 new breakout/settings cases), locked restores and zero-warning builds. New cases
+cover actual bounce/removal/query exclusion, begin/hit deduplication and two-brick seam hit,
+catch prerequisites/center boundary/return/catch hold/new-shot facts, whole-ball bottom misses,
+configured lives and bounce expiry, brick reset of budget, win/loss/restart, repeated native
+restore/dispose beside another world, owner-thread rejection and immutable/invalid settings.
+Custom 1800x1000 geometry with radius/speed7/350 and23/950 passes native brick/catch/reset at
+30Hz/1,60Hz/2,120Hz/4,240Hz/8. Only Windows x64 headless runtime verified. Representable extreme
+settings remain no guarantee of stable physics, nor of observing a zone excursion wholly between
+fixed-step snapshots. No root app, GPU, visible-window or controller test was run in this lane.
+
+Parent integration remains responsible for new required gameplay JSON rules/layout and caller
+migration, presentation and configured palette, real input/session host scenarios, root content
+copy/docs and hidden GPU gates. This lane intentionally writes only Simulation and its tests.
+
 ## Gameplay/native geometry settings (current seam; supersedes constructors/constants below)
 
 Public required APIs (no defaults or file IO):
