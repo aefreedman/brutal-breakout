@@ -1,5 +1,30 @@
 # Published Box2D backend evidence
 
+## Configurable core seam (supersedes fixed timing/public constructor notes below)
+
+`PhysicsSettings(double updateHz, int substeps, int maxCatchUpSteps, double contactHertz,
+double contactDampingRatio)` requires all five values. It is sealed with getter-only properties;
+contact values are validated and stored as native floats. `StepSeconds` derives from `UpdateHz`.
+`FixedStepClock(settings)`, `BallSimulation(settings)`, internal `NativeArena(settings)` and
+`BallSandboxSession(settings)` require the same immutable instance. Clock and simulation expose
+`Settings` and instance `StepSeconds`; the clock exposes instance `MaxStepsPerAdvance`.
+No production fallback/default settings are provided. File/app configuration remains integration-owned.
+
+Validation rejects nonpositive/nonfinite frequency, nonpositive counts, negative/nonfinite/overflowing
+contact values (including positive values that underflow to zero), and native float step/substep or
+inverse conversions that become zero or nonfinite. There is no arbitrary frequency range. Validation
+is numeric representability, not a promise of meaningful physics at every representable extreme.
+Box2D controls contact response; no new native tuning constraints or response corrections were added.
+
+Headless tests cover actual native first displacement and independently stepped published-world
+agreement at 30/1, 60/2, 120/4, 144/3 and 240/8 Hz/substeps. One simulated second agrees with direct
+native-backed simulation at all five rates across 30/60/144/1000 render partitions, using custom
+caps and contact tuning. Tests also cover cap 1 through int.MaxValue, huge elapsed fraction retention,
+custom-rate session pending edges/pause reset, and zero warmed managed allocation at 30/1, 144/3,
+240/8. Historical contact tolerances below remain scoped to the original explicit test fixture.
+
+The following sections record the preceding fixed-settings backend migration, not current defaults.
+
 - Exact NuGet `Ahwoo.BRUTAL.Box2D [2026.10.2]`; transitive Native 2026.10.2, Core 2026.10.4, Numerics 2026.10.2 (locks checked in).
 - Managed nupkg SHA256: `63B9CBA50264C8E23AFAB06A108CFFCC18F43CC59703374A8BB78C8E655E2294`.
 - API provenance: verified-published-api.md in audit output `9cba6cb7-9450-49f3-9bb6-04c1f52974cd/box2d` (2026-10-24). Actual DLL exports instance B2World/B2Body/B2Shape methods and Default fields, not XML static spellings.
