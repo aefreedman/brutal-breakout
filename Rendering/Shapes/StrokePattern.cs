@@ -14,9 +14,13 @@ public readonly struct StrokePattern
     private readonly byte kind; // 1 absolute dashes, 2 relative, 3 fixed; 4..6 dots
     private readonly double length, gap, offset;
     private readonly bool fit;
-    private StrokePattern(byte kind, double length, double gap, double offset, bool fit)
+    private readonly DashShape shape;
+    private readonly double modifier;
+    private StrokePattern(byte kind, double length, double gap, double offset, bool fit,
+        DashShape shape = DashShape.Basic, double modifier = 1)
     {
         this.kind = kind; this.length = length; this.gap = gap; this.offset = offset; this.fit = fit;
+        this.shape = shape; this.modifier = modifier;
         Validate();
     }
     public static StrokePattern Dashes(double length, double gap, double offsetCycles = 0, bool fitClosed = false) => new(1, length, gap, offsetCycles, fitClosed);
@@ -25,9 +29,23 @@ public readonly struct StrokePattern
     public static StrokePattern Dots(double spacing, double offsetCycles = 0, bool fitClosed = false) => new(4, spacing, 0, offsetCycles, fitClosed);
     public static StrokePattern RelativeDots(double spacingMultiples, double offsetCycles = 0, bool fitClosed = false) => new(5, spacingMultiples, 0, offsetCycles, fitClosed);
     public static StrokePattern FixedDots(int count, double offsetCycles = 0) => new(6, count, 0, offsetCycles, true);
+    /// <summary>Returns a copy retaining sizing, fitting and phase. Modifier is finite in [-1,1];
+    /// Basic ignores it after validation. Zero modifier uses exactly Basic geometry. Dots require Basic.
+    /// Decorative shapes require Butt caps, including when modifier is zero.</summary>
+    public StrokePattern WithShape(DashShape shape, double modifier = 1)
+    {
+        Validate();
+        return new(kind, length, gap, offset, fit, shape, modifier);
+    }
+    internal DashShape Shape => shape;
+    internal double Modifier => modifier;
+    internal bool IsDecorative => shape != DashShape.Basic && modifier != 0;
     internal bool IsDots => kind >= 4;
     internal void Validate()
     {
+        if (!Enum.IsDefined(shape) || !double.IsFinite(modifier) || modifier < -1 || modifier > 1 ||
+            (IsDots && shape != DashShape.Basic))
+            throw new ArgumentOutOfRangeException(nameof(StrokePattern), "Invalid dash shape/modifier or decorative dots.");
         if (kind is < 1 or > 6 || !double.IsFinite(length) || length <= 0 || !double.IsFinite(gap) || gap < 0 ||
             !double.IsFinite(offset) || (kind == 3 && gap >= 1) || (kind is 3 or 6 && length > 4096))
             throw new ArgumentOutOfRangeException(nameof(StrokePattern), "Invalid pattern or fixed count (1..4096).");

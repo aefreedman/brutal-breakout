@@ -48,6 +48,8 @@ public sealed partial class ShapeDrawList
         Start(color); Nonnegative(width); pattern.Validate();
         if (!Enum.IsDefined(cap)) throw new ArgumentOutOfRangeException(nameof(cap));
         if (!Enum.IsDefined(space)) throw new ArgumentOutOfRangeException(nameof(space));
+        if (pattern.Shape != DashShape.Basic && cap != LineCap.Butt)
+            throw new ArgumentException("Decorative dashes own their ends and require Butt caps.", nameof(cap));
     }
 
     private void PatternCap(P center, P direction, double radius, bool framebuffer)
