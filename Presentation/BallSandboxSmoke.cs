@@ -72,6 +72,8 @@ internal sealed class BallSandboxSmoke : IDisposable
         if (s.Position.X < game.MinX - boundsAllowance || s.Position.X > game.MaxX + boundsAllowance ||
             s.Position.Y < game.MinY - boundsAllowance || s.Position.Y > game.MaxY + boundsAllowance)
             throw new InvalidOperationException("Gameplay: escaped native contact allowance.");
+        if (geometry.BackgroundIndices != 6 || (s.Phase == BallPhase.Aiming ? geometry.HeldRingIndices <= 0 : geometry.HeldRingIndices != 0))
+            throw new InvalidOperationException("Gameplay: missing background or incorrect held-only ring.");
         if (s.Phase == BallPhase.Aiming && geometry.AimIndices <= 0)
             throw new InvalidOperationException("Gameplay: missing aiming preview.");
         bool ready = true;

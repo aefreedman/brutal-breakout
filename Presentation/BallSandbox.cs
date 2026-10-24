@@ -4,20 +4,26 @@ using BrutalBreakout.Simulation;
 
 namespace BrutalBreakout.Presentation;
 
-/// <summary>Flat Unity-reference palette and geometric feedback; no dependency on window or native APIs.</summary>
+/// <summary>Unity-reference presentation and geometric feedback; no dependency on window or native APIs.</summary>
 public static class BallSandbox
 {
     public readonly record struct GeometryEvidence(int ArenaIndices, int BallIndices, int AimIndices,
-        int BrickIndices, int CatchLineIndices, int HudIndices);
+        int BrickIndices, int CatchLineIndices, int HudIndices, int BackgroundIndices, int HeldRingIndices);
 
     public static ShapeFrame Build(ShapeDrawList draw, BallSimulation simulation, ColorScheme colors,
-        int width, int height, out GeometryEvidence evidence)
+        PresentationStyle style, double renderSeconds, int width, int height, out GeometryEvidence evidence)
     {
         ArgumentNullException.ThrowIfNull(colors);
+        ArgumentNullException.ThrowIfNull(style);
+        double offset = style.RingOffset(renderSeconds);
         var a = simulation.Gameplay.Arena;
         var radius = (float)simulation.Gameplay.Ball.Radius;
         var v = new ArenaViewport(width, height, width, height, a);
-        draw.BeginFrame(width, height, new float3x2(v.Scale, 0, 0, v.Scale, v.X, v.Y));
+        draw.BeginFrame(width, height);
+        draw.FillVerticalGradientRect(new(0), new(width, height), colors.Background, colors.BackgroundBottom);
+        int backgroundEnd = draw.IndexCount;
+        draw.SetTransform(new float3x2(v.Scale, 0, 0, v.Scale, v.X, v.Y));
+        float shortExtent = Math.Min(width, height);
         float t = (float)a.WallThickness;
         float left = (float)a.Left, right = (float)a.Right, top = (float)a.Top, bottom = (float)a.Bottom;
         var rules = simulation.Gameplay.Breakout;
@@ -34,46 +40,53 @@ public static class BallSandbox
             var fill = brick.Id % 3 == 0 ? colors.BrickPrimary : brick.Id % 3 == 1 ? colors.BrickSecondary : colors.BrickAccent;
             var origin = new float2((float)b.X, (float)b.Y);
             var size = new float2((float)b.Width, (float)b.Height);
-            draw.FillRect(origin, size, fill);
-            // Inset keyline: keep all visible brick geometry inside its native rectangle.
-            float stroke = MathF.Min(2, MathF.Min(size.X, size.Y) / 4);
-            draw.StrokeRect(origin + new float2(stroke / 2), size - new float2(stroke), stroke, colors.Walls);
+            draw.FillRoundedRect(origin, size, (float)(Math.Min(size.X, size.Y) * style.BrickCornerFraction), fill);
         }
         int bricksEnd = draw.IndexCount;
         if (rules is not null)
-            draw.StrokePolyline([new(left, (float)simulation.CatchLineY), new(right, (float)simulation.CatchLineY)], 2, colors.CatchLine);
+            draw.StrokePatternedSegment(new(left, (float)simulation.CatchLineY), new(right, (float)simulation.CatchLineY),
+                (float)(shortExtent * style.CatchLineWidthScreenFraction),
+                StrokePattern.RelativeDashes(style.CatchLineDashLengthMultiples, style.CatchLineGapMultiples),
+                colors.CatchLine, LineCap.Round, space: StrokeSpace.Framebuffer);
         int lineEnd = draw.IndexCount;
 
         var state = simulation.State;
         float2 Point(double2 p) => new((float)p.X, (float)p.Y);
         var center = Point(state.Position);
         bool playing = simulation.RoundPhase == RoundPhase.Playing;
-        if (playing)
-        {
-            var ball = state.CatchEligible ? colors.CatchReady : colors.Ball;
-            draw.FillDisc(center, radius, ball);
-            draw.StrokeCircle(center, radius + (state.Phase == BallPhase.Aiming ? 9 : 6), 3, ball);
-        }
-        int ballEnd = draw.IndexCount;
+        // Aim is behind both the held disc and its selection ring.
         if (playing && state.Phase == BallPhase.Aiming)
         {
             var hit = simulation.Preview();
+            float aimWidth = (float)(radius * style.AimWidthRadiusRatio);
+            var start = state.Position + state.AimDirection * radius;
             if (hit.HasHit)
             {
-                draw.StrokePolyline([center, Point(hit.Position)], 2, colors.Aim);
-                draw.StrokeCircle(Point(hit.Position), radius, 2, colors.Aim);
-                // Query-only separation from native cast slop; never moves the ball.
+                if (hit.Distance > 2 * radius)
+                    draw.StrokeSegment(Point(start), Point(hit.Position - state.AimDirection * radius), aimWidth, LineCap.Butt, colors.Aim);
+                draw.StrokeCircle(Point(hit.Position), radius, (float)(radius * style.ImpactRingWidthRadiusRatio), colors.Aim);
+                // Query-only separation from native cast slop; never moves the ball or creates a hit.
                 const double secondaryQuerySkin = 1;
                 var next = simulation.Query(hit.Position + hit.Normal * secondaryQuerySkin, hit.ReflectedDirection);
-                if (next.HasHit)
-                {
-                    double reflectedLength = Math.Min(72, next.Distance);
-                    draw.StrokePolyline([Point(hit.Position), Point(hit.Position + hit.ReflectedDirection * reflectedLength)], 2, colors.Aim);
-                }
+                double endDistance = radius * (1 + style.ReflectedLengthRadiusRatio);
+                if (next.HasHit) endDistance = Math.Min(endDistance, next.Distance);
+                if (endDistance > radius)
+                    draw.StrokeSegment(Point(hit.Position + hit.ReflectedDirection * radius),
+                        Point(hit.Position + hit.ReflectedDirection * endDistance), aimWidth, LineCap.Butt, colors.Aim);
             }
-            else draw.StrokePolyline([center, Point(state.Position + state.AimDirection * 48)], 2, colors.Aim);
+            else
+                draw.StrokeSegment(Point(start), Point(start + state.AimDirection * (radius * style.FallbackAimLengthRadiusRatio)),
+                    aimWidth, LineCap.Butt, colors.Aim);
         }
         int aimEnd = draw.IndexCount;
+        if (playing) draw.FillDisc(center, radius, colors.Ball);
+        int ballEnd = draw.IndexCount;
+        if (playing && state.Phase == BallPhase.Aiming)
+            draw.StrokePatternedCircle(center, (float)(shortExtent * style.HeldRingRadiusScreenFraction / v.Scale),
+                (float)(shortExtent * style.HeldRingWidthScreenFraction),
+                StrokePattern.FixedDashes(style.HeldRingDashCount, style.HeldRingGapFraction, offset),
+                colors.HeldRing, LineCap.Round, space: StrokeSpace.Framebuffer);
+        int heldEnd = draw.IndexCount;
         if (rules is not null)
         {
             // Compact remaining-ball and brick progress bars, independent of large configured counts.
@@ -97,8 +110,8 @@ public static class BallSandbox
             }
         }
         int end = draw.IndexCount;
-        evidence = new(arenaEnd, ballEnd - lineEnd, aimEnd - ballEnd, bricksEnd - arenaEnd,
-            lineEnd - bricksEnd, end - aimEnd);
+        evidence = new(arenaEnd - backgroundEnd, ballEnd - aimEnd, aimEnd - lineEnd, bricksEnd - arenaEnd,
+            lineEnd - bricksEnd, end - heldEnd, backgroundEnd, heldEnd - ballEnd);
         return draw.Finish();
     }
 }

@@ -4,20 +4,25 @@
     "cream": "#E8E7CB",
     "blue": "#2176CC",
     "coral": "#FF7D6E",
-    "pink": "#FCA6AC"
+    "pink": "#FCA6AC",
+    "white": "#FFFFFF",
+    "backgroundTop": "#33332D",
+    "backgroundBottom": "#381B18"
   },
   "roles": {
-    "background": "cream",
-    "walls": "blue",
+    "background": "backgroundTop",
+    "walls": "white",
     "ball": "coral",
-    "catchReady": "blue",
-    "catchLine": "blue",
-    "aim": "blue",
-    "brickPrimary": "blue",
+    "catchReady": "coral",
+    "catchLine": "cream",
+    "aim": "white",
+    "brickPrimary": "coral",
     "brickSecondary": "coral",
-    "brickAccent": "pink",
-    "hud": "blue",
+    "brickAccent": "coral",
+    "hud": "cream",
     "win": "blue",
-    "loss": "coral"
+    "loss": "coral",
+    "backgroundBottom": "backgroundBottom",
+    "heldRing": "cream"
   }
 }

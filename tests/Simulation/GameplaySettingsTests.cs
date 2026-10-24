@@ -178,7 +178,7 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.Same(TestSettings.Input, session.Router.Settings);
         Assert.Throws<ArgumentException>(() => session.Advance(default, 0, new(1000, 1000, 2000, 2000, Custom().Arena)));
         using var draw = new ShapeDrawList();
-        var frame = BallSandbox.Build(draw, session.Simulation, TestSettings.Colors, 1800, 1000, out var evidence);
+        var frame = BallSandbox.Build(draw, session.Simulation, TestSettings.Colors, TestSettings.Style, 0, 1800, 1000, out var evidence);
         Assert.Equal(24, evidence.ArenaIndices);
         Assert.True(evidence.BallIndices > 0 && evidence.AimIndices > 0);
         var wall = LinearColor.FromSrgb(.25f, .38f, .48f);
@@ -191,9 +191,10 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
         }
         Assert.Equal(56f, walls.Min(p => p.X)); Assert.Equal(1624f, walls.Max(p => p.X));
         Assert.Equal(96f, walls.Min(p => p.Y)); Assert.Equal(874f, walls.Max(p => p.Y));
-        // Halo centerline radius = configured radius + 9, outer edge adds half the 3-unit stroke.
-        Assert.InRange(balls.Max(p => p.X), 453.4f, 453.6f);
-        Assert.InRange(balls.Min(p => p.X), 386.4f, 386.6f);
+        // The held ball itself is only its configured filled disc, never a solid halo.
+        Assert.InRange(balls.Max(p => p.X), 442.7f, 443.1f);
+        Assert.InRange(balls.Min(p => p.X), 396.9f, 397.3f);
+        Assert.True(evidence.HeldRingIndices > 0);
         Assert.Contains(balls, p => Math.Abs(p.X - (420 - 23)) < .01 && Math.Abs(p.Y - 600) < .01);
     }
 }

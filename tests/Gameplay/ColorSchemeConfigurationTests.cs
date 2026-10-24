@@ -12,7 +12,7 @@ public class ColorSchemeConfigurationTests
           "name": "Test scheme",
           "palette": { "blue": "#2176CC" },
           "roles": {
-            "background": "blue", "walls": "blue", "ball": "blue", "catchReady": "blue",
+            "backgroundBottom": "blue", "heldRing": "blue", "background": "blue", "walls": "blue", "ball": "blue", "catchReady": "blue",
             "catchLine": "blue", "aim": "blue", "brickPrimary": "blue", "brickSecondary": "blue",
             "brickAccent": "blue", "hud": "blue", "win": "blue", "loss": "blue"
           }
@@ -194,10 +194,17 @@ public class ColorSchemeConfigurationTests
         var unity = ColorSchemeConfiguration.Load(System.IO.Path.Combine(directory!.FullName, "colors.json")).Settings;
         var night = ColorSchemeConfiguration.Load(System.IO.Path.Combine(directory.FullName, "color-schemes", "night.json")).Settings;
         Assert.Equal("Prototype Studio", unity.Name);
-        Assert.Equal(LinearColor.FromSrgb(232 / 255f, 231 / 255f, 203 / 255f), unity.Background);
-        Assert.Equal(LinearColor.FromSrgb(33 / 255f, 118 / 255f, 204 / 255f), unity.Walls);
+        Assert.Equal(LinearColor.FromSrgb(51 / 255f, 51 / 255f, 45 / 255f), unity.Background);
+        Assert.Equal(new LinearColor(1, 1, 1), unity.Walls);
         Assert.Equal(LinearColor.FromSrgb(255 / 255f, 125 / 255f, 110 / 255f), unity.Ball);
-        Assert.Equal(LinearColor.FromSrgb(252 / 255f, 166 / 255f, 172 / 255f), unity.BrickAccent);
+        Assert.Equal(unity.Ball, unity.BrickAccent);
+        Assert.Equal(LinearColor.FromSrgb(56 / 255f, 27 / 255f, 24 / 255f), unity.BackgroundBottom);
+        Assert.Equal(unity.Ball, unity.CatchReady);
+        Assert.Equal(unity.Ball, unity.BrickPrimary);
+        Assert.Equal(unity.Ball, unity.BrickSecondary);
+        Assert.Equal(unity.Walls, unity.Aim);
+        Assert.Equal(LinearColor.FromSrgb(232 / 255f, 231 / 255f, 203 / 255f), unity.HeldRing);
+        Assert.Equal(unity.HeldRing, unity.CatchLine);
         Assert.NotEqual(unity.Background, night.Background);
         Assert.NotEqual(unity.Ball, night.Ball);
         Assert.NotEqual(unity.Name, night.Name);
@@ -213,7 +220,7 @@ public class ColorSchemeConfigurationTests
     {
         var color = new LinearColor(r, g, b, a);
         Assert.Throws<ArgumentException>(() => new ColorScheme("Test", color, color, color, color, color, color,
-            color, color, color, color, color, color));
+            color, color, color, color, color, color, color, color));
     }
 
     private sealed class Files : IDisposable

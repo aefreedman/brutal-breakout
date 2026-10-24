@@ -1,0 +1,15 @@
+{
+  "heldRingRadiusScreenFraction": 0.2,
+  "heldRingWidthScreenFraction": 0.02,
+  "heldRingDashCount": 16,
+  "heldRingGapFraction": 0.5,
+  "heldRingCyclesPerSecond": 2,
+  "aimWidthRadiusRatio": 0.25,
+  "impactRingWidthRadiusRatio": 0.1,
+  "reflectedLengthRadiusRatio": 2,
+  "fallbackAimLengthRadiusRatio": 4,
+  "brickCornerFraction": 0.1,
+  "catchLineWidthScreenFraction": 0.01,
+  "catchLineDashLengthMultiples": 3,
+  "catchLineGapMultiples": 3
+}

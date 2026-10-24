@@ -110,6 +110,25 @@ public sealed partial class ShapeDrawList : IDisposable
         Rect(o, s);
         Convex(color);
     }
+    /// <summary>Local vertical gradient, premultiplied linear endpoints interpolated by the GPU.
+    /// Uses the same transactional precision, transform, clip and budget contract as FillRect.</summary>
+    public void FillVerticalGradientRect(float2 origin, float2 size, LinearColor top, LinearColor bottom)
+    {
+        Start(top);
+        bottom.Validate();
+        var o = Input(origin);
+        var s = Size(size);
+        if ((top.A == 0 && bottom.A == 0) || clips[^1].IsEmpty || Singular(local) || Singular(world) || s.X == 0 || s.Y == 0) return;
+        Rect(o, s);
+        int start = vc;
+        // Choose an emitting endpoint even when the other endpoint is transparent.
+        Convex(top.A != 0 ? top : bottom);
+        if (vc == start) return;
+        vertices[start] = new(vertices[start].Position, top.Premultiplied);
+        vertices[start + 1] = new(vertices[start + 1].Position, top.Premultiplied);
+        vertices[start + 2] = new(vertices[start + 2].Position, bottom.Premultiplied);
+        vertices[start + 3] = new(vertices[start + 3].Position, bottom.Premultiplied);
+    }
     private void Rect(P o, P s)
     {
         polygon.Add(o);

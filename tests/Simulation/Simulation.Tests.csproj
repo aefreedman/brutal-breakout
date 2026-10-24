@@ -12,6 +12,7 @@
     <ProjectReference Include="../../Rendering/Shapes/BrutalBreakout.Shapes.csproj" />
     <ProjectReference Include="../../Platform/Input/BrutalBreakout.Input.csproj" />
     <!-- Compile the actual CPU consumer without restoring/building the app or changing its lock. -->
+    <Compile Include="../../Presentation/PresentationStyle.cs" Link="Consumer/PresentationStyle.cs" />
     <Compile Include="../../Presentation/ColorScheme.cs" Link="Consumer/ColorScheme.cs" />
     <Compile Include="../../Presentation/BallSandbox.cs" Link="Consumer/BallSandbox.cs" />
     <Compile Include="../../Presentation/BallSandboxSession.cs" Link="Consumer/BallSandboxSession.cs" />

@@ -24,17 +24,21 @@ LoadedPhysicsConfiguration? physics;
 LoadedGameplayConfiguration? gameplay;
 LoadedInputConfiguration? input;
 LoadedColorSchemeConfiguration? colors;
+LoadedPresentationStyleConfiguration? style;
 try
 {
     physics = PhysicsConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     gameplay = GameplayConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     input = InputConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     colors = ColorSchemeConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    style = PresentationStyleConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    if (style is not null && gameplay is not null) style.Settings.Validate(gameplay.Settings);
     if (physics is not null && gameplay is not null) GameplayConfiguration.ValidatePhysics(gameplay, physics);
     if (physics is not null) Console.WriteLine(physics.Describe());
     if (gameplay is not null) Console.WriteLine(gameplay.Describe());
     if (input is not null) Console.WriteLine(input.Describe());
     if (colors is not null) Console.WriteLine(colors.Describe());
+    if (style is not null) Console.WriteLine(style.Describe());
 }
 catch (Exception error) when (error is InvalidDataException or ArgumentException)
 {
@@ -196,7 +200,7 @@ try
             if (!wasIconified && framebuffer.X > 0 && framebuffer.Y > 0)
             {
                 frame = gallery ? ShapeShowcase.Build(shapes, framebuffer.X, framebuffer.Y, out decorative) :
-                    BallSandbox.Build(shapes, (gameplayScript?.Session ?? session!).Simulation, colors!.Settings,
+                    BallSandbox.Build(shapes, (gameplayScript?.Session ?? session!).Simulation, colors!.Settings, style!.Settings, now.TotalSeconds,
                         framebuffer.X + (injectStaleFrame ? 1 : 0), framebuffer.Y, out gameplayGeometry);
                 if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
                     frame.Value.Indices.Length < ShapeShowcase.ShapeCount * 3 || frame.Value.Commands.Length < 5))
@@ -221,7 +225,7 @@ try
             {
                 gameplayFrames++;
                 if (gameplayViewports.Add((framebuffer.X, framebuffer.Y)))
-                    Console.WriteLine($"Gameplay viewport: {framebuffer.X}x{framebuffer.Y}; indices={frame.Value.Indices.Length}; arenaIndices={gameplayGeometry.ArenaIndices}; ballIndices={gameplayGeometry.BallIndices}; aimIndices={gameplayGeometry.AimIndices}; brickIndices={gameplayGeometry.BrickIndices}; catchLineIndices={gameplayGeometry.CatchLineIndices}; hudIndices={gameplayGeometry.HudIndices}.");
+                    Console.WriteLine($"Gameplay viewport: {framebuffer.X}x{framebuffer.Y}; indices={frame.Value.Indices.Length}; arenaIndices={gameplayGeometry.ArenaIndices}; ballIndices={gameplayGeometry.BallIndices}; aimIndices={gameplayGeometry.AimIndices}; brickIndices={gameplayGeometry.BrickIndices}; catchLineIndices={gameplayGeometry.CatchLineIndices}; hudIndices={gameplayGeometry.HudIndices}; backgroundIndices={gameplayGeometry.BackgroundIndices}; heldRingIndices={gameplayGeometry.HeldRingIndices}.");
                 gameplayScript.Presented(framebuffer.X, framebuffer.Y, gameplayGeometry);
             }
             if (injectStaleFrame && frame.HasValue && renderer.PresentedFrames > framesBeforeDraw)

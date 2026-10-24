@@ -116,8 +116,8 @@ public class BreakoutIntegrationTests
         Until(host, viewport, () => host.Simulation.RoundPhase != RoundPhase.Playing);
         Assert.Equal(lose ? RoundPhase.Lost : RoundPhase.Won, host.Simulation.RoundPhase);
         using var draw = new ShapeDrawList();
-        var frame = BallSandbox.Build(draw, host.Simulation, TestSettings.Colors, 1000, 900, out var evidence);
-        Assert.Equal(0, evidence.BallIndices); Assert.Equal(0, evidence.AimIndices);
+        var frame = BallSandbox.Build(draw, host.Simulation, TestSettings.Colors, TestSettings.Style, 0, 1000, 900, out var evidence);
+        Assert.Equal(0, evidence.HeldRingIndices); Assert.Equal(0, evidence.BallIndices); Assert.Equal(0, evidence.AimIndices);
         Assert.True(evidence.HudIndices > 0 && frame.Indices.Length > 0);
         host.Advance(idle with { KeyboardRestart = true }, host.Settings.StepSeconds, viewport);
         Assert.Equal(RoundPhase.Playing, host.Simulation.RoundPhase);
@@ -128,13 +128,13 @@ public class BreakoutIntegrationTests
     public void CategoryEvidenceUsesActualIndexRangesEvenWhenEveryColorIsIdentical()
     {
         var c = new LinearColor(.5f, .5f, .5f);
-        var same = new ColorScheme("same", c, c, c, c, c, c, c, c, c, c, c, c);
+        var same = new ColorScheme("same", c, c, c, c, c, c, c, c, c, c, c, c, c, c);
         using var sim = new BallSimulation(TestSettings.Baseline, Game());
         using var draw = new ShapeDrawList();
-        var frame = BallSandbox.Build(draw, sim, same, 1000, 900, out var e);
+        var frame = BallSandbox.Build(draw, sim, same, TestSettings.Style, 0, 1000, 900, out var e);
         Assert.Equal(18, e.ArenaIndices);
         Assert.True(e.BrickIndices > 0 && e.CatchLineIndices > 0 && e.HudIndices > 0 && e.BallIndices > 0 && e.AimIndices > 0);
-        Assert.Equal(frame.Indices.Length, e.ArenaIndices + e.BrickIndices + e.CatchLineIndices + e.HudIndices + e.BallIndices + e.AimIndices);
+        Assert.Equal(frame.Indices.Length, e.ArenaIndices + e.BrickIndices + e.CatchLineIndices + e.HudIndices + e.BallIndices + e.AimIndices + e.BackgroundIndices + e.HeldRingIndices);
         foreach (var v in frame.Vertices.Span) Assert.Equal(c.R, v.Color.X);
     }
 }

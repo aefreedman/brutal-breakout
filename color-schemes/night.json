@@ -19,6 +19,8 @@
     "brickAccent": "rose",
     "hud": "ice",
     "win": "cyan",
-    "loss": "rose"
+    "loss": "rose",
+    "backgroundBottom": "midnight",
+    "heldRing": "cyan"
   }
 }
