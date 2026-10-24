@@ -52,7 +52,7 @@ public readonly struct StrokePattern
     }
     internal readonly record struct Interval(double Start, double End);
     internal sealed record Samples(List<Interval> Intervals, List<double> Sites, bool Solid);
-    internal Samples Sample(double total, double width, bool closed)
+    internal Samples Sample(double total, double width, bool closed, double endpointPadding = 0)
     {
         Validate();
         var spans = new List<Interval>(); var sites = new List<double>();
@@ -76,8 +76,12 @@ public readonly struct StrokePattern
         double phase = offset % 1; if (phase < 0) phase += 1;
         if (phase == 1) phase = 0; // tiny negative offsets may round upward at the wrap
         double first = phase * period;
-        int cyclesToVisit = (int)Math.Ceiling(ratio) + 1;
-        for (int i = IsDots ? 0 : -1; i <= cyclesToVisit; i++)
+        double extra = endpointPadding / period;
+        if (!double.IsFinite(extra) || ratio + 2 * extra > 4096)
+            throw new ArgumentException("Pattern exceeds 4096 intervals/sites including decorative endpoint padding.");
+        int paddingCycles = (int)Math.Ceiling(extra);
+        int cyclesToVisit = (int)Math.Ceiling(ratio) + 1 + paddingCycles;
+        for (int i = IsDots ? 0 : -1 - paddingCycles; i <= cyclesToVisit; i++)
         {
             double start = first + i * period;
             if (IsDots)
@@ -90,9 +94,9 @@ public readonly struct StrokePattern
                 double occupiedEnd = start + duty * period;
                 if (start >= 0 && start < total && !(occupiedEnd > start))
                     throw new ArgumentException("Pattern occupied interval loses precision.");
-                double end = Math.Min(total, occupiedEnd);
-                start = Math.Max(0, start);
-                if (end > start) spans.Add(new(start, end));
+                double end = endpointPadding == 0 ? Math.Min(total, occupiedEnd) : occupiedEnd;
+                start = endpointPadding == 0 ? Math.Max(0, start) : start;
+                if (end > start && end > -endpointPadding && start < total + endpointPadding) spans.Add(new(start, end));
             }
             if (sites.Count > 4096 || spans.Count > (closed ? 4097 : 4096)) throw new ArgumentException("Pattern exceeds 4096 intervals/sites.");
         }

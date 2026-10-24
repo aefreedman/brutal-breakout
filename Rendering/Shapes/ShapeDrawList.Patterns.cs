@@ -15,6 +15,10 @@ public sealed partial class ShapeDrawList
     /// Crossing/touching open centerlines and overlapping fragment geometry are unsupported.
     /// Maximum 1024 source points and 4096 intervals/sites. Pairwise overlap validation has a
     /// 4,000,000-candidate work budget (including broad-phase tests); excessive complexity rejects.
+    /// Nonzero decorative shapes use a piecewise-affine miter ribbon, not Basic's bevel joins.
+    /// Their shifted glyphs may extend beyond occupied intervals, but clip to open path endpoints
+    /// (no extension). Closed glyphs wrap across the seam. Tight/inverted/overlapping ribbons reject.
+    /// Exactly zero modifier and zero-gap patterns use Basic geometry, including its joins.
     /// Dots ignore cap appearance, but still validate its enum. General self-crossing unions and
     /// open end-to-end snapping are unsupported. Zero-length paths are empty, even with round caps.</summary>
     public void StrokePatternedPolyline(ReadOnlySpan<float2> points, float width, StrokePattern pattern,
@@ -134,7 +138,8 @@ public sealed partial class ShapeDrawList
             if (!(distances[i + 1] > distances[i])) throw new ArgumentException("Centerline precision collapses an edge.");
         }
         double total = distances[^1];
-        var samples = pattern.Sample(total, width, closed);
+        var samples = pattern.Sample(total, width, closed,
+            pattern.IsDecorative && !closed ? width / 2.0 * Math.Abs(pattern.Modifier) : 0);
         int oldVc = vc, oldIc = ic, oldCc = cc;
         var last = cc == 0 ? default : commands[cc - 1];
         var fragments = new List<PatternTile>();
@@ -163,6 +168,10 @@ public sealed partial class ShapeDrawList
                 PrepareBoundary(StrokeSpace.Local);
                 OffsetOuter(width / 2.0); ErodeInner(width / 2.0);
                 EmitOutline(color, space);
+            }
+            else if (pattern.IsDecorative && pattern.Shape == DashShape.Angled && !samples.Solid)
+            {
+                EmitDecorativePattern(centerline, distances, width, pattern, samples.Intervals, closed, color, space);
             }
             else foreach (var interval in samples.Intervals)
             {
@@ -242,12 +251,11 @@ public sealed partial class ShapeDrawList
 
     // Sweep the more discriminating axis. Bound *all* candidate work (including AABB tests),
     // not only positive overlaps. This is a bounded rejection policy, not an arbitrary path union.
-    private void ValidatePatternTiles(List<PatternTile> tiles)
+    private void ValidatePatternTiles(List<PatternTile> tiles, int work = 0)
     {
         if (tiles.Count < 2) return;
         bool xAxis = tiles.Max(t => t.MaxX) - tiles.Min(t => t.MinX) >= tiles.Max(t => t.MaxY) - tiles.Min(t => t.MinY);
         tiles.Sort((a, b) => (xAxis ? a.MinX : a.MinY).CompareTo(xAxis ? b.MinX : b.MinY));
-        int work = 0;
         void Step() { if (++work > 4_000_000) throw new ArgumentException("Pattern overlap-validation complexity limit."); }
         for (int i = 0; i < tiles.Count; i++) for (int j = i + 1; j < tiles.Count; j++)
         {
