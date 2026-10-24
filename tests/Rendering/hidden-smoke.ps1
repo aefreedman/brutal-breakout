@@ -92,6 +92,13 @@ try {
     }
     if ($sizes.Count -lt 2) { throw 'Missing distinct nonempty resize viewports.' }
     } else {
+        $receipt = 'Gameplay receipt regression PASS: clearOnlyPresented=True; geometryPresented=False; nonemptyPresentedFrames=0; viewports=0; stage=Initial.'
+        if (-not $output.Contains($receipt) -or
+            $output -notmatch 'Shape frame 1281x720 skipped after resize; rebuild at 1280x720\.' -or
+            $output.IndexOf($receipt) -gt $output.IndexOf('Gameplay stage: Initial;') -or
+            $output.IndexOf($receipt) -gt $output.IndexOf('Gameplay viewport:')) {
+            throw 'Missing actual stale-frame clear-only receipt regression or evidence advanced before receipt.'
+        }
         $stages = @('Initial', 'Launch', 'Travel', 'Catch', 'Hold', 'Release', 'Relaunch', 'Reset', 'Resized')
         foreach ($stage in $stages) {
             if ($output -notmatch "Gameplay stage: $stage; ticks=\d+; phase=(Aiming|Flying);") {

@@ -270,8 +270,9 @@ internal sealed unsafe partial class VulkanRenderer
             ByteSize.Zero, ByteSize.Of(bytes)), "Flush shape upload");
     }
 
-    private void RecordShapes(int imageIndex, ShapeFrame? frame)
+    private bool RecordShapes(int imageIndex, ShapeFrame? frame)
     {
+        var geometryRecorded = false;
         ref var api = ref _device!.PInvoke;
         Check(api.vkResetCommandBuffer.Invoke(_command, 0), "Reset command buffer");
         var begin = new VkCommandBufferBeginInfo { Flags = VkCommandBufferUsageFlags.OneTimeSubmitBit };
@@ -305,10 +306,12 @@ internal sealed unsafe partial class VulkanRenderer
                 };
                 api.vkCmdSetScissor.Invoke(_command, 0, 1, &scissor);
                 api.vkCmdDrawIndexed.Invoke(_command, command.IndexCount, 1, command.FirstIndex, 0, 0);
+                geometryRecorded = true;
             }
         }
         api.vkCmdEndRenderPass.Invoke(_command);
         Check(api.vkEndCommandBuffer.Invoke(_command), "End command buffer");
+        return geometryRecorded;
     }
 
     private List<Action> SwapchainReleases()

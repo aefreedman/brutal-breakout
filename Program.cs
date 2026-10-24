@@ -61,6 +61,7 @@ try
         var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke() : null;
         var gameplayViewports = new HashSet<(int Width, int Height)>();
         var gameplayFrames = 0;
+        var staleFrameRegressionPassed = false;
         var resizeRequested = false;
         var lastElapsed = TimeSpan.Zero;
         var shapeFrames = 0;
@@ -157,39 +158,52 @@ try
             var framebuffer = window.FramebufferSize;
             ShapeFrame? frame = null;
             BallSandbox.GeometryEvidence gameplayGeometry = default;
+            ShapeShowcase.DecorativeEvidence decorative = default;
+            var injectStaleFrame = gameplayScript is not null && !staleFrameRegressionPassed;
             if (!wasIconified && framebuffer.X > 0 && framebuffer.Y > 0)
             {
-                ShapeShowcase.DecorativeEvidence decorative = default;
                 frame = gallery ? ShapeShowcase.Build(shapes, framebuffer.X, framebuffer.Y, out decorative) :
                     BallSandbox.Build(shapes, (gameplayScript?.Session ?? session).Simulation,
-                        framebuffer.X, framebuffer.Y, out gameplayGeometry);
+                        framebuffer.X + (injectStaleFrame ? 1 : 0), framebuffer.Y, out gameplayGeometry);
                 if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
                     frame.Value.Indices.Length < ShapeShowcase.ShapeCount * 3 || frame.Value.Commands.Length < 5))
                     throw new InvalidOperationException("Smoke: showcase lost shapes or nested clip commands.");
                 if (smokeTest && (decorative.Angled != 4 || decorative.Chevron != 4 ||
                     decorative.AngledIndices < decorative.Angled * 3 || decorative.ChevronIndices < decorative.Chevron * 3))
                     throw new InvalidOperationException("Smoke: decorative calls lost indexed geometry.");
-                if (smokeTest && shapeViewports.Add((framebuffer.X, framebuffer.Y)))
+            }
+            // Consumes borrowed CPU buffers before the next BeginFrame; only a true receipt
+            // proves this frame's indexed geometry survived extent validation and presentation.
+            var geometryPresented = renderer.Draw(frame);
+            if (smokeTest && geometryPresented && frame.HasValue)
+            {
+                shapeFrames++;
+                if (shapeViewports.Add((framebuffer.X, framebuffer.Y)))
                     Console.WriteLine($"Smoke viewport: {framebuffer.X}x{framebuffer.Y}; " +
                         $"vertices={frame.Value.Vertices.Length}; indices={frame.Value.Indices.Length}; commands={frame.Value.Commands.Length}. " +
                         $"decorativeAngled={decorative.Angled}; decorativeChevron={decorative.Chevron}; " +
                         $"decorativeAngledIndices={decorative.AngledIndices}; decorativeChevronIndices={decorative.ChevronIndices}.");
-                shapeFrames++;
             }
-            renderer.Draw(frame); // Consumes borrowed CPU buffers before the next BeginFrame.
-            if (gameplayScript is not null && frame.HasValue && renderer.PresentedFrames > framesBeforeDraw)
+            if (gameplayScript is not null && geometryPresented && frame.HasValue)
             {
                 gameplayFrames++;
                 if (gameplayViewports.Add((framebuffer.X, framebuffer.Y)))
                     Console.WriteLine($"Gameplay viewport: {framebuffer.X}x{framebuffer.Y}; indices={frame.Value.Indices.Length}; arenaIndices={gameplayGeometry.ArenaIndices}; ballIndices={gameplayGeometry.BallIndices}; aimIndices={gameplayGeometry.AimIndices}.");
                 gameplayScript.Presented(framebuffer.X, framebuffer.Y, gameplayGeometry);
             }
+            if (injectStaleFrame && frame.HasValue && renderer.PresentedFrames > framesBeforeDraw)
+            {
+                if (geometryPresented || gameplayFrames != 0 || gameplayViewports.Count != 0 || !gameplayScript!.IsInitial)
+                    throw new InvalidOperationException("Gameplay: stale frame advanced geometry evidence or stage.");
+                staleFrameRegressionPassed = true;
+                Console.WriteLine("Gameplay receipt regression PASS: clearOnlyPresented=True; geometryPresented=False; nonemptyPresentedFrames=0; viewports=0; stage=Initial.");
+            }
             if (smokeTest && wasIconified && renderer.PresentedFrames != framesBeforeDraw)
                 throw new InvalidOperationException("Smoke: Draw presented while iconified.");
         }
         if (gameplayScript is not null)
         {
-            if (!gameplayScript.Completed || gameplayViewports.Count < 2 || gameplayFrames < 9)
+            if (!staleFrameRegressionPassed || !gameplayScript.Completed || gameplayViewports.Count < 2 || gameplayFrames < 9)
                 throw new InvalidOperationException("Gameplay smoke interrupted or missing resized geometry.");
             Console.WriteLine($"Gameplay: launch wall catch hold release relaunch reset passed; ticks={gameplayScript.Session.TotalTicks}; nonemptyPresentedFrames={gameplayFrames}; hidden resize and resumed presentation passed.");
         }

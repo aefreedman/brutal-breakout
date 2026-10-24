@@ -12,6 +12,7 @@ internal sealed class BallSandboxSmoke
     private Stage stage;
     private double2 caught;
     private int holds, resizedFrames;
+    public bool IsInitial => stage == Stage.Initial;
     public bool ResizeRequested => stage == Stage.Resized;
     public bool Completed => stage == Stage.Done;
 

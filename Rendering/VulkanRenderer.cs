@@ -153,14 +153,15 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
         throw new InvalidOperationException("No Vulkan 1.3 device with a combined graphics/present queue and color-attachment swapchain support was found.");
     }
 
-    public void Draw(ShapeFrame? frame = null)
+    /// <returns>True only when indexed geometry from this frame was successfully presented.</returns>
+    public bool Draw(ShapeFrame? frame = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (frame is { } supplied) ValidateFrame(supplied);
-        DrawValidated(frame);
+        return DrawValidated(frame);
     }
 
-    private void DrawValidated(ShapeFrame? frame)
+    private bool DrawValidated(ShapeFrame? frame)
     {
         var size = _window.FramebufferSize;
         if (_window.IsIconified || size.X <= 0 || size.Y <= 0)
@@ -168,7 +169,7 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
             _recreate = true;
             // Stay responsive without spinning while minimized; no async work exists yet.
             Glfw.WaitEventsTimeout(0.05);
-            return;
+            return false;
         }
         if (_recreate || size.X != _extent.Width || size.Y != _extent.Height)
             RecreateSwapchain(size);
@@ -187,14 +188,14 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
         if (acquired == VkResult.ErrorOutOfDateKHR)
         {
             _recreate = true;
-            return;
+            return false;
         }
         if (acquired is VkResult.Timeout or VkResult.NotReady)
-            return; // Return to the OS event pump instead of hanging indefinitely in acquire.
+            return false; // Return to the OS event pump instead of hanging indefinitely in acquire.
         if (acquired != VkResult.SuboptimalKHR)
             Check(acquired, "Acquire image");
 
-        RecordShapes(index, frame);
+        var geometryRecorded = RecordShapes(index, frame);
         device.ResetFences([_frameFence]); // Only reset once there will actually be a submission.
         var wait = _imageAvailable;
         var signal = _presentReady[index];
@@ -221,6 +222,7 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
             _recreate = true;
         if (presented is VkResult.Success or VkResult.SuboptimalKHR)
             PresentedFrames++;
+        return geometryRecorded && presented is VkResult.Success or VkResult.SuboptimalKHR;
     }
 
     // Published BRUTAL wrappers return Suboptimal/Timeout/NotReady, but throw for
