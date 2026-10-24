@@ -2,7 +2,7 @@ using Brutal.Numerics;
 
 namespace BrutalBreakout.Rendering.Shapes;
 
-/// <summary>Reusable, synchronous triangle producer. Not thread safe. Polyline outlines must be simple:
+/// <summary>Reusable, synchronous triangle producer. Not thread safe. Open polyline outlines must be simple:
 /// reversals, crossing, touching or overlapping boundaries are rejected (including excessively wide tight turns).
 /// Every supplied component and scalar constraint is validated first. Known no-output cases (zero alpha,
 /// empty clip, zero extent, or exactly singular transform) skip generated-geometry and output-budget checks.

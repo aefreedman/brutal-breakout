@@ -42,6 +42,16 @@ public class OutlineTests
             Assert.True(Math.Abs(area) < 0.0001, $"Overlapping triangles {i / 3}/{j / 3}: {area / 2}");
         }
     }
+    private static void Hollow(ShapeFrame frame, float2 point)
+    {
+        var vs = frame.Vertices.Span; var ids = frame.Indices.Span;
+        for (int i = 0; i < ids.Length; i += 3)
+        {
+            var a = vs[(int)ids[i]].Position; var b = vs[(int)ids[i + 1]].Position; var c = vs[(int)ids[i + 2]].Position;
+            double sign = Math.Sign(Cross(a, b, c));
+            Assert.False(sign * Cross(a, b, point) >= 0 && sign * Cross(b, c, point) >= 0 && sign * Cross(c, a, point) >= 0);
+        }
+    }
     [Theory]
     [InlineData(StrokeAlignment.Center, -1, 12, 80)]
     [InlineData(StrokeAlignment.Inside, 0, 10, 64)]
@@ -50,7 +60,7 @@ public class OutlineTests
     {
         using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
         d.StrokeRect(V(0, 0), V(10, 10), 2, new(1, 1, 1, .5f), alignment);
-        var f = d.Finish(); Assert.Equal(area, Area(f), 5); Tiled(f);
+        var f = d.Finish(); Assert.Equal(area, Area(f), 5); Tiled(f); Hollow(f, V(5, 5));
         Assert.Equal(min, f.Vertices.ToArray().Min(v => v.Position.X));
         Assert.Equal(min + extent, f.Vertices.ToArray().Max(v => v.Position.X));
     }
@@ -92,7 +102,7 @@ public class OutlineTests
     {
         using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
         d.StrokeCircle(V(20, 20), 10, 2, new(1, 1, 1, .5f), alignment);
-        var f = d.Finish(); Tiled(f);
+        var f = d.Finish(); Tiled(f); Hollow(f, V(20, 20));
         Assert.InRange(Area(f), Math.PI * (outer * outer - inner * inner) * .97, Math.PI * (outer * outer - inner * inner));
         foreach (var v in f.Vertices.Span)
         {
@@ -127,5 +137,98 @@ public class OutlineTests
         f = d.Finish(); Tiled(f); Assert.InRange(Area(f), 190, 193);
         d.BeginFrame(100, 100); d.StrokeRoundedRect(V(0, 0), V(20, 10), 1, 2, White, StrokeAlignment.Inside);
         f = d.Finish(); Tiled(f); Assert.InRange(Area(f), 102, 104);
+    }
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(2, 3)]
+    [InlineData(-2, 3)]
+    [InlineData(.1, .2)]
+    public void FramebufferWidthIsConstantUnderShearZoomAndReflection(float sx, float sy)
+    {
+        float3x2 transform = new(sx, sx * .7f, 0, sy, 50, 50);
+        using var d = new ShapeDrawList(); d.BeginFrame(1000, 1000, transform);
+        d.StrokeRect(V(0, 0), V(100, 100), 2, White, space: StrokeSpace.Framebuffer);
+        var f = d.Finish(); Tiled(f);
+        double perimeter = 200 * (Math.Sqrt(sx * sx + sx * sx * .7 * .7) + Math.Abs(sy));
+        Assert.InRange(Area(f), perimeter * 2 - .02, perimeter * 2 + .02);
+        float2 Pixel(float x, float y) => V(x * transform.M11 + y * transform.M21 + 50, x * transform.M12 + y * transform.M22 + 50);
+        float2[] boundary = [Pixel(0, 0), Pixel(100, 0), Pixel(100, 100), Pixel(0, 100)];
+        foreach (var v in f.Vertices.Span)
+        {
+            double min = double.MaxValue;
+            for (int i = 0; i < 4; i++)
+            {
+                var a = boundary[i]; var b = boundary[(i + 1) % 4];
+                double len = Math.Sqrt(Math.Pow(b.X - a.X, 2) + Math.Pow(b.Y - a.Y, 2));
+                min = Math.Min(min, Math.Abs(Cross(a, b, v.Position)) / len);
+            }
+            Assert.InRange(min, .9999, 1.0001);
+        }
+        d.BeginFrame(1000, 1000, transform); d.StrokeRect(V(0, 0), V(100, 100), 2, White);
+        f = d.Finish(); Tiled(f); Assert.InRange(Area(f), 800 * Math.Abs(sx * sy) - .02, 800 * Math.Abs(sx * sy) + .02);
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CurvedFramebufferOffsetsFollowTransformedBoundaryNotScalarRadius(bool rounded)
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(1000, 1000, new(3, .7f, 1.2f, .8f, 50, 50));
+        if (rounded) d.StrokeRoundedRect(V(-10, -10), V(20, 20), 10, 2, White, space: StrokeSpace.Framebuffer);
+        else d.StrokeCircle(V(0, 0), 10, 2, White, space: StrokeSpace.Framebuffer);
+        var f = d.Finish(); Tiled(f);
+        double extent = 10 * Math.Sqrt(9 + 1.2 * 1.2);
+        Assert.InRange(f.Vertices.ToArray().Max(v => v.Position.X), 50 + extent + .8, 50 + extent + 1.2);
+        Assert.InRange(f.Vertices.ToArray().Min(v => v.Position.X), 50 - extent - 1.2, 50 - extent - .8);
+    }
+    [Fact]
+    public void ValidationRunsBeforeHiddenNoopsAndAllNoopsPreserveOutput()
+    {
+        using var d = new ShapeDrawList();
+        Assert.Throws<InvalidOperationException>(() => d.StrokeCircle(V(0, 0), 1, 1, White));
+        d.BeginFrame(100, 100); d.FillRect(V(0, 0), V(1, 1), White);
+        var hidden = new LinearColor(1, 1, 1, 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => d.StrokeCircle(V(0, 0), -1, 0, hidden));
+        Assert.Throws<ArgumentOutOfRangeException>(() => d.StrokeRect(V(0, 0), V(1, 1), -1, hidden));
+        Assert.Throws<ArgumentException>(() => d.StrokeTriangle(V(float.NaN, 0), V(1, 0), V(0, 1), 1, hidden));
+        Assert.Throws<ArgumentOutOfRangeException>(() => d.StrokeRect(V(0, 0), V(1, 1), 1, hidden, (StrokeAlignment)99));
+        Assert.Throws<ArgumentOutOfRangeException>(() => d.StrokeCircle(V(0, 0), 1, 1, hidden, space: (StrokeSpace)99));
+        Assert.Throws<ArgumentOutOfRangeException>(() => d.StrokeRoundedRect(V(0, 0), V(-1, 1), 1, 1, hidden));
+        Assert.Throws<ArgumentOutOfRangeException>(() => d.StrokeCircle(V(0, 0), float.PositiveInfinity, 1, hidden));
+        Assert.Throws<ArgumentOutOfRangeException>(() => d.StrokeClosedPolyline(new float2[1025], 0, hidden));
+        d.StrokeCircle(V(0, 0), 0, 10, White); d.StrokeRect(V(0, 0), V(0, 10), 10, White);
+        d.StrokeRoundedRect(V(0, 0), V(10, 0), 1, 10, White); d.StrokeTriangle(V(0, 0), V(0, 0), V(1, 1), 1, White);
+        d.StrokeClosedPolyline([V(0, 0), V(1, 1)], 1, White);
+        d.StrokeCircle(V(0, 0), float.MaxValue, 1, hidden);
+        d.PushClip(new(0, 0, 0, 0)); d.StrokeCircle(V(0, 0), float.MaxValue, 1, White); d.PopClip();
+        d.SetTransform(new(1, 0, 0, 0, 0, 0)); d.StrokeCircle(V(0, 0), float.MaxValue, 1, White);
+        var f = d.Finish(); Assert.Equal(1, Area(f)); Assert.Equal(4, f.Vertices.Length);
+    }
+    [Fact]
+    public void PrecisionAndTessellationFailuresRemainTransactional()
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(100, 100); d.FillRect(V(0, 0), V(1, 1), White);
+        Assert.Throws<ArgumentException>(() => d.StrokeCircle(V(0, 0), 200000, 1, White));
+        Assert.Throws<ArgumentException>(() => d.StrokeRect(V(1048576, 0), V(10, 10), 1, White));
+        d.SetTransform(new(1, 0, 0, 1, 1000, 1000));
+        Assert.Throws<ArgumentException>(() => d.StrokeRect(V(0, 0), V(10, 10), .000001f, White));
+        var f = d.Finish(); Assert.Equal(1, Area(f)); Assert.Equal(4, f.Vertices.Length);
+    }
+    [Fact]
+    public void ExactTriangleInradiusConsumesHole()
+    {
+        using var d = new ShapeDrawList(); d.BeginFrame(100, 100);
+        d.StrokeTriangle(V(0, 0), V(6, 0), V(0, 8), 2, White, StrokeAlignment.Inside);
+        var f = d.Finish(); Assert.Equal(24, Area(f), 5); Tiled(f);
+        d.BeginFrame(100, 100);
+        d.StrokeTriangle(V(0, 0), V(6, 0), V(0, 8), 1.999f, White, StrokeAlignment.Inside);
+        f = d.Finish(); Tiled(f); Hollow(f, V(2, 2)); Assert.InRange(Area(f), 23.99, 24);
+    }
+    [Fact]
+    public void MaximumConvexContourIsBoundedAndAccepted()
+    {
+        var points = Enumerable.Range(0, 1024).Select(i => V((float)(100 * Math.Cos(i * Math.Tau / 1024)), (float)(100 * Math.Sin(i * Math.Tau / 1024)))).ToArray();
+        using var d = new ShapeDrawList(); d.BeginFrame(1000, 1000);
+        d.StrokeClosedPolyline(points, 1, White);
+        var f = d.Finish(); Assert.InRange(Area(f), 628, 629); Assert.InRange(f.Vertices.Length, 1, 4096);
     }
 }

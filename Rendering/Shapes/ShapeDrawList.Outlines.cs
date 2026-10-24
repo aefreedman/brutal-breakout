@@ -15,6 +15,8 @@ public sealed partial class ShapeDrawList
         outlineBoundary.Clear(); outlineOuter.Clear(); outlineInner.Clear();
     }
 
+    /// <summary>Annular outline; a consumed hole becomes solid. Framebuffer strokes offset the
+    /// transformed sampled contour, not an inflated scalar radius. Zero radius is empty.</summary>
     public void StrokeCircle(float2 center, float radius, float width, LinearColor color,
         StrokeAlignment alignment = StrokeAlignment.Center, StrokeSpace space = StrokeSpace.Local)
     {
@@ -36,6 +38,9 @@ public sealed partial class ShapeDrawList
         }
     }
 
+    /// <summary>Radius clamps to half the shorter extent. Local offsets adjust corner radii,
+    /// clamping eroded radii to zero; zero input radius retains rectangular miter corners.
+    /// Framebuffer offsets operate on the transformed sampled boundary.</summary>
     public void StrokeRoundedRect(float2 origin, float2 size, float radius, float width, LinearColor color,
         StrokeAlignment alignment = StrokeAlignment.Center, StrokeSpace space = StrokeSpace.Local)
     {
@@ -93,6 +98,7 @@ public sealed partial class ShapeDrawList
         CleanOutline(target);
     }
 
+    /// <summary>Convex outline with miter corners. Zero extent is empty.</summary>
     public void StrokeRect(float2 origin, float2 size, float width, LinearColor color,
         StrokeAlignment alignment = StrokeAlignment.Center, StrokeSpace space = StrokeSpace.Local)
     {
@@ -103,6 +109,7 @@ public sealed partial class ShapeDrawList
         StrokeBoundary(width, color, alignment, space);
     }
 
+    /// <summary>Convex outline with miter corners. Collinear triangles are empty.</summary>
     public void StrokeTriangle(float2 a, float2 b, float2 c, float width, LinearColor color,
         StrokeAlignment alignment = StrokeAlignment.Center, StrokeSpace space = StrokeSpace.Local)
     {
@@ -206,7 +213,19 @@ public sealed partial class ShapeDrawList
             outlineInner.Clear(); outlineInner.AddRange(outlineClip);
         }
         CleanOutline(outlineInner);
-        if (outlineInner.Count < 3) outlineInner.Clear();
+        if (outlineInner.Count < 3) { outlineInner.Clear(); return; }
+        // At exact consumption, support-line normalization/intersections can leave a tiny
+        // residual polygon (e.g. the 6/8/10 triangle at inset 2). Discard only a double-roundoff
+        // sized remnant, not a pixel-sized or user-scale epsilon; real thin holes still validate.
+        double magnitude = distance, area2 = 0, perimeter = 0;
+        foreach (var p in outlineBoundary) magnitude = Math.Max(magnitude, Length(p - outlineBoundary[0]));
+        for (int i = 0; i < outlineInner.Count; i++)
+        {
+            var a = outlineInner[i]; var b = outlineInner[(i + 1) % outlineInner.Count];
+            area2 += Cross(a - outlineInner[0], b - outlineInner[0]);
+            perimeter += Length(b - a);
+        }
+        if (Math.Abs(area2) <= perimeter * magnitude * (64 * 2.2204460492503131e-16)) outlineInner.Clear();
     }
 
     private void ValidatePixelLoop(List<P> loop, StrokeSpace space)
@@ -222,12 +241,18 @@ public sealed partial class ShapeDrawList
         CleanOutline(outlineClip);
         if (outlineClip.Count < 3) throw new ArgumentException("Framebuffer FLOAT32 precision collapses stroke boundary.");
         ValidateSimpleOutline(outlineClip, "Framebuffer FLOAT32 precision breaks stroke boundary.");
+        double sign = Math.Sign(Cross(outlineClip[1] - outlineClip[0], outlineClip[2] - outlineClip[1]));
+        if (sign == 0) throw new ArgumentException("Framebuffer FLOAT32 precision collapses stroke boundary.");
+        for (int i = 0; i < outlineClip.Count; i++)
+            if (sign * Cross(outlineClip[(i + 1) % outlineClip.Count] - outlineClip[i], outlineClip[(i + 2) % outlineClip.Count] - outlineClip[(i + 1) % outlineClip.Count]) < 0)
+                throw new ArgumentException("Framebuffer FLOAT32 precision breaks convex stroke boundary.");
     }
 
     private void EmitOutline(LinearColor color, StrokeSpace space)
     {
         CleanOutline(outlineOuter); CleanOutline(outlineInner);
         ValidatePixelLoop(outlineOuter, space);
+        left.Clear(); left.AddRange(outlineClip);
         if (outlineInner.Count == 0)
         {
             polygon.AddRange(outlineOuter);
@@ -236,6 +261,11 @@ public sealed partial class ShapeDrawList
         else
         {
             ValidatePixelLoop(outlineInner, space);
+            double sign = Math.Sign(Cross(left[1] - left[0], left[2] - left[1]));
+            foreach (var p in outlineClip)
+                for (int i = 0; i < left.Count; i++)
+                    if (sign * Cross(left[(i + 1) % left.Count] - left[i], p - left[i]) <= 0)
+                        throw new ArgumentException("Framebuffer FLOAT32 precision closes or crosses the stroke hole.");
             // Bridge the rightmost vertices. Its open segment lies strictly to the right of the
             // convex hole, and within the convex outer contour. Duplicate endpoints represent a
             // topological cut, not overlapping geometry. All tiles use only boundary vertices.
