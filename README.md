@@ -19,7 +19,7 @@ dotnet build --no-restore
 dotnet run --no-build
 ```
 
-Expect a resizable 1280 x 720 **Brutal Breakout** window with nine panels of abstract shapes. The wide canvas fits the live physical framebuffer with uniform scale and centered margins, not a phone/paddle layout. Resize/minimize/restore, then close normally. Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation`, `--smoke-test`, `--lifecycle-smoke-test`, or `--visible-resize-stress`.
+Expect a resizable 1280 x 720 **Brutal Breakout** window with twelve panels of abstract shapes on a 1600 x 960 design canvas. The wide canvas fits the live physical framebuffer with uniform scale and centered margins, not a phone/paddle layout. Resize/minimize/restore, then close normally. Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation`, `--smoke-test`, `--lifecycle-smoke-test`, or `--visible-resize-stress`.
 
 ### Validation
 
@@ -32,15 +32,13 @@ dotnet restore tests/Shapes/Shapes.Tests.csproj --locked-mode
 dotnet test tests/Shapes/Shapes.Tests.csproj -c Debug --no-restore
 dotnet test tests/Shapes/Shapes.Tests.csproj -c Release --no-restore
 dotnet build -c Debug --no-restore
-dotnet run -c Debug --no-build -- --smoke-test
 dotnet build -c Release --no-restore
-dotnet run -c Release --no-build -- --smoke-test
 dotnet run -c Debug --no-build -- --cleanup-self-test
 pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug
 pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Release
 ```
 
-Routine `--smoke-test` enables validation and renders in a **hidden GLFW window**. It submits the actual 53-call showcase (14 solid outlines and 8 patterned paths, plus filled/transform/clip/blend references and panel/marker shapes), reports expected shape counts and nonempty geometry at both 1280 x 720 and 960 x 540, asserts minimum vertex/index counts and five clip-command runs, requires presentations after resize, and has a 15-second deadline. This is GPU validation, not headless CPU, screenshot comparison, or real minimize/restore coverage. Hidden presentation is verified on this Windows/RTX 5070 Ti setup; other platforms/drivers remain unverified. The metadata regression above suppresses console creation too, samples foreground/window visibility every 10ms, and asserts unchanged foreground/no visible test windows with a 25-second process deadline. It does not move user focus; external user focus activity invalidates the observation. Sampling cannot exclude shorter transients. CPU generation skips iconified/zero-size windows; `Draw(null)` retains backend throttling. Validation errors cause nonzero exit. The three known Galaxy/GOG layer-naming warnings are upstream loader warnings, not validation errors; report other warnings separately.
+Routine `--smoke-test` enables validation and renders in a **hidden GLFW window**. It submits the actual 64-call showcase (14 solid outlines, 8 Basic/dot patterned paths, and 4 angled + 4 chevron paths, plus filled/transform/clip/blend references and panel/marker shapes), reports expected shape counts and nonempty geometry at both 1280 x 720 and 960 x 540, asserts minimum vertex/index counts and five clip-command runs, plus per-appearance counters and nonempty indexed geometry tagged by dedicated showcase colors, requires presentations after resize, and has a 15-second deadline. This is GPU validation, not headless CPU, screenshot comparison, or real minimize/restore coverage. Hidden presentation is verified on this Windows/RTX 5070 Ti setup; other platforms/drivers remain unverified. The metadata regression above suppresses console creation too, samples foreground/window visibility every 10ms, and asserts unchanged foreground/no visible test windows with a 25-second process deadline. It does not move user focus; external user focus activity invalidates the observation. Sampling cannot exclude shorter transients. CPU generation skips iconified/zero-size windows; `Draw(null)` retains backend throttling. Validation errors cause nonzero exit. The three known Galaxy/GOG layer-naming warnings are upstream loader warnings, not validation errors; report other warnings separately.
 
 Cleanup injects resource-lifetime helper failures, not actual device loss. CPU tests validate geometry/ABI contracts, not GPU image correctness. Visible tests are **separate explicit opt-ins**; obtain user permission for desktop/focus disturbance before running:
 
@@ -56,17 +54,22 @@ All test-created windows request `Focused=false` and `FocusOnShow=false`; extern
 
 ## Showcase guide
 
-Panels left to right, top to bottom, without font dependencies:
+Four columns by three rows, left to right then top to bottom, without font dependencies:
 
 1. Filled cyan disc, gold ring, coral rectangle, cyan rounded rectangle and gold triangle.
 2. Solid circle, rectangle, rounded rectangle and triangle outlines.
 3. Inside, center and outside circle outlines, left to right; thin white strokes mark their input boundaries.
-4. Two nonuniform scales: cyan Local widths above, gold Framebuffer widths below (all width 6). Framebuffer widths remain physical pixels even as the design canvas fits the window.
-5. Basic/butt, square and round dashes, then genuine circular dots. Dash rows share occupied centerline lengths and allow space for cap extensions.
-6. Continuous dash phase across a corner; three closed rings demonstrate phased fixed-period dashes, closure-fitted natural dashes, and fixed dots.
-7. Rotated rounded rectangle, scaled/sheared ring, reflected/sheared triangle and white open solid bevel path.
-8. Nested framebuffer scissors: disc under the outer clip, coral/gold under the inner clip, white segment under only the outer clip.
-9. Ordered half-alpha linear red/blue over black: blue-over-red above, red-over-blue below; a linear 0.5 gray bar at right. Red/green top markers retain orientation cues.
+4. Mint angled dashes: modifiers +1, -1, +0.5 from top to bottom.
+5. Two nonuniform scales: cyan Local widths above, gold Framebuffer widths below (all width 6). Framebuffer widths remain physical pixels even as the design canvas fits the window.
+6. Basic/butt, square and round dashes, then genuine circular dots. Dash rows share occupied centerline lengths and allow space for cap extensions.
+7. Continuous dash phase across a corner; three closed rings demonstrate phased fixed-period dashes, closure-fitted natural dashes, and fixed dots.
+8. Lilac chevron dashes: modifiers +1, -1, +0.5 from top to bottom, with concave V-shaped ends rather than slanted stripes.
+9. Rotated rounded rectangle, scaled/sheared ring, reflected/sheared triangle and white open solid bevel path.
+10. Nested framebuffer scissors: disc under the outer clip, coral/gold under the inner clip, white segment under only the outer clip.
+11. Ordered half-alpha linear red/blue over black: blue-over-red above, red-over-blue below; a linear 0.5 gray bar at right.
+12. Closed, corner-crossing mint angled (-1) and lilac chevron (+1) paths, using fixed counts and periodic phase. Red/green top markers retain orientation cues.
+
+Both decorative appearances use the same actual submissions in normal interaction and hidden smoke. The new layout/visuals have **not been capture-checked**; the user can inspect them interactively later. Hidden tests are not image goldens or minimize/restore tests.
 
 Prior to this outline/pattern layout, targeted client-area samples on the RTX 5070 Ti measured red-only `(188,0,0)`, blue-only `(0,0,188)`, blue-over-red `(138,0,188)`, red-over-blue `(188,0,138)`, gray `(188,188,188)`. These historical blend/sRGB checks are not new visual evidence for this layout, image goldens, or evidence for other devices. Hidden GPU tests validate submission and resize, not visual appearance or minimize/restore.
 
@@ -91,6 +94,11 @@ draw.StrokePatternedSegment(new(40, 200), new(320, 200), 10,
     StrokePattern.Dashes(24, 18, offsetCycles: -.25), cyan, LineCap.Round);
 draw.StrokePatternedCircle(new(440, 200), 60, 8,
     StrokePattern.FixedDots(16), cyan);
+var pattern = StrokePattern.Dashes(36, 28, offsetCycles: .15);
+draw.StrokePatternedSegment(new(40, 300), new(328, 300), 18,
+    pattern.WithShape(DashShape.Angled, -1), cyan); // Butt only
+draw.StrokePatternedSegment(new(40, 380), new(328, 380), 18,
+    pattern.WithShape(DashShape.Chevron, .5), cyan);
 var frame = draw.Finish(); // synchronously renderer.Draw(frame) before next BeginFrame/disposal
 ```
 
@@ -106,7 +114,13 @@ Pattern calls: `StrokePatternedSegment`, `StrokePatternedPolyline(points, width,
 
 Absolute lengths use the selected space; relative lengths multiply full width. Dash length is the **occupied centerline interval**, not the visible tip-to-tip length: square/round caps extend half a width past each interval. Gaps must allow these extensions and turns; touching/overlapping fragment geometry rejects rather than blending twice. Zero gap can become a continuous solid path. Dots are discs of diameter width, not short round dashes; cap appearance is ignored for dots but the enum is still validated.
 
-Positive phase moves the lattice forward by a fraction of a period; phase wraps periodically, including negative offsets (`-.25` equals `.75`, `1` equals `0`). Arc-length phase continues across vertices; closed seam fragments are stitched rather than capped twice. `FixedDashes` fits **count complete periods**, not necessarily count disconnected visible islands: phase may split/clip endpoint fragments. `FixedDots` places count sites over `[0,length)`, never duplicating the far endpoint. Natural dots include an open far endpoint only when it is a lattice site; closed paths never duplicate seam dots. `fitClosed` rescales natural spacing to the nearest whole period count (midpoints upward, minimum one), preserving dash duty cycle; fixed-count patterns inherently fit. Open end-to-end snapping and decorative angled/chevron styles are not supported.
+Positive phase moves the lattice forward by a fraction of a period; phase wraps periodically, including negative offsets (`-.25` equals `.75`, `1` equals `0`). Arc-length phase continues across vertices; closed seam fragments are stitched rather than capped twice. `FixedDashes` fits **count complete periods**, not necessarily count disconnected visible islands: phase may split/clip endpoint fragments. `FixedDots` places count sites over `[0,length)`, never duplicating the far endpoint. Natural dots include an open far endpoint only when it is a lattice site; closed paths never duplicate seam dots. `fitClosed` rescales natural spacing to the nearest whole period count (midpoints upward, minimum one), preserving dash duty cycle; fixed-count patterns inherently fit. Open end-to-end snapping is not supported.
+
+`pattern.WithShape(DashShape.Angled, modifier)` and `pattern.WithShape(DashShape.Chevron, modifier)` (modifier defaults to 1) return immutable styles retaining sizing, phase and fitting; factories remain `Basic` by default. Modifiers must be finite in **[-1, 1]**. Angled ends are slanted stripes; Chevron mirrors the slant across the width into concave V-shaped ends. Sign mirrors direction against supplied path order in the chosen Local/Framebuffer space (including reflections); magnitude sets depth. At magnitude 1 a straight angled boundary shifts one full width across the stroke (45-degree slope); each chevron half shifts half a width. Exactly zero uses Basic geometry, and Basic ignores a validated modifier. Dots reject non-Basic shapes, even with modifier zero.
+
+Decorative styles own their end boundary and require `LineCap.Butt`, including modifier zero; Square/Round reject rather than being combined or ignored. Exactly-zero modifiers use Basic geometry, not an exemption from style/cap validation. Compatibility is validated even for invisible/no-output calls. Open decorative endpoints clip to the path's arclength domain with **no cap extension**; unlike Basic caps, the slanted tip is not extended beyond the supplied endpoints. Decoration continues across corners and the closed seam using a piecewise-affine **miter ribbon**, whereas Basic patterned open joins use bevels. Sharp/wide turns that invert this ribbon reject; there is no general path-union repair or guarantee of identical corner geometry as a nonzero modifier approaches zero. Zero-gap continuous patterns fall back to Basic solid geometry (including its joins), so decorative ends are indistinguishable; decorative cap restrictions still apply.
+
+Decorative clipping has a strict float32 precision limit: even moderate-size paths can generate tiny clipped fragments near sampled curve edges, seams or chevron half boundaries. Inverted/overlapping actual-float tiles or loss of an entire occupied glyph reject the whole call transactionally rather than silently dropping a glyph, changing the modifier, or repairing geometry. Zero-area quantized clipping slivers may disappear if the glyph retains geometry. Sampled circles are supported, but not every radius/width/phase combination is representable under these checks; no universal safe circle recipe or epsilon-based repair is promised. The showcase uses closed rectangular paths as a robust corner/seam example, not a fallback after a caught circle failure. Existing coordinate, tessellation, complexity and output bounds still apply.
 
 Paths accept at most 1024 input points. Consecutive duplicates, repeated closing points on closed paths, and forward-collinear runs are removed. Closed outlines/patterned paths require simple **convex** contours, either winding; nonconvex/self-crossing paths are not a general polygon-union facility. Open paths reject reversals, crossings, touching or overlapping geometry. Pattern output is limited to 4096 intervals/sites and pairwise validation to 4,000,000 candidates, including broad-phase tests; excessive complexity rejects even below the output limit. Zero-length patterned paths are validated no-ops, including round caps.
 
@@ -158,7 +172,7 @@ The second check uses the installed Pi loader/API and runs doctor plus cancellat
 ## Project files and dependencies
 
 - `Program.cs`: main-thread lifecycle and bounded smoke/self-tests.
-- `Presentation/ShapeShowcase.cs`: fitted nine-panel demo.
+- `Presentation/ShapeShowcase.cs`: fitted twelve-panel demo.
 - `Rendering/Shapes/`: headless geometry/contracts/colors/clips and borrowed buffers.
 - `tests/Shapes/`: CPU geometry and ABI tests.
 - `Rendering/VulkanRenderer.cs`, `Rendering/VulkanRenderer.Shapes.cs`, `Rendering/Shaders/`: lifecycle, pipeline, uploads, MSAA and disposal.
