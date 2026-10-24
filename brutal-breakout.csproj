@@ -11,6 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Rendering/Shaders/shapes.vert;Rendering/Shaders/shapes.frag" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="Rendering/Shapes/**/*.cs;tests/**/*.cs" />
     <ProjectReference Include="Rendering/Shapes/BrutalBreakout.Shapes.csproj" />
   </ItemGroup>

@@ -5,16 +5,17 @@ using Brutal.GlfwApi;
 using Brutal.Numerics;
 using Brutal.VulkanApi;
 using Brutal.VulkanApi.Abstractions;
+using BrutalBreakout.Rendering.Shapes;
+using Brutal.VulkanApi.Vma;
 using VulkanQueue = Brutal.VulkanApi.Queue;
 
 namespace BrutalBreakout.Rendering;
 
 /// <summary>
-/// Owns the Vulkan presentation resources. This first milestone clears swapchain images;
-/// it deliberately has no shaders, geometry, scene graph, or gameplay dependencies yet.
+/// Owns Vulkan presentation and synchronous consumption of borrowed shape frames.
 /// All methods are called on the window's owning thread.
 /// </summary>
-internal sealed unsafe class VulkanRenderer : IDisposable
+internal sealed unsafe partial class VulkanRenderer : IDisposable
 {
     private const int Vulkan13 = (1 << 22) | (3 << 12);
     private readonly GlfwWindow _window;
@@ -105,6 +106,7 @@ internal sealed unsafe class VulkanRenderer : IDisposable
             QueueCreateInfos = new ReadOnlySpan<VkDeviceQueueCreateInfo>(&queueInfo, 1),
         });
         _queue = _device.GetQueue(_queueFamily, 0);
+        InitializeShapes();
         _commandPool = _device.CreateCommandPool(new VkCommandPoolCreateInfo
         {
             QueueFamilyIndex = _queueFamily,
@@ -140,7 +142,7 @@ internal sealed unsafe class VulkanRenderer : IDisposable
                     candidate.GetSurfacePresentModesKHR_Count(_surface) == 0)
                     continue;
                 var capabilities = candidate.GetSurfaceCapabilitiesKHR(_surface);
-                if (!capabilities.SupportedUsageFlags.HasFlag(VkImageUsageFlags.TransferDstBit))
+                if (!capabilities.SupportedUsageFlags.HasFlag(VkImageUsageFlags.ColorAttachmentBit))
                     continue;
                 _physicalDevice = candidate;
                 _queueFamily = i;
@@ -148,10 +150,17 @@ internal sealed unsafe class VulkanRenderer : IDisposable
                 return;
             }
         }
-        throw new InvalidOperationException("No Vulkan 1.3 device with a combined graphics/present queue and transfer-clear swapchain support was found.");
+        throw new InvalidOperationException("No Vulkan 1.3 device with a combined graphics/present queue and color-attachment swapchain support was found.");
     }
 
-    public void Draw()
+    public void Draw(ShapeFrame? frame = null)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (frame is { } supplied) ValidateFrame(supplied);
+        DrawValidated(frame);
+    }
+
+    private void DrawValidated(ShapeFrame? frame)
     {
         var size = _window.FramebufferSize;
         if (_window.IsIconified || size.X <= 0 || size.Y <= 0)
@@ -166,6 +175,14 @@ internal sealed unsafe class VulkanRenderer : IDisposable
 
         var device = _device!;
         Check(device.WaitForFences([_frameFence], true, -1), "Wait for frame fence");
+        // A resize may invalidate a producer's pixel coordinates. Clear this frame rather
+        // than stretch geometry/scissors; the caller should rebuild at the new extent.
+        if (frame is { } sized && (sized.Width != _extent.Width || sized.Height != _extent.Height))
+        {
+            Console.WriteLine($"Shape frame {sized.Width}x{sized.Height} skipped after resize; rebuild at {_extent.Width}x{_extent.Height}.");
+            frame = null;
+        }
+        if (frame is { } upload) Upload(upload);
         var acquired = device.AcquireNextImageKHR(_swapchain, 100_000_000, _imageAvailable, default, out var index);
         if (acquired == VkResult.ErrorOutOfDateKHR)
         {
@@ -177,11 +194,11 @@ internal sealed unsafe class VulkanRenderer : IDisposable
         if (acquired != VkResult.SuboptimalKHR)
             Check(acquired, "Acquire image");
 
-        RecordClear(_images[index]);
+        RecordShapes(index, frame);
         device.ResetFences([_frameFence]); // Only reset once there will actually be a submission.
         var wait = _imageAvailable;
         var signal = _presentReady[index];
-        var stage = VkPipelineStageFlags.TransferBit;
+        var stage = VkPipelineStageFlags.ColorAttachmentOutputBit;
         var command = _command;
         var submit = new VkSubmitInfo
         {
@@ -212,6 +229,8 @@ internal sealed unsafe class VulkanRenderer : IDisposable
         device.WaitIdle(); // Simple lifecycle boundary; never used for normal per-frame synchronization.
         DestroySwapchain();
         var caps = _physicalDevice.GetSurfaceCapabilitiesKHR(_surface);
+        if (!caps.SupportedUsageFlags.HasFlag(VkImageUsageFlags.ColorAttachmentBit))
+            throw new NotSupportedException("The surface no longer supports color-attachment swapchain images.");
         _extent = caps.CurrentExtent.Width != -1 ? caps.CurrentExtent : new VkExtent2D
         {
             Width = Math.Clamp(size.X, caps.MinImageExtent.Width, caps.MaxImageExtent.Width),
@@ -219,12 +238,8 @@ internal sealed unsafe class VulkanRenderer : IDisposable
         };
         var formats = new VkSurfaceFormatKHR[_physicalDevice.GetSurfaceFormatsKHR_Count(_surface)];
         Check(_physicalDevice.GetSurfaceFormatsKHR_Write(_surface, formats), "Enumerate surface formats");
-        var format = formats[0];
-        foreach (var option in formats)
-            if (option.Format == VkFormat.B8G8R8A8SRGB && option.ColorSpace == VkColorSpaceKHR.SRGBNonlinearKHR)
-                format = option;
-        if (format.Format == VkFormat.Undefined)
-            format.Format = VkFormat.B8G8R8A8SRGB;
+        var format = SelectSurfaceFormat(formats);
+        RequireMultisampling(format.Format);
         var imageCount = caps.MinImageCount + 1;
         if (caps.MaxImageCount > 0)
             imageCount = Math.Min(imageCount, caps.MaxImageCount);
@@ -235,7 +250,7 @@ internal sealed unsafe class VulkanRenderer : IDisposable
         {
             Surface = _surface, MinImageCount = imageCount,
             ImageFormat = format.Format, ImageColorSpace = format.ColorSpace, ImageExtent = _extent,
-            ImageArrayLayers = 1, ImageUsage = VkImageUsageFlags.TransferDstBit,
+            ImageArrayLayers = 1, ImageUsage = VkImageUsageFlags.ColorAttachmentBit,
             ImageSharingMode = VkSharingMode.Exclusive, PreTransform = caps.CurrentTransform,
             CompositeAlpha = alpha, PresentMode = VkPresentModeKHR.FifoKHR, Clipped = true,
         }, null);
@@ -244,51 +259,14 @@ internal sealed unsafe class VulkanRenderer : IDisposable
         _presentReady = new VkSemaphore[_images.Length];
         for (var i = 0; i < _presentReady.Length; i++)
             _presentReady[i] = device.CreateSemaphore(new VkSemaphoreCreateInfo(), null);
+        CreateAttachments(format.Format);
         _recreate = false;
         Console.WriteLine($"Swapchain: {_extent.Width}x{_extent.Height}, {_images.Length} images, {format.Format}, FIFO.");
     }
 
-    private void RecordClear(VkImage image)
-    {
-        ref var api = ref _device!.PInvoke;
-        Check(api.vkResetCommandBuffer.Invoke(_command, 0), "Reset command buffer");
-        var begin = new VkCommandBufferBeginInfo { Flags = VkCommandBufferUsageFlags.OneTimeSubmitBit };
-        Check(api.vkBeginCommandBuffer.Invoke(_command, &begin), "Begin command buffer");
-        var range = new VkImageSubresourceRange
-        {
-            AspectMask = VkImageAspectFlags.ColorBit, LevelCount = 1, LayerCount = 1,
-        };
-        var barrier = new VkImageMemoryBarrier
-        {
-            // Discard previous contents: every pixel is replaced by the clear.
-            OldLayout = VkImageLayout.Undefined, NewLayout = VkImageLayout.TransferDstOptimal,
-            SrcQueueFamilyIndex = -1, DstQueueFamilyIndex = -1,
-            DstAccessMask = VkAccessFlags.TransferWriteBit, Image = image, SubresourceRange = range,
-        };
-        api.vkCmdPipelineBarrier.Invoke(_command, VkPipelineStageFlags.TopOfPipeBit, VkPipelineStageFlags.TransferBit,
-            0, 0, null, 0, null, 1, &barrier);
-        var color = new VkClearColorValue { Float32 = new float4(0.025f, 0.06f, 0.10f, 1f) };
-        api.vkCmdClearColorImage.Invoke(_command, image, VkImageLayout.TransferDstOptimal, &color, 1, &range);
-        barrier.OldLayout = VkImageLayout.TransferDstOptimal;
-        barrier.NewLayout = VkImageLayout.PresentSrcKHR;
-        barrier.SrcAccessMask = VkAccessFlags.TransferWriteBit;
-        barrier.DstAccessMask = 0;
-        api.vkCmdPipelineBarrier.Invoke(_command, VkPipelineStageFlags.TransferBit, VkPipelineStageFlags.BottomOfPipeBit,
-            0, 0, null, 0, null, 1, &barrier);
-        Check(api.vkEndCommandBuffer.Invoke(_command), "End command buffer");
-    }
-
     private void DestroySwapchain()
     {
-        foreach (var semaphore in _presentReady)
-            if (!semaphore.IsNull()) _device!.DestroySemaphore(semaphore, null);
-        _presentReady = [];
-        _images = [];
-        if (!_swapchain.IsNull())
-        {
-            _device!.DestroySwapchainKHR(_swapchain, null);
-            _swapchain = default;
-        }
+        ResourceLifetime.ReleaseAll(SwapchainReleases().ToArray());
     }
 
     public void Dispose()
@@ -304,9 +282,13 @@ internal sealed unsafe class VulkanRenderer : IDisposable
         if (device != null)
         {
             releases.Add(device.WaitIdle);
-            foreach (var semaphore in _presentReady)
-                if (!semaphore.IsNull()) releases.Add(() => device.DestroySemaphore(semaphore, null));
-            if (!_swapchain.IsNull()) releases.Add(() => device.DestroySwapchainKHR(_swapchain, null));
+            releases.AddRange(SwapchainReleases());
+            if (!_vertices.IsNull()) releases.Add(_vertices.Dispose);
+            if (!_indices.IsNull()) releases.Add(_indices.Dispose);
+            if (!_vertexShader.IsNull()) releases.Add(() => device.DestroyShaderModule(_vertexShader, null));
+            if (!_fragmentShader.IsNull()) releases.Add(() => device.DestroyShaderModule(_fragmentShader, null));
+            if (!_pipelineLayout.IsNull()) releases.Add(() => device.DestroyPipelineLayout(_pipelineLayout, null));
+            if (_allocator != null) releases.Add(() => device.DestroyVmaAllocator(_allocator));
             if (!_imageAvailable.IsNull()) releases.Add(() => device.DestroySemaphore(_imageAvailable, null));
             if (!_frameFence.IsNull()) releases.Add(() => device.DestroyFence(_frameFence, null));
             if (!_commandPool.IsNull()) releases.Add(() => device.DestroyCommandPool(_commandPool, null));
