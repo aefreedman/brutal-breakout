@@ -13,8 +13,10 @@ public sealed partial class ShapeDrawList
     /// <summary>Continuous arc-length phase, with bevel outer joins and miter inner joins on open
     /// fragments. Closed contours must be convex (either winding); seam fragments are stitched.
     /// Crossing/touching open centerlines and overlapping fragment geometry are unsupported.
-    /// All generated work, including overlap validation, is bounded; excessive complexity rejects.
-    /// Zero-length paths are empty, even with round caps.</summary>
+    /// Maximum 1024 source points and 4096 intervals/sites. Pairwise overlap validation has a
+    /// 4,000,000-candidate work budget (including broad-phase tests); excessive complexity rejects.
+    /// Dots ignore cap appearance, but still validate its enum. General self-crossing unions and
+    /// open end-to-end snapping are unsupported. Zero-length paths are empty, even with round caps.</summary>
     public void StrokePatternedPolyline(ReadOnlySpan<float2> points, float width, StrokePattern pattern,
         LinearColor color, bool closed = false, LineCap cap = LineCap.Butt, StrokeSpace space = StrokeSpace.Local)
     {
@@ -25,6 +27,20 @@ public sealed partial class ShapeDrawList
         var centerline = new List<P>(points.Length);
         foreach (var point in points) centerline.Add(Input(point));
         PatternPath(centerline, width, pattern, color, closed, cap, space);
+    }
+
+    /// <summary>Samples the circle centerline with the existing screen-space curve tolerance.
+    /// Framebuffer spacing follows arc length on the transformed sampled ellipse. Dots are circular
+    /// in measurement space, hence may become elliptical after a Local nonuniform transform.</summary>
+    public void StrokePatternedCircle(float2 center, float radius, float width, StrokePattern pattern,
+        LinearColor color, LineCap cap = LineCap.Butt, StrokeSpace space = StrokeSpace.Local)
+    {
+        StartPattern(width, pattern, color, cap, space);
+        var c = Input(center); Nonnegative(radius);
+        if (NoOutput(color) || radius == 0 || width == 0) return;
+        var centerline = new List<P>();
+        CircleBoundary(centerline, c, radius, RoundResolution(radius, StrokeSpace.Local));
+        PatternPath(centerline, width, pattern, color, true, cap, space);
     }
 
     private void StartPattern(float width, StrokePattern pattern, LinearColor color, LineCap cap, StrokeSpace space)
@@ -122,8 +138,23 @@ public sealed partial class ShapeDrawList
         var fragments = new List<PatternTile>();
         try
         {
-            if (pattern.IsDots) throw new NotSupportedException("Dot geometry is not yet available.");
-            if (samples.Solid && closed)
+            if (pattern.IsDots)
+            {
+                var centers = samples.Sites.Select(site => PatternPoint(centerline, distances, site)).ToList();
+                ValidateDotSpacing(centers, width);
+                int n = RoundResolution(width / 2.0, space);
+                foreach (var center in centers)
+                {
+                    polygon.Clear(); triangles.Clear();
+                    CircleBoundary(polygon, center, width / 2.0, n);
+                    ValidatePixelLoop(polygon, space);
+                    for (int i = 1; i + 1 < polygon.Count; i++) Tri(0, i, i + 1);
+                    int firstVertex = vc, firstIndex = ic;
+                    Emit(color, validateOutline: true, framebuffer: space == StrokeSpace.Framebuffer);
+                    AddPatternTile(fragments, firstVertex, firstIndex);
+                }
+            }
+            else if (samples.Solid && closed)
             {
                 outlineBoundary.Clear(); outlineOuter.Clear(); outlineInner.Clear();
                 outlineBoundary.AddRange(centerline);
@@ -175,6 +206,22 @@ public sealed partial class ShapeDrawList
         // An open far endpoint must not wrap to the first point.
         path.Add(end == total && distances.Length == points.Count ? points[^1] : PatternPoint(points, distances, end));
         CleanPatternPath(path, false);
+    }
+
+    private static void ValidateDotSpacing(List<P> centers, double diameter)
+    {
+        if (centers.Count < 2) return;
+        bool xAxis = centers.Max(p => p.X) - centers.Min(p => p.X) >= centers.Max(p => p.Y) - centers.Min(p => p.Y);
+        // Sort a copy: emission order remains periodic path order.
+        var sorted = centers.OrderBy(p => xAxis ? p.X : p.Y).ToArray();
+        int work = 0;
+        for (int i = 0; i < sorted.Length; i++) for (int j = i + 1; j < sorted.Length; j++)
+        {
+            if (++work > 4_000_000) throw new ArgumentException("Dot spacing-validation complexity limit.");
+            var delta = sorted[j] - sorted[i];
+            if ((xAxis ? delta.X : delta.Y) >= diameter) break;
+            if (Dot(delta, delta) < diameter * diameter) throw new ArgumentException("Circular dots overlap.");
+        }
     }
 
     private sealed record PatternTile(int FirstIndex, int EndIndex, double MinX, double MinY, double MaxX, double MaxY);

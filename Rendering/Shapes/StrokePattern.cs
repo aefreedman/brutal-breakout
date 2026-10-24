@@ -5,7 +5,10 @@ namespace BrutalBreakout.Rendering.Shapes;
 
 /// <summary>Periodic centerline occupancy. Positive offset moves the lattice forward by a cycle fraction.
 /// Lengths use the stroke measurement space; relative lengths multiply full width. Fixed counts fit
-/// complete periods, not disconnected islands. Default(StrokePattern) is invalid.</summary>
+/// complete periods, not disconnected islands. Closed fitting chooses the nearest whole period count
+/// (midpoints upward, minimum one), preserving duty cycle. Natural dots include an open far endpoint
+/// only at a lattice site; fixed dots and all closed paths use [0,length). Maximum 4096 intervals/sites.
+/// Unrepresentable period/duty/interval arithmetic rejects visibly. Default(StrokePattern) is invalid.</summary>
 public readonly struct StrokePattern
 {
     private readonly byte kind; // 1 absolute dashes, 2 relative, 3 fixed; 4..6 dots
@@ -36,6 +39,7 @@ public readonly struct StrokePattern
         Validate();
         var spans = new List<Interval>(); var sites = new List<double>();
         if (total == 0 || width == 0) return new(spans, sites, false);
+        if (!IsDots && gap == 0) { spans.Add(new(0, total)); return new(spans, sites, true); }
         bool fixedCount = kind is 3 or 6;
         double period = fixedCount ? total / length : (length + gap) * (kind is 2 or 5 ? width : 1);
         double duty = kind == 3 ? 1 - gap : length / (length + gap);
@@ -47,11 +51,12 @@ public readonly struct StrokePattern
             if (cycles > 4096) throw new ArgumentException("Pattern exceeds 4096 periods.");
             period = total / cycles;
         }
-        if (!IsDots && duty == 1) { spans.Add(new(0, total)); return new(spans, sites, true); }
+        if (!IsDots && (duty <= 0 || duty >= 1)) throw new ArgumentException("Pattern duty cycle loses precision.");
         // Preflight before integer conversion or traversal. At most two clipped edge fragments.
-        double ratio = total / period;
+        double ratio = fixedCount ? length : total / period;
         if (!double.IsFinite(ratio) || ratio > 4096) throw new ArgumentException("Pattern exceeds 4096 intervals/sites.");
         double phase = offset % 1; if (phase < 0) phase += 1;
+        if (phase == 1) phase = 0; // tiny negative offsets may round upward at the wrap
         double first = phase * period;
         int cyclesToVisit = (int)Math.Ceiling(ratio) + 1;
         for (int i = IsDots ? 0 : -1; i <= cyclesToVisit; i++)
@@ -64,18 +69,26 @@ public readonly struct StrokePattern
             }
             else
             {
-                double end = Math.Min(total, start + duty * period);
+                double occupiedEnd = start + duty * period;
+                if (start >= 0 && start < total && !(occupiedEnd > start))
+                    throw new ArgumentException("Pattern occupied interval loses precision.");
+                double end = Math.Min(total, occupiedEnd);
                 start = Math.Max(0, start);
                 if (end > start) spans.Add(new(start, end));
             }
-            if (sites.Count > 4096 || spans.Count > 4096) throw new ArgumentException("Pattern exceeds 4096 intervals/sites.");
+            if (sites.Count > 4096 || spans.Count > (closed ? 4097 : 4096)) throw new ArgumentException("Pattern exceeds 4096 intervals/sites.");
         }
         if (closed && spans.Count > 1 && spans[0].Start == 0 && spans[^1].End == total)
         {
             // One unwrapped seam fragment, traversed through total back to zero without seam caps.
             var merged = new Interval(spans[^1].Start, total + spans[0].End);
+            if (!(merged.End > total)) throw new ArgumentException("Seam interval loses precision.");
             spans.RemoveAt(spans.Count - 1); spans.RemoveAt(0); spans.Add(merged);
         }
-        return new(spans, sites, false);
+        if (spans.Count > 4096) throw new ArgumentException("Pattern exceeds 4096 intervals/sites.");
+        if (IsDots && fixedCount && sites.Count != (int)length)
+            throw new ArgumentException("Fixed dot lattice loses endpoint precision.");
+        bool coversClosedPath = closed && spans.Count == 1 && spans[0].Start == 0 && spans[0].End == total;
+        return new(spans, sites, coversClosedPath);
     }
 }
