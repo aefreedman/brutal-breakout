@@ -1,0 +1,24 @@
+{
+  "name": "Night",
+  "palette": {
+    "midnight": "#14213D",
+    "ice": "#DDEBF7",
+    "gold": "#FCA311",
+    "cyan": "#52D6D3",
+    "rose": "#EF6F8A"
+  },
+  "roles": {
+    "background": "midnight",
+    "walls": "ice",
+    "ball": "gold",
+    "catchReady": "cyan",
+    "catchLine": "cyan",
+    "aim": "ice",
+    "brickPrimary": "cyan",
+    "brickSecondary": "gold",
+    "brickAccent": "rose",
+    "hud": "ice",
+    "win": "cyan",
+    "loss": "rose"
+  }
+}

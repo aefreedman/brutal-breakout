@@ -1,0 +1,23 @@
+{
+  "name": "Prototype Studio",
+  "palette": {
+    "cream": "#E8E7CB",
+    "blue": "#2176CC",
+    "coral": "#FF7D6E",
+    "pink": "#FCA6AC"
+  },
+  "roles": {
+    "background": "cream",
+    "walls": "blue",
+    "ball": "coral",
+    "catchReady": "blue",
+    "catchLine": "blue",
+    "aim": "blue",
+    "brickPrimary": "blue",
+    "brickSecondary": "coral",
+    "brickAccent": "pink",
+    "hud": "blue",
+    "win": "blue",
+    "loss": "coral"
+  }
+}
