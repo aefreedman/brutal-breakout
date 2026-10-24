@@ -249,9 +249,18 @@ public sealed partial class ShapeDrawList : IDisposable
             path.Add(p);
         }
         if (path.Count < 2 || width == 0) return;
+        StrokeOpenPath(width, color);
+    }
+    private void StrokeOpenPath(double width, LinearColor color, LineCap cap = LineCap.Butt, bool framebuffer = false)
+    {
         left.Clear();
         right.Clear();
         double r = width / 2.0;
+        if (cap == LineCap.Square)
+        {
+            path[0] -= Unit(path[1] - path[0]) * r;
+            path[^1] += Unit(path[^1] - path[^2]) * r;
+        }
         for (int i = 0; i < path.Count; i++)
         {
             var p = path[i];
@@ -282,9 +291,11 @@ public sealed partial class ShapeDrawList : IDisposable
             }
         }
         polygon.AddRange(left);
+        if (cap == LineCap.Round) PatternCap(path[^1], Unit(path[^1] - path[^2]), r, framebuffer);
         for (int i = right.Count - 1; i >= 0; i--) polygon.Add(right[i]);
+        if (cap == LineCap.Round) PatternCap(path[0], Unit(path[0] - path[1]), r, framebuffer);
         SimpleTriangulate();
-        Emit(color, validateOutline: true);
+        Emit(color, validateOutline: true, framebuffer: framebuffer);
     }
     private bool NoOutput(LinearColor color) => color.A == 0 || clips[^1].IsEmpty || Singular(local) || Singular(world);
     private void Start(LinearColor color)
