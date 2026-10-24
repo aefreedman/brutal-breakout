@@ -48,10 +48,14 @@ public sealed class GameplaySettings
 {
     public ArenaSettings Arena { get; }
     public BallSettings Ball { get; }
+    /// <summary>Explicit null selects the physics-reference arena, not a default breakout layout.</summary>
+    public BreakoutSettings? Breakout { get; }
     public double MinX => Arena.Left + Ball.Radius;
     public double MaxX => Arena.Right - Ball.Radius;
     public double MinY => Arena.Top + Ball.Radius;
     public double MaxY => Arena.Bottom - Ball.Radius;
+    public double CatchLineY => Breakout is { } rules ? Arena.Height - Arena.Height * rules.CatchZoneHeightFraction : double.NaN;
+    internal bool IsInCatchZone(double centerY) => double.IsFinite(centerY) && centerY >= CatchLineY;
     internal float NativeRadius { get; }
     internal float NativeSpeed { get; }
     internal float CastMeters { get; }
@@ -66,10 +70,10 @@ public sealed class GameplaySettings
             throw new ArgumentException("Configured speed and timestep overflow native displacement arithmetic.");
     }
 
-    public GameplaySettings(ArenaSettings arena, BallSettings ball)
+    public GameplaySettings(ArenaSettings arena, BallSettings ball, BreakoutSettings? breakout)
     {
         ArgumentNullException.ThrowIfNull(arena); ArgumentNullException.ThrowIfNull(ball);
-        Arena = arena; Ball = ball;
+        Arena = arena; Ball = ball; Breakout = breakout;
         double t = arena.WallThickness;
         if (arena.Left - t < 0 || arena.Top - t < 0 || arena.Right + t > arena.Width || arena.Bottom + t > arena.Height)
             throw new ArgumentException("Walls must fit the canvas.");
@@ -93,6 +97,7 @@ public sealed class GameplaySettings
         // a large offset must not collapse after conversion, even if the double inputs differ.
         CheckAxis(arena.Left, arena.Right, ball.Spawn.X);
         CheckAxis(arena.Top, arena.Bottom, ball.Spawn.Y);
+        breakout?.Validate(arena, ball);
         void CheckAxis(double low, double high, double spawn)
         {
             foreach (double scale in new[] { 1.0, (double)NativeArena.UnitsPerMeter })

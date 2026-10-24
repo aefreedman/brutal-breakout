@@ -10,7 +10,7 @@ namespace Simulation.Tests;
 public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     internal static GameplaySettings Custom(double radius = 7, double speed = 350) =>
-        new(new(1800, 1000, 80, 120, 1600, 850, 24), new(radius, speed, 420, 600, 3, -4));
+        new(new(1800, 1000, 80, 120, 1600, 850, 24), new(radius, speed, 420, 600, 3, -4), null);
 
     [Theory]
     [InlineData(7, 350)] [InlineData(23, 950)]
@@ -51,7 +51,7 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
     {
         double speed = B2WorldDef.Default.MaximumLinearSpeed * 200;
         output.WriteLine($"Published default maximum = {B2WorldDef.Default.MaximumLinearSpeed} m/s; configured = {speed} logical units/s.");
-        var g = new GameplaySettings(new(100000, 80000, 1000, 1000, 99000, 79000, 100), new(40, speed, 50000, 40000, 1, 0));
+        var g = new GameplaySettings(new(100000, 80000, 1000, 1000, 99000, 79000, 100), new(40, speed, 50000, 40000, 1, 0), null);
         using var sim = new BallSimulation(TestSettings.Baseline, g);
         Assert.True(speed > B2WorldDef.Default.MaximumLinearSpeed * 100);
         var hit = sim.Preview();
@@ -75,7 +75,7 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
 
     [Theory] [MemberData(nameof(InvalidRelationships))]
     public void InvalidCrossGeometryRejectedWithoutWorld(ArenaSettings a, BallSettings b) =>
-        Assert.ThrowsAny<ArgumentException>(() => new GameplaySettings(a, b));
+        Assert.ThrowsAny<ArgumentException>(() => new GameplaySettings(a, b, null));
 
     [Theory]
     [InlineData(0)] [InlineData(-1)] [InlineData(double.NaN)] [InlineData(double.PositiveInfinity)]
@@ -102,8 +102,8 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
             Assert.ThrowsAny<ArgumentException>(() => new BallSettings(7, 350, 420, 600, 1, x));
         }
         Assert.ThrowsAny<ArgumentException>(() => new BallSettings(7, 350, 420, 600, 0, 0));
-        Assert.Throws<ArgumentNullException>(() => new GameplaySettings(null!, Custom().Ball));
-        Assert.Throws<ArgumentNullException>(() => new GameplaySettings(Custom().Arena, null!));
+        Assert.Throws<ArgumentNullException>(() => new GameplaySettings(null!, Custom().Ball, null));
+        Assert.Throws<ArgumentNullException>(() => new GameplaySettings(Custom().Arena, null!, null));
         Assert.Throws<ArgumentNullException>(() => new BallSimulation(TestSettings.Baseline, null!));
         Assert.Throws<ArgumentNullException>(() => new BallSandboxSession(TestSettings.Baseline, Custom(), null!));
         var extremeAim = new BallSettings(7, 350, 420, 600, double.MaxValue, double.MaxValue);
@@ -143,7 +143,7 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
         // All relationships are valid as doubles, but walls disappear at float coordinates.
         Assert.Throws<ArgumentException>(() => new GameplaySettings(
             new(100000, 80000, 10000, 10000, 90000, 70000, .000001),
-            new(20, 600, 50000, 40000, 1, 0)));
+            new(20, 600, 50000, 40000, 1, 0), null));
     }
 
     [Fact]

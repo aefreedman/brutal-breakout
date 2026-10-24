@@ -15,7 +15,7 @@ public class NativeArenaTests
         Assert.True(hit.HasHit);
         ArenaTests.Near(new(1220, 360), hit.Position, 1);
         world.Launch(new(0, -1));
-        Assert.False(world.Step());
+        Assert.False(world.Step().HasContact);
         ArenaTests.Near(new(640, 607), world.Position, .01);
         world.Dispose();
         world.Dispose();
