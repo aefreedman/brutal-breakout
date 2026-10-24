@@ -17,7 +17,7 @@ public class OwnershipTests
         {
             try
             {
-                using var owner = new BallSandboxSession(TestSettings.Baseline);
+                using var owner = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input);
                 session = owner;
                 owner.Simulation.Step(new(PrimaryPressed: true));
                 if (fail) throw original;
@@ -41,13 +41,13 @@ public class OwnershipTests
     [InlineData(true, 1)]
     public void DisposedSessionRejectsAdvanceEvenWithoutNativeTick(bool focused, double seconds)
     {
-        using var session = new BallSandboxSession(TestSettings.Baseline);
+        using var session = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input);
         var snapshot = session.Simulation.State;
         session.Dispose();
         session.Dispose();
         Assert.Equal(snapshot.Position, session.Simulation.State.Position);
         Assert.Throws<ObjectDisposedException>(() => session.Advance(
-            new InputSnapshot { Focused = focused }, seconds, new(1280, 720, 1280, 720)));
+            new InputSnapshot { Focused = focused }, seconds, new(1280, 720, 1280, 720, TestSettings.Gameplay.Arena)));
         Assert.Throws<ObjectDisposedException>(() => session.Simulation.Step());
         Assert.Throws<ObjectDisposedException>(() => session.Simulation.Preview());
         Assert.Throws<ObjectDisposedException>(() => session.Simulation.Query(snapshot.Position, snapshot.AimDirection));
@@ -56,7 +56,7 @@ public class OwnershipTests
     [Fact]
     public void WrongThreadCannotAdvanceOrDisposeAndOwnerCanContinue()
     {
-        using var session = new BallSandboxSession(TestSettings.Baseline);
+        using var session = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input);
         Exception? advance = null, dispose = null;
         var thread = new Thread(() =>
         {
@@ -74,10 +74,10 @@ public class OwnershipTests
     [Fact]
     public void RepeatedIndependentHostLifetimesDoNotInvalidateHeldWorld()
     {
-        using var held = new BallSandboxSession(TestSettings.Baseline);
+        using var held = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input);
         for (int i = 0; i < 50; i++)
         {
-            using var temporary = new BallSandboxSession(TestSettings.Baseline);
+            using var temporary = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input);
             temporary.Simulation.Step(new(PrimaryPressed: true));
             Assert.True(temporary.Simulation.Preview().HasHit);
         }

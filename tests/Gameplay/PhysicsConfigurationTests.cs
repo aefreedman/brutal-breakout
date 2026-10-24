@@ -188,10 +188,10 @@ public class PhysicsConfigurationTests
     public void CustomRateAndSingleCatchUpStepPreservePendingAndFocusRules(double rate)
     {
         var settings = new PhysicsSettings(rate, 4, 1, 90, 1);
-        using var session = new BallSandboxSession(settings);
+        using var session = new BallSandboxSession(settings, TestSettings.Gameplay, TestSettings.Input);
         Assert.Same(settings, session.Settings);
         Assert.Same(settings, session.Simulation.Settings);
-        var view = new ArenaViewport(1280, 720, 1280, 720);
+        var view = new ArenaViewport(1280, 720, 1280, 720, TestSettings.Gameplay.Arena);
         var idle = new InputSnapshot { Focused = true };
         session.Advance(idle, 0, view);
         Assert.Equal(0, session.Advance(idle with { KeyboardPrimary = true }, settings.StepSeconds / 2, view));
@@ -212,8 +212,8 @@ public class PhysicsConfigurationTests
     {
         // This explicit fixture reaches a native touching pose; a new begin event on relaunch is valid.
         var settings = new PhysicsSettings(60, 2, 1, 60, 1);
-        using var session = new BallSandboxSession(settings);
-        var view = new ArenaViewport(1280, 720, 1280, 720);
+        using var session = new BallSandboxSession(settings, TestSettings.Gameplay, TestSettings.Input);
+        var view = new ArenaViewport(1280, 720, 1280, 720, TestSettings.Gameplay.Arena);
         var idle = new InputSnapshot { Focused = true };
         var press = idle with { KeyboardPrimary = true };
         session.Advance(idle, 0, view);

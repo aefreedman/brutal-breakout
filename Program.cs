@@ -21,10 +21,17 @@ var cleanupSelfTest = args.Contains("--cleanup-self-test");
 if (smokeTest || cleanupSelfTest) VerifyCleanupFailureHandling();
 if (cleanupSelfTest) return;
 LoadedPhysicsConfiguration? physics;
+LoadedGameplayConfiguration? gameplay;
+LoadedInputConfiguration? input;
 try
 {
     physics = PhysicsConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    gameplay = GameplayConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    input = InputConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    if (physics is not null && gameplay is not null) GameplayConfiguration.ValidatePhysics(gameplay, physics);
     if (physics is not null) Console.WriteLine(physics.Describe());
+    if (gameplay is not null) Console.WriteLine(gameplay.Describe());
+    if (input is not null) Console.WriteLine(input.Describe());
 }
 catch (Exception error) when (error is InvalidDataException or ArgumentException)
 {
@@ -69,9 +76,9 @@ try
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
             "Ball arena: aim, press to launch, bounce to unlock catch; release/repress to relaunch. See README.");
-        using var session = !gallery && !gameplaySmokeTest ? new BallSandboxSession(physics!.Settings) : null;
+        using var session = !gallery && !gameplaySmokeTest ? new BallSandboxSession(physics!.Settings, gameplay!.Settings, input!.Settings) : null;
         var poller = new GlfwInputPoller(window);
-        using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings) : null;
+        using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings, gameplay!.Settings, input!.Settings) : null;
         var gameplayViewports = new HashSet<(int Width, int Height)>();
         var gameplayFrames = 0;
         var staleFrameRegressionPassed = false;
@@ -97,9 +104,9 @@ try
             lastElapsed = now;
             var size = window.Size;
             var pixels = window.FramebufferSize;
-            var viewport = new ArenaViewport(size.X, size.Y, pixels.X, pixels.Y);
             if (!gallery)
             {
+                var viewport = new ArenaViewport(size.X, size.Y, pixels.X, pixels.Y, gameplay!.Settings.Arena);
                 if (gameplayScript is not null)
                 {
                     if (now.TotalSeconds > 15) throw new InvalidOperationException("Gameplay smoke timed out.");
