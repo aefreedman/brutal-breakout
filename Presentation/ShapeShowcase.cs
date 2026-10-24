@@ -6,12 +6,14 @@ namespace BrutalBreakout.Presentation;
 /// <summary>A fixed design canvas fitted to the current physical framebuffer, without text assets.</summary>
 internal static class ShapeShowcase
 {
-    public const int ShapeCount = 53;
+    public const int ShapeCount = 64;
 
-    public static ShapeFrame Build(ShapeDrawList draw, int width, int height)
+    internal readonly record struct DecorativeEvidence(int Angled, int Chevron, int AngledIndices, int ChevronIndices);
+
+    public static ShapeFrame Build(ShapeDrawList draw, int width, int height, out DecorativeEvidence decorative)
     {
-        var scale = MathF.Min(width / 1200f, height / 960f);
-        var x = (width - 1200 * scale) / 2;
+        var scale = MathF.Min(width / 1600f, height / 960f);
+        var x = (width - 1600 * scale) / 2;
         var y = (height - 960 * scale) / 2;
         draw.BeginFrame(width, height, new float3x2(scale, 0, 0, scale, x, y));
         var panel = LinearColor.FromSrgb(.12f, .17f, .23f);
@@ -20,11 +22,11 @@ internal static class ShapeShowcase
         var coral = LinearColor.FromSrgb(.98f, .40f, .42f);
         var white = LinearColor.FromSrgb(.88f, .94f, 1);
         for (var row = 0; row < 3; row++)
-            for (var column = 0; column < 3; column++)
+            for (var column = 0; column < 4; column++)
                 draw.FillRoundedRect(new(24 + column * 392, 48 + row * 300), new(368, 276), 18, panel);
         // Asymmetric orientation markers: red at upper left, green at upper right.
         draw.FillRect(new(24, 20), new(44, 8), new(1, 0, 0));
-        draw.FillRect(new(1132, 20), new(44, 8), new(0, 1, 0));
+        draw.FillRect(new(1524, 20), new(44, 8), new(0, 1, 0));
 
         // Filled primitives retained as the first panel's vocabulary.
         draw.FillDisc(new(104, 132), 42, cyan);
@@ -112,6 +114,39 @@ internal static class ShapeShowcase
         draw.FillRect(new(876, 800), new(140, 64), red);
         // Opaque linear mid-gray reference for the sRGB attachment encode.
         draw.FillRect(new(1120, 702), new(16, 162), new(.5f, .5f, .5f));
-        return draw.Finish();
+        // Dedicated colors tag indexed decorative geometry for hidden smoke evidence, not just call metadata.
+        var angledColor = LinearColor.FromSrgb(.40f, 1, .65f);
+        var chevronColor = LinearColor.FromSrgb(.78f, .60f, 1);
+        var angled = 0;
+        var chevron = 0;
+        var pattern = StrokePattern.Dashes(36, 28, offsetCycles: .15);
+        // Fourth column: slanted stripes above, concave V ends below; +1, -1, half-depth.
+        foreach (var modifier in new[] { 1d, -1d, .5d })
+        {
+            draw.StrokePatternedSegment(new(1240, 112 + angled * 80), new(1528, 112 + angled * 80), 18,
+                pattern.WithShape(DashShape.Angled, modifier), angledColor);
+            angled++;
+            draw.StrokePatternedSegment(new(1240, 412 + chevron * 80), new(1528, 412 + chevron * 80), 18,
+                pattern.WithShape(DashShape.Chevron, modifier), chevronColor);
+            chevron++;
+        }
+        // Closed, corner-crossing paths exercise the continuous decorative miter ribbon and seam.
+        draw.StrokePatternedPolyline([new(1248, 716), new(1352, 716), new(1352, 848), new(1248, 848)], 6,
+            StrokePattern.FixedDashes(8, .6, .13).WithShape(DashShape.Angled, -1), angledColor, closed: true);
+        angled++;
+        draw.StrokePatternedPolyline([new(1400, 716), new(1504, 716), new(1504, 848), new(1400, 848)], 6,
+            StrokePattern.FixedDashes(8, .6, .13).WithShape(DashShape.Chevron, 1), chevronColor, closed: true);
+        chevron++;
+        var frame = draw.Finish();
+        var angledIndices = 0;
+        var chevronIndices = 0;
+        foreach (var index in frame.Indices.Span)
+        {
+            var color = frame.Vertices.Span[(int)index].Color;
+            if (color.Equals(new float4(angledColor.R, angledColor.G, angledColor.B, 1))) angledIndices++;
+            if (color.Equals(new float4(chevronColor.R, chevronColor.G, chevronColor.B, 1))) chevronIndices++;
+        }
+        decorative = new(angled, chevron, angledIndices, chevronIndices);
+        return frame;
     }
 }
