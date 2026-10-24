@@ -270,14 +270,14 @@ internal sealed unsafe partial class VulkanRenderer
             ByteSize.Zero, ByteSize.Of(bytes)), "Flush shape upload");
     }
 
-    private bool RecordShapes(int imageIndex, ShapeFrame? frame)
+    private bool RecordShapes(int imageIndex, ShapeFrame? frame, LinearColor background)
     {
         var geometryRecorded = false;
         ref var api = ref _device!.PInvoke;
         Check(api.vkResetCommandBuffer.Invoke(_command, 0), "Reset command buffer");
         var begin = new VkCommandBufferBeginInfo { Flags = VkCommandBufferUsageFlags.OneTimeSubmitBit };
         Check(api.vkBeginCommandBuffer.Invoke(_command, &begin), "Begin command buffer");
-        var clear = new VkClearValue { Color = new VkClearColorValue { Float32 = new float4(0.025f, 0.06f, 0.10f, 1f) } };
+        var clear = new VkClearValue { Color = new VkClearColorValue { Float32 = new float4(background.R, background.G, background.B, background.A) } };
         var pass = new VkRenderPassBeginInfo
         {
             RenderPass = _renderPass, Framebuffer = _framebuffers[imageIndex],

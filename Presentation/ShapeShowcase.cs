@@ -6,6 +6,8 @@ namespace BrutalBreakout.Presentation;
 /// <summary>A fixed design canvas fitted to the current physical framebuffer, without text assets.</summary>
 internal static class ShapeShowcase
 {
+    // Deliberate gallery backdrop, independent of the playable game's swappable scheme.
+    public static readonly LinearColor Background = new(.025f, .06f, .10f, 1);
     public const int ShapeCount = 64;
 
     internal readonly record struct DecorativeEvidence(int Angled, int Chevron, int AngledIndices, int ChevronIndices);

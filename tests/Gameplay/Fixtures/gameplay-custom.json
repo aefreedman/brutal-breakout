@@ -1,4 +1,266 @@
 {
-  "arena": { "width": 1800, "height": 1000, "left": 80, "top": 120, "right": 1600, "bottom": 850, "wallThickness": 24 },
-  "ball": { "radius": 23, "speed": 950, "spawnX": 420, "spawnY": 600, "initialAimX": 3, "initialAimY": -4 }
+  "arena": {
+    "width": 1800,
+    "height": 1000,
+    "left": 80,
+    "top": 120,
+    "right": 1600,
+    "bottom": 850,
+    "wallThickness": 24
+  },
+  "ball": {
+    "radius": 23,
+    "speed": 950,
+    "spawnX": 420,
+    "spawnY": 750,
+    "initialAimX": 3,
+    "initialAimY": -4
+  },
+  "breakout": {
+    "startingBalls": 3,
+    "catchZoneHeightFraction": 0.3333333333333333,
+    "maxBouncesWithoutBrick": 12,
+    "bricks": [
+      {
+        "x": 130,
+        "y": 180,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 270,
+        "y": 180,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 410,
+        "y": 180,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 550,
+        "y": 180,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 690,
+        "y": 180,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 830,
+        "y": 180,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 970,
+        "y": 180,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1110,
+        "y": 180,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1250,
+        "y": 180,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1390,
+        "y": 180,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 130,
+        "y": 242,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 270,
+        "y": 242,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 410,
+        "y": 242,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 550,
+        "y": 242,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 690,
+        "y": 242,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 830,
+        "y": 242,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 970,
+        "y": 242,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1110,
+        "y": 242,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1250,
+        "y": 242,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1390,
+        "y": 242,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 130,
+        "y": 304,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 270,
+        "y": 304,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 410,
+        "y": 304,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 550,
+        "y": 304,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 690,
+        "y": 304,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 830,
+        "y": 304,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 970,
+        "y": 304,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1110,
+        "y": 304,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1250,
+        "y": 304,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1390,
+        "y": 304,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 130,
+        "y": 366,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 270,
+        "y": 366,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 410,
+        "y": 366,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 550,
+        "y": 366,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 690,
+        "y": 366,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 830,
+        "y": 366,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 970,
+        "y": 366,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1110,
+        "y": 366,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1250,
+        "y": 366,
+        "width": 120,
+        "height": 40
+      },
+      {
+        "x": 1390,
+        "y": 366,
+        "width": 120,
+        "height": 40
+      }
+    ]
+  }
 }

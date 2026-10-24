@@ -3,7 +3,8 @@ param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug',
       [ValidateSet('Showcase', 'Gameplay')][string] $Mode = 'Showcase',
       [string] $PhysicsConfig,
       [string] $GameplayConfig,
-      [string] $InputConfig)
+      [string] $InputConfig,
+      [string] $ColorsConfig)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Requires Windows/PowerShell 7.' }
@@ -30,8 +31,10 @@ if ($Mode -eq 'Gameplay') {
     } else { [IO.Path]::GetFullPath($InputConfig) }
     $gameplayExpected = [IO.File]::ReadAllText($gameplayPath) | ConvertFrom-Json
     $inputExpected = [IO.File]::ReadAllText($inputPath) | ConvertFrom-Json
+    $colorsPath = if ([string]::IsNullOrWhiteSpace($ColorsConfig)) { Join-Path $root 'tests/Gameplay/Fixtures/colors-unity.json' } else { [IO.Path]::GetFullPath($ColorsConfig) }
+    $colorsExpected = [IO.File]::ReadAllText($colorsPath) | ConvertFrom-Json
 } elseif (-not [string]::IsNullOrWhiteSpace($PhysicsConfig) -or
-          -not [string]::IsNullOrWhiteSpace($GameplayConfig) -or -not [string]::IsNullOrWhiteSpace($InputConfig)) {
+          -not [string]::IsNullOrWhiteSpace($GameplayConfig) -or -not [string]::IsNullOrWhiteSpace($InputConfig) -or -not [string]::IsNullOrWhiteSpace($ColorsConfig)) {
     throw 'Configuration overrides apply only to -Mode Gameplay.'
 }
 Add-Type @'
@@ -73,6 +76,8 @@ try {
         $start.ArgumentList.Add($gameplayPath)
         $start.ArgumentList.Add('--input-config')
         $start.ArgumentList.Add($inputPath)
+        $start.ArgumentList.Add('--colors-config')
+        $start.ArgumentList.Add($colorsPath)
     }
     $start.WorkingDirectory = $root
     $start.UseShellExecute = $false
@@ -143,7 +148,7 @@ try {
             throw 'Loaded physics settings/path do not match the selected fixture.'
         }
         Write-Output "Verified configured gameplay: updateHz=$hz; substeps=$($loaded.Groups[3].Value); maxCatchUpSteps=$($loaded.Groups[4].Value)."
-        $game = [regex]::Match($output, 'Gameplay configuration: width=([^;]+); height=([^;]+); left=([^;]+); top=([^;]+); right=([^;]+); bottom=([^;]+); wallThickness=([^;]+); radius=([^;]+); speed=([^;]+); spawnX=([^;]+); spawnY=([^;]+); initialAimX=([^;]+); initialAimY=([^;]+); path=([^\r\n]+)')
+        $game = [regex]::Match($output, 'Gameplay configuration: width=([^;]+); height=([^;]+); left=([^;]+); top=([^;]+); right=([^;]+); bottom=([^;]+); wallThickness=([^;]+); radius=([^;]+); speed=([^;]+); spawnX=([^;]+); spawnY=([^;]+); initialAimX=([^;]+); initialAimY=([^;]+); startingBalls=(\d+); catchZoneHeightFraction=([^;]+); maxBouncesWithoutBrick=(\d+); bricks=(\d+); path=([^\r\n]+)')
         $loadedInput = [regex]::Match($output, 'Input configuration: stickDeadzone=([^;]+); path=([^\r\n]+)')
         $probe = [regex]::Match($output, 'Gameplay input probe PASS: stickDeadzone=([^;]+); inside=None; outside=Direction\.')
         $motion = [regex]::Match($output, 'Gameplay launch motion: actualSpeed=([^;]+); configuredSpeed=([^\r\n]+)\.')
@@ -164,13 +169,35 @@ try {
                 throw "Loaded gameplay field $i does not match selected fixture."
             }
         }
-        if ($game.Groups[14].Value -ne $gameplayPath -or $loadedInput.Groups[2].Value -ne $inputPath -or
+        if ($game.Groups[18].Value -ne $gameplayPath -or $loadedInput.Groups[2].Value -ne $inputPath -or
             [float]::Parse($loadedInput.Groups[1].Value, $culture) -ne [float]$inputExpected.stickDeadzone -or
             [float]::Parse($probe.Groups[1].Value, $culture) -ne [float]$inputExpected.stickDeadzone -or
             [double]::Parse($motion.Groups[2].Value, $culture) -ne [double]$b.speed -or
             [Math]::Abs([double]::Parse($motion.Groups[1].Value, $culture) - [double]$b.speed) -gt [Math]::Max(1.0, [double]$b.speed * 1e-5)) {
             throw 'Loaded gameplay/input paths, effective deadzone or native launch speed differ from fixtures.'
         }
+        $rules = $gameplayExpected.breakout
+        if ([int]$game.Groups[14].Value -ne [int]$rules.startingBalls -or
+            [double]::Parse($game.Groups[15].Value, $culture) -ne [double]$rules.catchZoneHeightFraction -or
+            [int]$game.Groups[16].Value -ne [int]$rules.maxBouncesWithoutBrick -or
+            [int]$game.Groups[17].Value -ne $rules.bricks.Count -or
+            $output -notmatch 'Gameplay catch-line blocked PASS:' -or $output -notmatch 'Gameplay bricks PASS:') {
+            throw 'Missing configured round rules, native brick destruction or blocked-above-line proof.'
+        }
+        $scheme = [regex]::Match($output, 'Colors configuration: name=([^;]+); (.+); path=([^\r\n]+)')
+        if (-not $scheme.Success -or $scheme.Groups[1].Value -ne $colorsExpected.name -or $scheme.Groups[3].Value -ne $colorsPath) { throw 'Wrong loaded color scheme/path.' }
+        foreach ($role in $colorsExpected.roles.PSObject.Properties) {
+            $rgb = [regex]::Match($scheme.Groups[2].Value, '(?:^|; )' + [regex]::Escape($role.Name) + '=([^;]+)')
+            if (-not $rgb.Success) { throw "Missing actual semantic color: $($role.Name)" }
+            $hex = $colorsExpected.palette.($role.Value)
+            $parts = $rgb.Groups[1].Value.Split(',')
+            for ($channel = 0; $channel -lt 3; $channel++) {
+                $s = [Convert]::ToByte($hex.Substring(1 + 2 * $channel, 2), 16) / 255.0
+                $linear = if ($s -le .04045) { $s / 12.92 } else { [Math]::Pow(($s + .055) / 1.055, 2.4) }
+                if ([Math]::Abs([double]::Parse($parts[$channel], $culture) - $linear) -gt 1e-6) { throw "Color conversion/role mismatch: $($role.Name)" }
+            }
+        }
+        Write-Output "Verified color scheme: $($colorsExpected.name); all semantic linear RGB roles match; path=$colorsPath."
         $reset = [regex]::Match($output, 'Gameplay stage: Reset; ticks=\d+; phase=Aiming; eligible=False; position=([^,;]+),([^;]+);')
         if (-not $reset.Success -or [double]::Parse($reset.Groups[1].Value, $culture) -ne [double]$b.spawnX -or
             [double]::Parse($reset.Groups[2].Value, $culture) -ne [double]$b.spawnY) {
@@ -190,11 +217,12 @@ try {
                 throw "Missing presented gameplay stage: $stage"
             }
         }
-        $viewports = [regex]::Matches($output, 'Gameplay viewport: (\d+)x(\d+); indices=(\d+); arenaIndices=(\d+); ballIndices=(\d+); aimIndices=(\d+)\.')
+        $viewports = [regex]::Matches($output, 'Gameplay viewport: (\d+)x(\d+); indices=(\d+); arenaIndices=(\d+); ballIndices=(\d+); aimIndices=(\d+); brickIndices=(\d+); catchLineIndices=(\d+); hudIndices=(\d+)\.')
         $sizes = [Collections.Generic.HashSet[string]]::new()
         foreach ($viewport in $viewports) {
             if ([int]$viewport.Groups[3].Value -le 0 -or [int]$viewport.Groups[4].Value -le 0 -or
-                [int]$viewport.Groups[5].Value -le 0 -or [int]$viewport.Groups[6].Value -le 0) {
+                [int]$viewport.Groups[5].Value -le 0 -or [int]$viewport.Groups[6].Value -le 0 -or
+                [int]$viewport.Groups[7].Value -le 0 -or [int]$viewport.Groups[8].Value -le 0 -or [int]$viewport.Groups[9].Value -le 0) {
                 throw 'Missing actual arena/ball/aim indexed geometry.'
             }
             [void]$sizes.Add("$($viewport.Groups[1].Value)x$($viewport.Groups[2].Value)")

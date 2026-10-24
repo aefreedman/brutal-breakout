@@ -154,14 +154,14 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
     }
 
     /// <returns>True only when indexed geometry from this frame was successfully presented.</returns>
-    public bool Draw(ShapeFrame? frame = null)
+    public bool Draw(ShapeFrame? frame, LinearColor background)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (frame is { } supplied) ValidateFrame(supplied);
-        return DrawValidated(frame);
+        return DrawValidated(frame, background);
     }
 
-    private bool DrawValidated(ShapeFrame? frame)
+    private bool DrawValidated(ShapeFrame? frame, LinearColor background)
     {
         var size = _window.FramebufferSize;
         if (_window.IsIconified || size.X <= 0 || size.Y <= 0)
@@ -195,7 +195,7 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
         if (acquired != VkResult.SuboptimalKHR)
             Check(acquired, "Acquire image");
 
-        var geometryRecorded = RecordShapes(index, frame);
+        var geometryRecorded = RecordShapes(index, frame, background);
         device.ResetFences([_frameFence]); // Only reset once there will actually be a submission.
         var wait = _imageAvailable;
         var signal = _presentReady[index];

@@ -31,6 +31,9 @@ public sealed partial class ShapeDrawList : IDisposable
         public static P operator -(P a, P b) => new(a.X - b.X, a.Y - b.Y);
         public static P operator *(P a, double b) => new(a.X * b, a.Y * b);
     }
+    /// <summary>Actual indices emitted so far in the active frame, independent of vertex colors.</summary>
+    public int IndexCount { get { State(); return ic; } }
+
     public ShapeDrawList(int maxVertices = 1_000_000, int maxIndices = 3_000_000)
     {
         if (maxVertices < 0 || maxIndices < 0) throw new ArgumentOutOfRangeException(nameof(maxVertices));

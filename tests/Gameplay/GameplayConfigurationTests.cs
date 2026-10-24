@@ -11,7 +11,8 @@ public class GameplayConfigurationTests
 {
     internal const string Valid = """
         {"arena":{"width":1800,"height":1000,"left":80,"top":120,"right":1600,"bottom":850,"wallThickness":24},
-         "ball":{"radius":23,"speed":950,"spawnX":420,"spawnY":600,"initialAimX":3,"initialAimY":-4}}
+         "ball":{"radius":23,"speed":950,"spawnX":420,"spawnY":750,"initialAimX":3,"initialAimY":-4},
+         "breakout":{"startingBalls":3,"catchZoneHeightFraction":0.3333333333333333,"maxBouncesWithoutBrick":12,"bricks":[{"x":400,"y":200,"width":100,"height":30},{"x":800,"y":200,"width":100,"height":30}]}}
         """;
     internal const string Physics = """
         {"updateHz":120,"substeps":4,"maxCatchUpSteps":8,"contactHertz":120,"contactDampingRatio":1}
@@ -36,7 +37,7 @@ public class GameplayConfigurationTests
         var a = loaded.Settings.Arena; var b = loaded.Settings.Ball;
         Assert.Equal((1800d, 1000d, 80d, 120d, 1600d, 850d, 24d),
             (a.Width, a.Height, a.Left, a.Top, a.Right, a.Bottom, a.WallThickness));
-        Assert.Equal((23d, 950d, 420d, 600d), (b.Radius, b.Speed, b.Spawn.X, b.Spawn.Y));
+        Assert.Equal((23d, 950d, 420d, 750d), (b.Radius, b.Speed, b.Spawn.X, b.Spawn.Y));
         Assert.Equal(.6, b.InitialAim.X, 10); Assert.Equal(-.8, b.InitialAim.Y, 10);
     }
 
@@ -222,7 +223,7 @@ public class GameplayConfigurationTests
         {
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
             Assert.Contains("initialAimX=0.6; initialAimY=-0.8;", game.Describe());
-            Assert.Contains("radius=23; speed=950; spawnX=420; spawnY=600;", game.Describe());
+            Assert.Contains("radius=23; speed=950; spawnX=420; spawnY=750;", game.Describe());
             Assert.Contains("stickDeadzone=0.55;", input.Describe());
         }
         finally { CultureInfo.CurrentCulture = old; }

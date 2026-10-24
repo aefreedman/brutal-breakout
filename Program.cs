@@ -23,15 +23,18 @@ if (cleanupSelfTest) return;
 LoadedPhysicsConfiguration? physics;
 LoadedGameplayConfiguration? gameplay;
 LoadedInputConfiguration? input;
+LoadedColorSchemeConfiguration? colors;
 try
 {
     physics = PhysicsConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     gameplay = GameplayConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     input = InputConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    colors = ColorSchemeConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     if (physics is not null && gameplay is not null) GameplayConfiguration.ValidatePhysics(gameplay, physics);
     if (physics is not null) Console.WriteLine(physics.Describe());
     if (gameplay is not null) Console.WriteLine(gameplay.Describe());
     if (input is not null) Console.WriteLine(input.Describe());
+    if (colors is not null) Console.WriteLine(colors.Describe());
 }
 catch (Exception error) when (error is InvalidDataException or ArgumentException)
 {
@@ -63,7 +66,7 @@ try
     var window = Glfw.CreateWindow(new GlfwWindow.CreateInfo
     {
         Title = gallery ? "Brutal Breakout - primitive showcase" :
-            "Ball arena - Space / mouse left / gamepad A: launch or catch; R / Start: restart; WASD / arrows / left stick / mouse: aim",
+            "Brutal Breakout - Space / click / A: launch or catch below line; R / Start: restart; WASD / arrows / stick / mouse: aim",
         Size = new int2(1280, 720),
     });
     if (window.IsNull())
@@ -75,10 +78,11 @@ try
         using var shapes = new ShapeDrawList();
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
-            "Ball arena: aim, press to launch, bounce to unlock catch; release/repress to relaunch. See README.");
+            "Breakout: leave the lower zone, hit something, return below the line to catch; release/repress to relaunch. R restarts. See README.");
         using var session = !gallery && !gameplaySmokeTest ? new BallSandboxSession(physics!.Settings, gameplay!.Settings, input!.Settings) : null;
         var poller = new GlfwInputPoller(window);
         using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings, gameplay!.Settings, input!.Settings) : null;
+        string? lastGameTitle = null;
         var gameplayViewports = new HashSet<(int Width, int Height)>();
         var gameplayFrames = 0;
         var staleFrameRegressionPassed = false;
@@ -119,7 +123,16 @@ try
                     if (gameplayScript.Completed) break;
                     gameplayScript.Advance(viewport);
                 }
-                else session!.Advance(poller.Poll(), elapsedSeconds, viewport);
+                else
+                {
+                    session!.Advance(poller.Poll(), elapsedSeconds, viewport);
+                    var game = session.Simulation;
+                    string title = $"Brutal Breakout | Balls: {game.BallsRemaining} | Bricks: {game.RemainingBricks} | " +
+                        (game.RoundPhase == BrutalBreakout.Simulation.RoundPhase.Won ? "CLEARED - R to restart" :
+                         game.RoundPhase == BrutalBreakout.Simulation.RoundPhase.Lost ? "GAME OVER - R to restart" :
+                         "Space/click/A: launch or catch below line | R: restart");
+                    if (title != lastGameTitle) { window.Title = title; lastGameTitle = title; }
+                }
             }
             if (smokeTest)
             {
@@ -183,7 +196,7 @@ try
             if (!wasIconified && framebuffer.X > 0 && framebuffer.Y > 0)
             {
                 frame = gallery ? ShapeShowcase.Build(shapes, framebuffer.X, framebuffer.Y, out decorative) :
-                    BallSandbox.Build(shapes, (gameplayScript?.Session ?? session!).Simulation,
+                    BallSandbox.Build(shapes, (gameplayScript?.Session ?? session!).Simulation, colors!.Settings,
                         framebuffer.X + (injectStaleFrame ? 1 : 0), framebuffer.Y, out gameplayGeometry);
                 if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
                     frame.Value.Indices.Length < ShapeShowcase.ShapeCount * 3 || frame.Value.Commands.Length < 5))
@@ -194,7 +207,7 @@ try
             }
             // Consumes borrowed CPU buffers before the next BeginFrame; only a true receipt
             // proves this frame's indexed geometry survived extent validation and presentation.
-            var geometryPresented = renderer.Draw(frame);
+            var geometryPresented = renderer.Draw(frame, colors?.Settings.Background ?? ShapeShowcase.Background);
             if (smokeTest && geometryPresented && frame.HasValue)
             {
                 shapeFrames++;
@@ -208,7 +221,7 @@ try
             {
                 gameplayFrames++;
                 if (gameplayViewports.Add((framebuffer.X, framebuffer.Y)))
-                    Console.WriteLine($"Gameplay viewport: {framebuffer.X}x{framebuffer.Y}; indices={frame.Value.Indices.Length}; arenaIndices={gameplayGeometry.ArenaIndices}; ballIndices={gameplayGeometry.BallIndices}; aimIndices={gameplayGeometry.AimIndices}.");
+                    Console.WriteLine($"Gameplay viewport: {framebuffer.X}x{framebuffer.Y}; indices={frame.Value.Indices.Length}; arenaIndices={gameplayGeometry.ArenaIndices}; ballIndices={gameplayGeometry.BallIndices}; aimIndices={gameplayGeometry.AimIndices}; brickIndices={gameplayGeometry.BrickIndices}; catchLineIndices={gameplayGeometry.CatchLineIndices}; hudIndices={gameplayGeometry.HudIndices}.");
                 gameplayScript.Presented(framebuffer.X, framebuffer.Y, gameplayGeometry);
             }
             if (injectStaleFrame && frame.HasValue && renderer.PresentedFrames > framesBeforeDraw)

@@ -139,14 +139,14 @@ public class SessionTests
     {
         using var draw = new ShapeDrawList();
         using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
-        var frame = BallSandbox.Build(draw, sim, w, h, out var aiming);
+        var frame = BallSandbox.Build(draw, sim, TestSettings.Colors, w, h, out var aiming);
         Assert.True(frame.Indices.Length > 0);
         Assert.True(aiming.ArenaIndices > 0 && aiming.BallIndices > 0 && aiming.AimIndices > 0);
         sim.Step(new(PrimaryPressed: true));
-        BallSandbox.Build(draw, sim, w, h, out var flying);
+        BallSandbox.Build(draw, sim, TestSettings.Colors, w, h, out var flying);
         Assert.Equal(0, flying.AimIndices);
         for (int i = 0; i < 400 && !sim.State.CatchEligible; i++) sim.Step();
         Assert.True(sim.State.CatchEligible);
-        Assert.True(BallSandbox.Build(draw, sim, w, h, out _).Indices.Length > 0);
+        Assert.True(BallSandbox.Build(draw, sim, TestSettings.Colors, w, h, out _).Indices.Length > 0);
     }
 }

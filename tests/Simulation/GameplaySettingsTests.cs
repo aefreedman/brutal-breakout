@@ -178,7 +178,7 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.Same(TestSettings.Input, session.Router.Settings);
         Assert.Throws<ArgumentException>(() => session.Advance(default, 0, new(1000, 1000, 2000, 2000, Custom().Arena)));
         using var draw = new ShapeDrawList();
-        var frame = BallSandbox.Build(draw, session.Simulation, 1800, 1000, out var evidence);
+        var frame = BallSandbox.Build(draw, session.Simulation, TestSettings.Colors, 1800, 1000, out var evidence);
         Assert.Equal(24, evidence.ArenaIndices);
         Assert.True(evidence.BallIndices > 0 && evidence.AimIndices > 0);
         var wall = LinearColor.FromSrgb(.25f, .38f, .48f);

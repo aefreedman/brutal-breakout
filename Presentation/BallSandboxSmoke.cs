@@ -31,6 +31,7 @@ internal sealed class BallSandboxSmoke : IDisposable
     private Stage stage;
     private double2 caught;
     private int holds, resizedFrames;
+    private bool blockedCatchProved;
     public bool IsInitial => stage == Stage.Initial;
     public bool ResizeRequested => stage == Stage.Resized;
     public bool Completed => stage == Stage.Done;
@@ -39,7 +40,9 @@ internal sealed class BallSandboxSmoke : IDisposable
 
     public void Advance(ArenaViewport viewport)
     {
-        bool primary = stage is Stage.Launch or Stage.Catch or Stage.Hold or Stage.Relaunch;
+        bool blockedProbe = stage == Stage.Travel && !blockedCatchProved &&
+            Session.Simulation.State.Position.Y < Session.Simulation.CatchLineY;
+        bool primary = blockedProbe || stage is Stage.Launch or Stage.Catch or Stage.Hold or Stage.Relaunch;
         var towardSpawn = Session.Simulation.Gameplay.Ball.Spawn - caught;
         if (towardSpawn == default) towardSpawn = -Session.Simulation.Gameplay.Ball.InitialAim;
         Session.Advance(new InputSnapshot
@@ -47,10 +50,18 @@ internal sealed class BallSandboxSmoke : IDisposable
             Focused = true, KeyboardPrimary = primary, KeyboardRestart = stage == Stage.Reset,
             KeyboardDirection = stage is Stage.Release or Stage.Relaunch ? new((float)towardSpawn.X, (float)-towardSpawn.Y) : default
         }, Session.Settings.StepSeconds * 2, viewport);
+        if (blockedProbe)
+        {
+            Require(Session.Simulation.State.Phase == BallPhase.Flying, "catch blocked above line");
+            blockedCatchProved = true;
+            Console.WriteLine("Gameplay catch-line blocked PASS: primary above line did not catch.");
+        }
     }
 
     public void Presented(int width, int height, BallSandbox.GeometryEvidence geometry)
     {
+        if (geometry.BrickIndices <= 0 || geometry.CatchLineIndices <= 0 || geometry.HudIndices <= 0)
+            throw new InvalidOperationException("Gameplay: missing bricks, catch line or HUD geometry.");
         if (geometry.ArenaIndices <= 0 || geometry.BallIndices <= 0)
             throw new InvalidOperationException("Gameplay: empty arena or ball.");
         var s = Session.Simulation.State;
@@ -77,6 +88,12 @@ internal sealed class BallSandboxSmoke : IDisposable
                 break;
             case Stage.Travel:
                 ready = s.CatchEligible;
+                if (ready)
+                {
+                    Require(blockedCatchProved && s.Position.Y >= Session.Simulation.CatchLineY, "return below catch line");
+                    Require(Session.Simulation.RemainingBricks < game.Breakout!.Bricks.Count, "native brick destruction");
+                    Console.WriteLine($"Gameplay bricks PASS: remaining={Session.Simulation.RemainingBricks}; initial={game.Breakout.Bricks.Count}; catchLineY={Session.Simulation.CatchLineY}.");
+                }
                 if (ready) caught = s.Position;
                 break;
             case Stage.Catch:
@@ -92,7 +109,8 @@ internal sealed class BallSandboxSmoke : IDisposable
                 Require(s.Phase == BallPhase.Flying && s.Position != caught, "separate repress relaunch"); break;
             case Stage.Reset:
                 Require(s.Phase == BallPhase.Aiming && s.Position == game.Ball.Spawn &&
-                    s.AimDirection == game.Ball.InitialAim, "reset"); break;
+                    s.AimDirection == game.Ball.InitialAim && Session.Simulation.RemainingBricks == game.Breakout!.Bricks.Count &&
+                    Session.Simulation.BallsRemaining == game.Breakout.StartingBalls, "reset"); break;
             case Stage.Resized:
                 Require(s.Phase == BallPhase.Aiming && s.Position == game.Ball.Spawn, "resized reset hold");
                 ready = width == 960 && height == 540 && ++resizedFrames >= 6; break;
