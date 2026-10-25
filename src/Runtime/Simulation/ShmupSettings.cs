@@ -98,8 +98,22 @@ public sealed class ShmupBallSettings
 public sealed class ShmupBrickSettings
 {
     public double Size { get; } public double ColumnPitch { get; } public int Health { get; } public int EscapeDamage { get; }
+    private readonly ShmupBrickShape[] shapes;
+    private readonly int[] quarterTurns;
+    public ReadOnlySpan<ShmupBrickShape> Shapes => shapes;
+    public ReadOnlySpan<int> QuarterTurns => quarterTurns;
+    // Compatibility constructor intentionally retains square-only legacy behavior.
     public ShmupBrickSettings(double size, double columnPitch, int health, int escapeDamage)
+        : this(size, columnPitch, health, escapeDamage, [ShmupBrickShape.Square], [0]) { }
+    public ShmupBrickSettings(double size, double columnPitch, int health, int escapeDamage,
+        IReadOnlyList<ShmupBrickShape> shapes, IReadOnlyList<int> quarterTurns)
     {
+        ArgumentNullException.ThrowIfNull(shapes); ArgumentNullException.ThrowIfNull(quarterTurns);
+        this.shapes = shapes.ToArray(); this.quarterTurns = quarterTurns.ToArray();
+        if (this.shapes.Length == 0 || this.quarterTurns.Length == 0 ||
+            this.shapes.Distinct().Count() != this.shapes.Length || this.quarterTurns.Distinct().Count() != this.quarterTurns.Length ||
+            this.shapes.Any(s => (uint)s > (uint)ShmupBrickShape.T) || this.quarterTurns.Any(q => (uint)q > 3))
+            throw new ArgumentException("Shape and rotation choices must be nonempty, unique and valid.");
         ShmupValidation.Positive(size, nameof(size)); ShmupValidation.Positive(columnPitch, nameof(columnPitch));
         ShmupValidation.Positive(health, nameof(health)); ShmupValidation.Positive(escapeDamage, nameof(escapeDamage));
         (Size, ColumnPitch, Health, EscapeDamage) = (size, columnPitch, health, escapeDamage);

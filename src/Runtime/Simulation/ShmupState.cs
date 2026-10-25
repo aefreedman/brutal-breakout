@@ -20,7 +20,8 @@ public readonly record struct ShmupCommand(double2 MoveDirection = default, doub
 public readonly record struct AimPreviewState(WallContact Hit, WallContact NextHit);
 
 public readonly record struct ShmupBallState(int Id, long Generation, double2 Position, double2 Velocity, double Radius, int WallHits);
-public readonly record struct ShmupBrickState(int Id, long Generation, double2 Position, double Size, int Health);
+public readonly record struct ShmupBrickState(int Id, long Generation, double2 Position, double Size, int Health,
+    ShmupBrickShape Shape = ShmupBrickShape.Square, int QuarterTurns = 0);
 
 /// <summary>Owned immutable publication. Id+Generation identifies a life; ids alone may be reused.</summary>
 public sealed class ShmupSnapshot
@@ -68,6 +69,8 @@ internal struct ShmupBallComponent
 }
 internal struct ShmupBrickComponent
 {
+    internal ShmupBrickShape Shape;
+    internal int QuarterTurns;
     internal bool Active;
     internal long Generation;
     internal int Health;
