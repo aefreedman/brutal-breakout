@@ -32,7 +32,7 @@ Normal `dotnet run --no-build` opens a resizable **brick-clearing game** at the 
 - Unfocused or minimized windows pause simulation and discard accumulated time/pending edges. The first active frame consumes zero elapsed time; held actions on return are baselined, requiring release/repress. Physics continues when rendering is merely unavailable/out-of-date, not minimized.
 - The configured logical canvas uniformly fits the physical framebuffer with centered letterboxing. Mouse coordinates convert from logical-window units through framebuffer DPI and fit margins, then aim from the ball center. Zero-size/nonfinite/letterbox targets are ignored.
 
-Rules reference the Unity `Projectile.cs`, `ProjectileFactory.cs` and `GameSettings-Breakout.asset`: bottom-third catch zone, leave-zone plus contact, top/side walls, limited spawns and bounce expiry. No paddle, progression, damage scaling, drag or level/editor framework. Input uses standardized GLFW mappings; polling can miss complete edges or disconnect/reconnect between frames. No physical-controller or visible/image playtest is claimed for this increment. Published API evidence remains in `Platform/Input/API-EVIDENCE.md` and `Simulation/API-EVIDENCE.md`.
+Rules reference the Unity `Projectile.cs`, `ProjectileFactory.cs` and `GameSettings-Breakout.asset`: bottom-third catch zone, leave-zone plus contact, top/side walls, limited spawns and bounce expiry. No paddle, progression, damage scaling, drag or level/editor framework. Input uses standardized GLFW mappings; polling can miss complete edges or disconnect/reconnect between frames. No physical-controller or visible/image playtest is claimed for this increment.
 
 ### BRUTAL audio, text, textures and diagnostics
 
@@ -47,8 +47,6 @@ Normal gameplay now shows count/status/control labels through **SDL.Ttf -> BRUTA
 Exactly two pinned, unmodified **Iosevka v34.9.1 Regular** TTFs are included: **Iosevka Aile** (proportional sans) for game labels, and standard **Iosevka** (monospaced, not Term/Etoile) for the inspector. They were acquired from the official be5invis/Iosevka release, not supplied by BRUTAL or installed from the OS. Aile is 11,878,496 bytes; inspector Regular is 11,613,712 bytes: **23,492,208 bytes (22.40 MiB)** total. No other weights/italics/collections/download archives are committed, and Abel was removed. The shared SIL OFL1.1 and exact source/archive/font hashes are in `Assets/Fonts/OFL.txt` and `PROVENANCE.txt`. Fonts, authored PNG/sounds and provenance copy to build/publish output. The old inspector implicitly chose ImGui's pixel-style ProggyClean font; it now explicitly loads the configured Iosevka TTF. ImGui1.92's dynamic-font backend follows framebuffer rasterizer density rather than stretching an old fixed 13px bitmap. `fontSize` remains the shared physical-pixel target: the inspector converts it to logical size once, and native ImGui rounds to a logical pixel (up to half a logical pixel of size quantization, with a one-logical-pixel minimum). No extra UI-resolution downscale is used; game SDL.Ttf rendering remains separate. Actual visible/DPI sharpness still needs user acceptance.
 
 New media package notices are under `Licenses/Media` and `Assets/Audio/ThirdParty`. BRUTAL's bundled license also requires product credits, its pre-game logo (subject to stated permission/exception), and NOTICE distribution before end-user distribution; copying notices alone is not a complete release-compliance claim.
-
-Published API/ownership evidence: `Audio/API-EVIDENCE.md`, `Rendering/OVERLAY-API-EVIDENCE.md` and adjacent JSON evidence. The published Render.Mesh2026.10.2 `AddQuad<T>` emits a mismatched 24-index grid for four vertices; our tested six-index UV quad glue avoids that defect without patching/upgrading BRUTAL.
 
 Hidden checks can additionally exercise HUD-only rendering, inspector open/close, texture preview and resize, without input injection:
 
@@ -144,39 +142,11 @@ The selected `SelectionIndicatorPrefab` resolves to `SpecialFX/P01.DashedDiscRot
 
 Native full-radius preview centers/normals remain authoritative. The plain white shaft begins at the ball surface and ends one radius before contact center; the contact ring has ball radius and .1-radius width. The short reflected leg starts one radius beyond contact and extends two radii, clipped by an available next-obstruction query. No meaningful first hit means only a bounded plain direction segment—no fabricated ring, normal, reflection or arrowhead. Geometry receipts separately count background and held ring even when every role shares one RGB value. Source tracing and CPU/hidden GPU validation establish geometry/configuration, **not exact image matching**; no screenshots or visible playtest were taken.
 
-### Bounded remaining-literal audit
-
-Production Simulation, Platform/Input, Presentation (including host/viewport), Program, Vulkan renderer, Shapes and shaders were source-inspected. This is a tuning audit, not a settings framework: tests, showcase artwork and validation scenarios/deadlines are not player defaults. No Simulation/Platform or renderer implementation, package references, locks or backend capabilities changed.
-
-| Capability / literal family | Classification / rationale |
-| --- | --- |
-| Initial window 1280×720 | **Configured:** `window.json`; same validated immutable settings supply game/gallery `CreateInfo.Size`. Logical arena remains independent. |
-| HUD bars 120/.25/6/1/4/.5; terminal 28/.125/4 | **Configured:** the nine required `style.json` / `hud` fields above; same immutable object drives emitted geometry. |
-| Fixed rate, solver substeps, catch-up cap, contact Hz/damping | **Already configured:** five `physics.json` fields; reciprocal timestep is derived, not a second default. |
-| Arena/wall/ball/spawn/aim, brick layout, balls/catch zone/bounce expiry | **Already configured:** `gameplay.json`; zero disabling bounce expiry is schema semantics, not a hidden default. |
-| Stick deadzone | **Already configured:** `input.json`; keyboard zero threshold is digital direction semantics. |
-| Colors, ring/aim/reflection/catch-line/brick styling | **Already configured:** semantic schemes and the 13 existing scalar style fields; palette's three brick roles are a schema contract. |
-| Native units 100 logical units/meter | **Retained:** shared unit definition, not gameplay tuning. |
-| Friction0, restitution1, gravity0, damping0; bullet/fixed rotation, density1 | **Retained:** current frictionless elastic mode and exact-reflection preview model. Exposing forces/material response would invalidate preview or require an unrequested physics framework; density has no game-feel purpose with direct velocity against static colliders. |
-| Native workerCount0, sleeping/events/filter bits, wall counts3/4 | **Retained:** synchronous ownership, collision routing, contact facts and open/closed-arena topology contracts; not performance/gameplay defaults. |
-| Native cast tie1e-6, normal .5..1.5/.999, event thresholds0 | **Retained:** native contact/query validity and ambiguity numerics, not aim behavior sliders. |
-| Secondary query skin1; contact allowance2 + roundoff.001 | **Retained:** documented native slop/query separation and bounded validation evidence, not collision-radius or feel settings. |
-| Half extents/centers, radius clearances, checkmark quarter/half points, Tau | **Retained:** geometry/artwork/math definitions. |
-| GLFW pad IDs0..15, input signs/axis/button mappings | **Retained:** published API IDs and current control contract; no new binding framework. |
-| Vulkan1.3, sRGB, MSAA4, FIFO, one graphics/present queue | **Retained:** supported backend capability contract, not promised quality/vsync choices. |
-| Shader locations/24-byte vertex/8-byte push constants, attachment/index counts | **Retained:** GPU ABI and API resource topology, not styling. |
-| Renderer wait .05s / acquire100ms, image min+1, buffer growth | **Retained:** bounded idle/acquire lifecycle and resource allocation policy; no pacing framework. |
-| Shapes 2^20 envelope, 1024 source points/bricks, 4096 patterns/tessellation, 4M work, 1M/3M default buffers | **Retained:** precision/safety/complexity budgets, not player quality settings. |
-| Tessellation .25-.09-r×1e-6, epsilon64×double epsilon, sRGB transfer constants | **Retained:** accuracy bounds/roundoff and standard color conversion definitions. |
-| Hidden1280→960 resize, forced1281 stale producer, frame/stage counts/deadlines; showcase artwork | **Retained test fixtures:** explicitly independent of editable production defaults, not normal startup configuration. |
-
-No additional genuine user knob was found in this bounded scan. Native-model/backend changes require separate scope/preview work, not misleading configuration switches. Existing behavior expectations were retained; constructor/schema fixtures now explicitly include HUD data.
-
 ### Native physics and ownership
 
 Published **Ahwoo.BRUTAL.Box2D 2026.10.2** replaces the custom collision solver: one native world owns three static arena walls, live static brick bodies and a dynamic circle with bullet CCD. Published `B2Body.Dispose()` was DLL-inspected and headless compile/runtime-probed before use. Events are consumed and deduplicated before destroying hit bodies. The fixed clock, input staging and catch/aim/restart policy remain our game code. The conversion is **100 logical units per meter**, stepping at the configured fixed frequency/substep count, synchronously on the construction thread. Each disposable session owns its simulation/world; the hidden gameplay script owns its own session. Both normal and exceptional app exits dispose these before draw-list/renderer teardown. Showcase and renderer-only smoke modes create no physics world. Snapshot state remains readable after disposal; native operations and session advances do not.
 
-Native contacts are not analytic radius-inset guarantees: bounded checks allow **2 logical units of contact penetration plus a separately named .001 coordinate-roundoff margin**, without clamping positions. At the original explicit 120Hz/four-substep test fixture, the measured worst was 2.000179291 units over 100,000 ticks/ten shots; speed drift was .000190735 units/second. Those measurements are not a universal tolerance guarantee for every configuration. Native cast contact centers have about .5-unit slop, so post-impact paths are not the old exact time-of-impact trajectories. Corners need not yield a combined two-axis normal; initial overlap/zero-normal or ambiguous casts can legitimately have no hit. The presentation's secondary full-radius cast uses a **one-unit query-only separation skin** along the first native normal; it does not move the ball or shrink collision geometry, and clips the fixed short reflected leg when the next obstruction is available. See the linked physics evidence for measured gates and exact policies.
+Native contacts are not analytic radius-inset guarantees: bounded checks allow **2 logical units of contact penetration plus a separately named .001 coordinate-roundoff margin**, without clamping positions. At the original explicit 120Hz/four-substep test fixture, the measured worst was 2.000179291 units over 100,000 ticks/ten shots; speed drift was .000190735 units/second. Those measurements are not a universal tolerance guarantee for every configuration. Native cast contact centers have about .5-unit slop, so post-impact paths are not the old exact time-of-impact trajectories. Corners need not yield a combined two-axis normal; initial overlap/zero-normal or ambiguous casts can legitimately have no hit. The presentation's secondary full-radius cast uses a **one-unit query-only separation skin** along the first native normal; it does not move the ball or shrink collision geometry, and clips the fixed short reflected leg when the next obstruction is available. Detailed API and measurement evidence is retained in the coordination workspace's `docs/breakout/evidence/Simulation/`.
 
 Published native assets cover **win-x64, linux-x64 and osx-arm64 only**; only Windows x64 runtime behavior is verified here. Native worlds are explicitly disposed on their construction thread, with no finalizer or shared global world. Native world allocation tests are serialized.
 
@@ -314,35 +284,9 @@ Backend: one fence-protected in-flight upload frame, dynamic viewport/scissors, 
 
 The later text/texture increment uses published SDL.Ttf and Texture abstractions plus a narrow direct-Vulkan UV material. Standalone FreeType's published DLL still contains no public managed font API; no custom FreeType binding or ImGui game compositor is used.
 
-## Project-local Pi support
+## Coordination and investigation records
 
-Review `.pi/` before granting project trust. Start Pi **in this repository/worktree** and approve trusted project resources; use `/reload` after edits. A session started in `C:\Users\aaron\dev` does not automatically discover this child repo's resources: restart here, or explicitly load `.pi/extensions/brutal-support.ts` with `--extension` and each skill directory with `--skill` (absolute paths from another cwd). No settings, global packages, or auto-run hooks are installed.
-
-- `/skill:brutal-package-audit`: published NuGet first, with required symbol/compile-probe evidence and a reuse/gap table. Metadata/assets alone are **not** API verification; no automatic reference edits.
-- `/skill:validate-renderer`: doctor, locked restore/build, headless cleanup test, and hidden GPU smoke; visible lifecycle/stress needs separate explicit permission. Always report the 3 known GOG naming warnings separately from validation errors; observed counts vary. Doctor may also show unrelated loader warnings.
-- Optional `brutal_support` tool: the same six bounded operations below, only on user request; `smoke` runs hidden GPU validation with SDK layers. The allowlist exposes no visible lifecycle/stress operation.
-
-Scripts also work without Pi, from any cwd (Windows, PowerShell 7):
-
-```powershell
-pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation doctor
-pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation build
-pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation cleanup
-pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation smoke # hidden GPU shapes/resize; coordinate GPU use
-pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation package-versions -PackageId Ahwoo.BRUTAL.Core
-pwsh -NoProfile -File <repo>/.pi/scripts/support.ps1 -Operation package-assets -PackageId Ahwoo.BRUTAL.Core -Version 2026.10.4
-```
-
-`cleanup` includes build; `smoke` includes cleanup. JSON reports root/caller cwd, bounded output tails, timeouts, and nonzero failures. Processes are bounded per stage; the tool adds a six-minute deadline and cancellation of the Windows process tree. Package downloads use public NuGet, are disposable, and require network access. Doctor checks PATH before existing SDK executable paths; it changes no machine configuration. Enumeration does not replace a GPU smoke test. Abrupt process-tree cancellation may leave a temporary download directory. Output truncation means incomplete evidence; there is no full-log artifact or automatic API probe execution. Run the CPU test commands above separately; support operations do not run them.
-
-Support regression checks (no interactive Pi, GPU, or new dependencies):
-
-```powershell
-pwsh -NoProfile -File <repo>/.pi/tests/process.tests.ps1
-node <repo>/.pi/tests/extension.test.mjs <installed-pi-package-root>
-```
-
-The second check uses the installed Pi loader/API and runs doctor plus cancellation checks; it requires a configured local Vulkan toolchain. Validated with Pi 1.4.0; it is not a standalone TypeScript compiler check.
+Shared agent tooling, development plans, package/API audits and investigation evidence live in the separate `brutal-coord` workspace, not in this game repository. In the coordinated checkout, see `../docs/README.md`, `../docs/breakout/` and `../docs/tooling/pi-support.md`. Start Pi from the coordination root; ordinary game build/run/test commands above still run from this repository.
 
 ## How this differs from Unity
 
@@ -359,24 +303,19 @@ The second check uses the installed Pi loader/API and runs doctor plus cancellat
 - `Presentation/BallSandbox*.cs`: arena geometry, pure session/viewport bridge and hidden scripted scenario.
 - `physics.json`, `gameplay.json`, `input.json`, `Configuration/`: authoritative production defaults, strict nested startup-only loading, independent CLI overrides and pre-native cross-validation.
 - `Simulation/`: immutable validated physics settings, native Box2D world adapter, gameplay rules, radius-aware casts/preview and fixed-step clock.
-- `Platform/Input/`: owner-thread GLFW poller, pure input router and published API evidence.
-- `tests/Gameplay/`, `tests/Simulation/`, `tests/Input/`: standalone CPU suites; `tests/Rendering/hidden-smoke.ps1`: shared hidden GPU harness.
+- `Platform/Input/`: owner-thread GLFW poller and pure input router.
+- `Audio/`: bounded SDL.Mixer cue output; `Presentation/Overlay/`: game text and runtime diagnostics inspector.
+- `tests/Gameplay/`, `tests/Simulation/`, `tests/Input/`, `tests/Audio/`, `tests/Media/`: CPU/offscreen suites; `tests/Rendering/hidden-smoke.ps1`: shared hidden GPU harness.
 - `Rendering/Shapes/`: headless geometry/contracts/colors/clips and borrowed buffers.
 - `tests/Shapes/`: CPU geometry and ABI tests.
 - `Rendering/VulkanRenderer.cs`, `Rendering/VulkanRenderer.Shapes.cs`, `Rendering/Shaders/`: lifecycle, pipeline, uploads, MSAA and disposal.
 - `Rendering/ResourceLifetime.cs`: best-effort cleanup preserving original failures.
 - `brutal-breakout.csproj`, `global.json`, `packages.lock.json`: dependencies, SDK and locked graph.
 
-App direct packages: `Ahwoo.BRUTAL.Core` 2026.10.4, `Ahwoo.BRUTAL.Glfw` 2026.10.5, and `Ahwoo.BRUTAL.ShaderC`, `Ahwoo.BRUTAL.Vulkan`, `Ahwoo.BRUTAL.Vulkan.Abstractions`, `Ahwoo.BRUTAL.Vulkan.Vma` 2026.10.3. The simulation directly pins `Ahwoo.BRUTAL.Box2D` exactly to 2026.10.2 (Native 2026.10.2, Core 2026.10.4 and Numerics 2026.10.2 transitively). The shapes library directly references `Ahwoo.BRUTAL.Numerics` 2026.10.2 and `Ahwoo.BRUTAL.Render.Mesh` 2026.10.2. BRUTAL `GenerateDisk` supplies discs through a tested adapter; custom tessellation fills genuine planar ring/rounded-rectangle/stroke gaps. GLFW native libraries arrive transitively. The locked graph includes a transitive preview `Microsoft.Extensions.ObjectPool`, not a direct addition.
+Dependency versions are authoritative in the project files and `packages.lock.json`. The application uses BRUTAL Core/GLFW/Vulkan/VMA/ShaderC, SDL.Ttf, Texture abstractions and ImGui backends; `Audio/` uses SDL.Mixer, `Simulation/` pins Box2D2026.10.2, and `Rendering/Shapes/` uses Numerics/Render.Mesh. Native dependencies arrive transitively. The locked graph includes a transitive preview `Microsoft.Extensions.ObjectPool`, not a direct application dependency.
 
-## Git and release
+## Repository and release
 
-Use feature branches; do not merge into `main` without approval. The private GitHub remote uses HTTPS: `https://github.com/aefreedman/brutal-breakout.git`. Use focused implementation and independent read-only review, one writer per tree.
+The private GitHub remote uses HTTPS: `https://github.com/aefreedman/brutal-breakout.git`.
 
 Before distribution review the current [BRUTAL license](https://github.com/ahwootech/BRUTAL) and all third-party notices. BRUTAL requires copyright attribution in credits, its logo before gameplay, and a shipped `NOTICE.txt`; those release assets are not implemented here.
-
-## Next milestone
-
-The first ball interaction slice is implemented with provisional rules. Next: independently review integration and, only with user permission, inspect the visible arena and try real controls. Further gameplay choices remain unapproved. Text needs a verified managed wrapper first.
-
-Planning lives outside the repo at `C:\Users\aaron\obs-mono\vaults\personal\brutal-breakout`, using `YY-MM-DD-kebab-case.md`. Avoid building a general engine ahead of the game.
