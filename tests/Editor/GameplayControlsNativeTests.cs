@@ -117,6 +117,49 @@ public sealed class GameplayControlsNativeTests
         });
     }
 
+    [Fact]
+    public void ShortScrollableWindowWrapsButtonRowInsideItsContentRegion()
+    {
+        WithContext(960, 540, 1, () =>
+        {
+            var sameLine = typeof(GameplayControls).GetMethod("SameLineIfFits",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+            // ReadOnlySpan cannot be reflection-invoked; bind a typed delegate to the real helper.
+            var fit = sameLine.CreateDelegate<FitRow>();
+            var style = Ui.GetStyle();
+            for (int i = 0; i < 3; i++)
+            {
+                Ui.NewFrame();
+                float pauseWidth = Ui.CalcTextSize("Pause"u8).X + style.FramePadding.X * 2;
+                float restartWidth = Ui.CalcTextSize("Restart"u8).X + style.FramePadding.X * 2;
+                float width = style.WindowPadding.X * 2 + pauseWidth + style.ItemSpacing.X
+                    + restartWidth + style.ScrollbarSize / 2;
+                Ui.SetNextWindowSize(new float2(width, 110));
+                Ui.Begin("Scrollable row regression"u8, ImGuiWindowFlags.NoSavedSettings);
+                try
+                {
+                    float right = Ui.GetCursorScreenPos().X + Ui.GetContentRegionAvail().X;
+                    Ui.Button("Pause"u8);
+                    float firstY = Ui.GetItemRectMax().Y;
+                    fit("Restart"u8, 0);
+                    Ui.Button("Restart"u8);
+                    if (i == 2)
+                    {
+                        Assert.True(right < Ui.GetWindowPos().X + Ui.GetWindowSize().X - style.WindowPadding.X,
+                            "The short window must have a vertical scrollbar.");
+                        Assert.True(Ui.GetItemRectMax().Y > firstY, "The second button must wrap near the scrollbar threshold.");
+                        Assert.True(Ui.GetItemRectMax().X <= right, "The wrapped row must stay within the native content region.");
+                    }
+                    Ui.TextWrapped("Extra content\nExtra content\nExtra content\nExtra content\nExtra content"u8);
+                }
+                finally { Ui.End(); }
+                Ui.Render();
+            }
+        });
+    }
+
+    private delegate void FitRow(ReadOnlySpan<byte> label, float extraWidth);
+
     private static float2 FindClick(GameplayControls controls,
         Func<(BrutalBreakout.Presentation.GameplayMode? Mode, double? Width, bool Restart, bool TogglePause), bool> matches)
     {

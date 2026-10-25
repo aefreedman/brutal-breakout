@@ -127,7 +127,7 @@ public sealed class GameplayControls
         var style = Ui.GetStyle();
         float required = Ui.CalcTextSize(label).X + style.FramePadding.X * 2 + extraWidth;
         // Available region at the previous item's right edge, not the next line's left edge.
-        float right = Ui.GetWindowPos().X + Ui.GetWindowSize().X - style.WindowPadding.X;
+        float right = Ui.GetCursorScreenPos().X + Ui.GetContentRegionAvail().X;
         if (Ui.GetItemRectMax().X + style.ItemSpacing.X + required <= right)
             Ui.SameLine();
     }
