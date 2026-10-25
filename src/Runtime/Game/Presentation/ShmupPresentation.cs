@@ -40,7 +40,7 @@ public static class ShmupPresentation
             AimGeometry.Draw(draw, snapshot.PlayerPosition, snapshot.AimDirection, settings.Ball.Radius,
                 snapshot.AimPreview.Hit, snapshot.AimPreview.NextHit, style, colors.Aim, drawOpenMiss: true);
         int aimCount = draw.IndexCount - aimStart;
-        int trailCount = trails?.Draw(draw, snapshot, colors.Ball) ?? 0;
+        int trailCount = trails?.Draw(draw, snapshot, colors.Trail) ?? 0;
         evidence = new(aimCount, trailCount);
         foreach (var ball in snapshot.Balls)
             draw.FillDisc(new((float)ball.Position.X, (float)ball.Position.Y), (float)ball.Radius, colors.Ball);

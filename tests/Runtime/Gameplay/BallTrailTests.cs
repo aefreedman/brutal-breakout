@@ -79,6 +79,34 @@ public sealed class BallTrailTests
         history.Synchronize(Snapshot(0, Array.Empty<ShmupBallState>())); Assert.Equal(0, history.PointCount);
         history.Clear(); Assert.Equal(0, history.PointCount);
     }
+    [Theory]
+    [InlineData("colors.json")]
+    [InlineData("ColorSchemes/night.json")]
+    public void ShippedTrailTintIsWhiteIndependentOfBallColorAndKeepsItsFade(string scheme)
+    {
+        var colors = ColorSchemeConfiguration.Load(Path.Combine(AppContext.BaseDirectory, "Config", scheme)).Settings;
+        Assert.Equal(new LinearColor(1, 1, 1), colors.Trail);
+        Assert.NotEqual(colors.Ball, colors.Trail);
+        var history = new BallTrailHistory(Trails(), 1);
+        history.Capture(Snapshot(1, new[] { Ball(1) }, 0));
+        history.Capture(Snapshot(2, new[] { Ball(2) }, .06));
+        var snapshot = Snapshot(3, new[] { Ball(3) }, .12); history.Capture(snapshot);
+        using var draw = new ShapeDrawList();
+        var frame = ShmupPresentation.Build(draw, snapshot, Shmup(), colors, TestSettings.Style, 1280, 720,
+            out var evidence, history);
+        Assert.True(evidence.TrailIndices > 0);
+        var trailVertices = frame.Vertices.ToArray().Where(v => v.Color.W is > 0 and < 1).ToArray();
+        Assert.NotEmpty(trailVertices);
+        Assert.All(trailVertices, v =>
+        {
+            // White straight RGB becomes equal RGB/alpha at the single premultiplication boundary.
+            Assert.Equal(v.Color.W, v.Color.X);
+            Assert.Equal(v.Color.W, v.Color.Y);
+            Assert.Equal(v.Color.W, v.Color.Z);
+            Assert.InRange(v.Color.W, 0, .55f);
+        });
+        Assert.True(trailVertices.Select(v => v.Color.W).Distinct().Count() > 1);
+    }
     [Fact]
     public void FadeAndTaperUseSimulationAgeAndExpireOldPoints()
     {

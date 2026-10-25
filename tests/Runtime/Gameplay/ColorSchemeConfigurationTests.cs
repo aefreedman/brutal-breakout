@@ -13,7 +13,7 @@ public class ColorSchemeConfigurationTests
           "palette": { "blue": "#2176CC" },
           "roles": {
             "backgroundBottom": "blue", "heldRing": "blue", "background": "blue", "walls": "blue", "ball": "blue", "catchReady": "blue",
-            "catchLine": "blue", "aim": "blue", "brickPrimary": "blue", "brickSecondary": "blue",
+            "catchLine": "blue", "aim": "blue", "trail": "blue", "brickPrimary": "blue", "brickSecondary": "blue",
             "brickAccent": "blue", "hud": "blue", "win": "blue", "loss": "blue"
           }
         }
@@ -203,6 +203,10 @@ public class ColorSchemeConfigurationTests
         Assert.Equal(unity.Ball, unity.BrickPrimary);
         Assert.Equal(unity.Ball, unity.BrickSecondary);
         Assert.Equal(unity.Walls, unity.Aim);
+        Assert.Equal(new LinearColor(1, 1, 1), unity.Trail);
+        Assert.Equal(unity.Trail, night.Trail);
+        Assert.NotEqual(unity.Ball, unity.Trail);
+        Assert.NotEqual(night.Ball, night.Trail);
         Assert.Equal(LinearColor.FromSrgb(232 / 255f, 231 / 255f, 203 / 255f), unity.HeldRing);
         Assert.Equal(unity.HeldRing, unity.CatchLine);
         Assert.NotEqual(unity.Background, night.Background);
@@ -220,7 +224,7 @@ public class ColorSchemeConfigurationTests
     {
         var color = new LinearColor(r, g, b, a);
         Assert.Throws<ArgumentException>(() => new ColorScheme("Test", color, color, color, color, color, color,
-            color, color, color, color, color, color, color, color));
+            color, color, color, color, color, color, color, color, color));
     }
 
     private sealed class Files : IDisposable

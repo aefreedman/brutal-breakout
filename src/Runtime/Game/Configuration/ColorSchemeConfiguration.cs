@@ -10,7 +10,7 @@ public sealed record LoadedColorSchemeConfiguration(string Path, ColorScheme Set
         static string Rgb(LinearColor color) => FormattableString.Invariant($"{color.R:R},{color.G:R},{color.B:R}");
         var s = Settings;
         return $"Colors configuration: name={s.Name}; background={Rgb(s.Background)}; backgroundBottom={Rgb(s.BackgroundBottom)}; heldRing={Rgb(s.HeldRing)}; walls={Rgb(s.Walls)}; " +
-            $"ball={Rgb(s.Ball)}; catchReady={Rgb(s.CatchReady)}; catchLine={Rgb(s.CatchLine)}; aim={Rgb(s.Aim)}; " +
+            $"ball={Rgb(s.Ball)}; trail={Rgb(s.Trail)}; catchReady={Rgb(s.CatchReady)}; catchLine={Rgb(s.CatchLine)}; aim={Rgb(s.Aim)}; " +
             $"brickPrimary={Rgb(s.BrickPrimary)}; brickSecondary={Rgb(s.BrickSecondary)}; brickAccent={Rgb(s.BrickAccent)}; " +
             $"hud={Rgb(s.Hud)}; win={Rgb(s.Win)}; loss={Rgb(s.Loss)}; path={Path}";
     }
@@ -21,7 +21,7 @@ public static class ColorSchemeConfiguration
 {
     private sealed record RolesFile(string Background, string Walls, string Ball, string CatchReady,
         string CatchLine, string Aim, string BrickPrimary, string BrickSecondary, string BrickAccent,
-        string Hud, string Win, string Loss, string BackgroundBottom, string HeldRing);
+        string Hud, string Win, string Loss, string BackgroundBottom, string HeldRing, string Trail);
     private sealed record SchemeFile(string Name, Dictionary<string, string> Palette, RolesFile Roles);
 
     public static LoadedColorSchemeConfiguration Load(string path)
@@ -50,7 +50,7 @@ public static class ColorSchemeConfiguration
             var r = data.Roles;
             return new(data.Name, Resolve(r.Background), Resolve(r.Walls), Resolve(r.Ball), Resolve(r.CatchReady),
                 Resolve(r.CatchLine), Resolve(r.Aim), Resolve(r.BrickPrimary), Resolve(r.BrickSecondary),
-                Resolve(r.BrickAccent), Resolve(r.Hud), Resolve(r.Win), Resolve(r.Loss), Resolve(r.BackgroundBottom), Resolve(r.HeldRing));
+                Resolve(r.BrickAccent), Resolve(r.Hud), Resolve(r.Win), Resolve(r.Loss), Resolve(r.BackgroundBottom), Resolve(r.HeldRing), Resolve(r.Trail));
         });
         return new(loaded.Path, loaded.Settings);
     }

@@ -5,12 +5,14 @@
     "ice": "#DDEBF7",
     "gold": "#FCA311",
     "cyan": "#52D6D3",
-    "rose": "#EF6F8A"
+    "rose": "#EF6F8A",
+    "white": "#FFFFFF"
   },
   "roles": {
     "background": "midnight",
     "walls": "ice",
     "ball": "gold",
+    "trail": "white",
     "catchReady": "cyan",
     "catchLine": "cyan",
     "aim": "ice",

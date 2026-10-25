@@ -128,7 +128,7 @@ public class BreakoutIntegrationTests
     public void CategoryEvidenceUsesActualIndexRangesEvenWhenEveryColorIsIdentical()
     {
         var c = new LinearColor(.5f, .5f, .5f);
-        var same = new ColorScheme("same", c, c, c, c, c, c, c, c, c, c, c, c, c, c);
+        var same = new ColorScheme("same", c, c, c, c, c, c, c, c, c, c, c, c, c, c, c);
         using var sim = new BallSimulation(TestSettings.Baseline, Game(), new(2, 64, 2));
         using var draw = new ShapeDrawList();
         var frame = BallSandbox.Build(draw, sim, same, TestSettings.Style, 0, 1000, 900, out var e);

@@ -13,6 +13,7 @@
     "background": "backgroundTop",
     "walls": "white",
     "ball": "coral",
+    "trail": "white",
     "catchReady": "coral",
     "catchLine": "cream",
     "aim": "white",
