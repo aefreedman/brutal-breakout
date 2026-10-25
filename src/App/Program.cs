@@ -134,7 +134,17 @@ try
     {
 #if BREAKOUT_EDITOR
         var gameplayControls = new GameplayControls();
-        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, new ImGuiInspector(inspectorConfiguration!.Settings, gameplayControls.Draw));
+        var callbackFailure = new InvalidOperationException("Injected hidden-smoke inspector callback failure.");
+        bool callbackFailureInjected = false, callbackFailureRecovered = false;
+        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, new ImGuiInspector(inspectorConfiguration!.Settings, () =>
+        {
+            gameplayControls.Draw();
+            if (shmupSmokeTest && !callbackFailureInjected)
+            {
+                callbackFailureInjected = true;
+                throw callbackFailure; // Balanced UI scopes; failure must occur before Vulkan image acquisition.
+            }
+        }));
 #else
         if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings);
 #endif
@@ -227,7 +237,8 @@ try
                 if (shmupFrames >= 70 && shmupSmokeStage == 3)
                 {
 #if BREAKOUT_EDITOR
-                    if (gameplayControls.DrawCount == 0) throw new InvalidOperationException("Shmup smoke never entered the ImGui callback.");
+                    if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered)
+                        throw new InvalidOperationException("Shmup smoke did not recover and redraw after the inspector callback failure.");
 #endif
                     if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks)
                         throw new InvalidOperationException("Shmup smoke missing resized, fired-ball or spawned-brick geometry.");
@@ -237,7 +248,20 @@ try
             }
             var session = modes?.Breakout;
             var shmupSession = modes?.Shmup;
-            var capture = overlays is null ? default : renderer.BeginOverlayFrame(inspectorOverride);
+            OverlayCapture capture;
+#if BREAKOUT_EDITOR
+            try { capture = overlays is null ? default : renderer.BeginOverlayFrame(inspectorOverride); }
+            catch (InvalidOperationException error) when (shmupSmokeTest && ReferenceEquals(error, callbackFailure))
+            {
+                if (renderer.PresentedFrames != 0)
+                    throw new InvalidOperationException("Inspector callback failure was not injected before the first acquisition.", error);
+                callbackFailureRecovered = true;
+                Console.WriteLine("Shmup inspector callback failure caught before acquisition; retrying with a fresh UI frame.");
+                continue;
+            }
+#else
+            capture = overlays is null ? default : renderer.BeginOverlayFrame(inspectorOverride);
+#endif
             if (overlaySmokeTest && inspectorOverride == false &&
                 (renderer.InspectorActive || capture.Mouse || capture.Keyboard))
                 throw new InvalidOperationException("Closed inspector retained native UI state or captured input.");
@@ -417,7 +441,8 @@ try
             {
                 if (frame.Value.Indices.Length == 0) throw new InvalidOperationException("Shmup smoke presented empty geometry.");
                 shmupFrames++;
-                shmupViewports.Add((framebuffer.X, framebuffer.Y));
+                if (shmupViewports.Add((framebuffer.X, framebuffer.Y)))
+                    Console.WriteLine($"Shmup viewport: {framebuffer.X}x{framebuffer.Y}; vertices={frame.Value.Vertices.Length}; indices={frame.Value.Indices.Length}.");
                 shmupSawBalls |= shmupSession?.Simulation.Snapshot.Balls.Length > 0;
                 shmupSawBricks |= shmupSession?.Simulation.Snapshot.Bricks.Length > 0;
             }

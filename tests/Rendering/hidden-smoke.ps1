@@ -1,6 +1,6 @@
 # Windows-only hidden GPU regression. Never activates or shows a window.
 param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug',
-      [ValidateSet('Showcase', 'Gameplay')][string] $Mode = 'Showcase',
+      [ValidateSet('Showcase', 'Gameplay', 'Shmup')][string] $Mode = 'Showcase',
       [string] $PhysicsConfig,
       [string] $ExecutionConfig,
       [string] $GameplayConfig,
@@ -12,6 +12,7 @@ param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug',
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Requires Windows/PowerShell 7.' }
+if ($Mode -eq 'Shmup' -and $Overlays) { throw 'Shmup already exercises inspector controls; do not combine with -Overlays.' }
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $exe = Join-Path $root "artifacts/bin/BrutalBreakout.App/$($Configuration.ToLowerInvariant())/BrutalBreakout.App.exe"
 if (-not (Test-Path -LiteralPath $exe)) { throw "Build first: dotnet build src/App/BrutalBreakout.App.csproj -c $Configuration" }
@@ -82,7 +83,7 @@ $visible = [Collections.Generic.HashSet[long]]::new()
 $process = $null
 try {
     $start = [Diagnostics.ProcessStartInfo]::new($exe)
-    $start.ArgumentList.Add($(if ($Mode -eq 'Gameplay') { '--gameplay-smoke-test' } else { '--smoke-test' }))
+    $start.ArgumentList.Add($(switch ($Mode) { 'Gameplay' { '--gameplay-smoke-test' } 'Shmup' { '--shmup-smoke-test' } default { '--smoke-test' } }))
     if ($Overlays) { $start.ArgumentList.Add('--overlay-smoke-test') }
     $start.ArgumentList.Add('--window-config')
     $start.ArgumentList.Add($windowPath)
@@ -154,6 +155,14 @@ try {
         [void]$sizes.Add("$($viewport.Groups[1].Value)x$($viewport.Groups[2].Value)")
     }
     if ($sizes.Count -lt 2) { throw 'Missing distinct nonempty resize viewports.' }
+    } elseif ($Mode -eq 'Shmup') {
+        if (-not $output.Contains('Shmup smoke PASS:') -or
+            -not $output.Contains('Shmup inspector callback failure caught before acquisition; retrying with a fresh UI frame.') -or
+            $output -notmatch 'Shmup viewport: 1280x720; vertices=\d+; indices=[1-9]\d*\.' -or
+            $output -notmatch 'Shmup viewport: 960x540; vertices=\d+; indices=[1-9]\d*\.' -or
+            $output -notmatch 'Validation: 0 errors, \d+ warnings\.') {
+            throw 'Missing shmup callback recovery, indexed resize presentations, input/mode lifecycle or validation evidence.'
+        }
     } else {
         $expectedExecution = "Execution configuration: workers=$($executionExpected.workerCount); physicsWorkers=$($executionExpected.physicsWorkerCount); maxExpectedConcurrentJobs=$($executionExpected.maxExpectedConcurrentJobs); path=$executionPath"
         if (-not $output.Contains($expectedExecution)) { throw 'Loaded execution budgets/path do not match selected fixture.' }
