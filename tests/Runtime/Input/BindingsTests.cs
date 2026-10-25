@@ -15,7 +15,7 @@ public sealed class BindingsTests
         public bool Down(GlfwMouseButton button) => button == GlfwMouseButton.Left;
         public bool TryGamepad(int id, out GamepadSnapshot? gamepad)
         {
-            gamepad = id == 2 ? new(new float[] { .25f, -.5f, -.75f, .5f, -1, 1 }, [GlfwGamepadButton.A, GlfwGamepadButton.Start]) : null;
+            gamepad = id == 2 ? new(new float[] { .25f, -.5f, -.75f, .5f, -1, 1 }, [GlfwGamepadButton.A, GlfwGamepadButton.Start, GlfwGamepadButton.Back]) : null;
             return gamepad is not null;
         }
     }
@@ -26,7 +26,7 @@ public sealed class BindingsTests
         var sample = BrutalBreakout.Platform.Input.GlfwInputPoller.Map(devices.Poll());
         Assert.Equal(new float2(1, 1), sample.KeyboardDirection);
         Assert.True(sample.KeyboardPrimary); Assert.True(sample.KeyboardRestart); Assert.True(sample.KeyboardDebugToggle);
-        Assert.True(sample.MousePrimary); Assert.True(sample.PadPrimary); Assert.True(sample.PadRestart);
+        Assert.True(sample.MousePrimary); Assert.True(sample.PadPrimary); Assert.True(sample.PadPause); Assert.True(sample.PadPanelToggle);
         Assert.Equal(2, sample.PadId); Assert.Equal(new float2(.25f, .5f), sample.PadStick);
         Assert.Equal(new float2(-.75f, -.5f), sample.PadRightStick);
         Assert.Equal(1, sample.PadRightTrigger);

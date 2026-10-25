@@ -45,6 +45,18 @@ public sealed class ShmupSession : IDisposable
     private bool active, restart, disposed;
     private double2? aim;
     public int TotalTicks { get; private set; }
+    public bool Paused { get; private set; }
+    public void SetPaused(bool paused)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (Paused == paused) return;
+        Paused = paused;
+        active = restart = false;
+        aim = null;
+        eventCount = 0;
+        clock.Reset();
+        Router.Reset();
+    }
     public ShmupSession(PhysicsSettings physics, ShmupSettings settings, InputSettings input, ExecutionSettings execution,
         BallTrailSettings? trails = null)
     {
@@ -61,6 +73,7 @@ public sealed class ShmupSession : IDisposable
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!ReferenceEquals(viewport.Arena, Settings.Arena)) throw new ArgumentException("Viewport must use this session's settings.", nameof(viewport));
         eventCount = 0;
+        if (Paused) { Router.Reset(); return 0; }
         Trails?.Synchronize(Simulation.Snapshot);
         var input = Router.Route(snapshot);
         if (!input.Active)
@@ -107,7 +120,32 @@ public sealed class GameplaySessionHost : IDisposable
     private readonly InputSettings input;
     private readonly ExecutionSettings execution;
     private readonly BallTrailSettings? trails;
+    private readonly HostControlRouter controls = new();
+    private bool restartRequested;
+    public bool Paused { get; private set; }
     public GameplayMode Mode { get; private set; }
+    public void RequestRestart()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        restartRequested = true;
+    }
+    public void TogglePause()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        Paused = !Paused;
+        Breakout?.SetPaused(Paused);
+        Shmup?.SetPaused(Paused);
+    }
+    /// <summary>Call once before UI capture and gameplay update. Restarts replace the run safely
+    /// on the host thread, discard pending actions, and retain manual pause and immutable settings.</summary>
+    public void UpdateControls(InputSnapshot raw)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (controls.Route(raw).TogglePause) TogglePause();
+        if (!restartRequested) return;
+        restartRequested = false;
+        Switch(Mode);
+    }
     public BallSandboxSession? Breakout { get; private set; }
     public ShmupSession? Shmup { get; private set; }
     private bool disposed;
@@ -127,6 +165,8 @@ public sealed class GameplaySessionHost : IDisposable
         Mode = mode;
         if (mode == GameplayMode.Breakout) Breakout = new(physics, gameplay, input, execution);
         else Shmup = new(physics, shmup, input, execution, trails);
+        Breakout?.SetPaused(Paused);
+        Shmup?.SetPaused(Paused);
     }
     public void Dispose()
     {

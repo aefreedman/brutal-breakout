@@ -23,7 +23,10 @@ public readonly record struct InputSnapshot
     /// <summary>Normalized GLFW signed right trigger, 0 released to 1 pressed.</summary>
     public float PadRightTrigger { get; init; }
     public bool PadPrimary { get; init; }
-    public bool PadRestart { get; init; }
+    /// <summary>Raw host-level Start; toggles simulation pause, never a gameplay restart.</summary>
+    public bool PadPause { get; init; }
+    /// <summary>Raw standardized Back (Select/Share); panel toggle before UI capture.</summary>
+    public bool PadPanelToggle { get; init; }
 }
 
 public enum AimKind { None, Direction, Pointer }

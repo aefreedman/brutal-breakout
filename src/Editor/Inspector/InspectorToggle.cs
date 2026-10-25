@@ -2,23 +2,14 @@ using BrutalBreakout.Platform.Input;
 
 namespace BrutalBreakout.Presentation.Overlay;
 
-/// <summary>Host-level raw F1 edge, before ImGui capture. Focus regain baselines held keys.</summary>
+/// <summary>Raw host panel controls; focus and device changes baseline held buttons.</summary>
 public sealed class InspectorToggle(bool initiallyVisible)
 {
-    private bool initialized, previousDown;
+    private readonly HostControlRouter router = new();
     public bool Visible { get; private set; } = initiallyVisible;
-
     public bool Update(InputSnapshot sample)
     {
-        if (!sample.Focused || sample.Minimized)
-        {
-            initialized = previousDown = false;
-            return Visible;
-        }
-        bool down = sample.KeyboardDebugToggle;
-        if (initialized && down && !previousDown) Visible = !Visible;
-        previousDown = down;
-        initialized = true;
+        if (router.Route(sample).TogglePanel) Visible = !Visible;
         return Visible;
     }
 }

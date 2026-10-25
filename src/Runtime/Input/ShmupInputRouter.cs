@@ -27,7 +27,6 @@ public sealed class ShmupInputRouter
         if (sample.PadConnected)
         {
             sources[$"pad:{sample.PadId}"] = sample.PadRightTrigger > .5f;
-            restarts[$"pad:{sample.PadId}"] = sample.PadRestart;
         }
         armed.RemoveWhere(s => !sources.ContainsKey(s));
         known.RemoveWhere(s => !sources.ContainsKey(s));

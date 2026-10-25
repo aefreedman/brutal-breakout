@@ -57,6 +57,21 @@ public sealed class BallSandboxSession : IDisposable
     private bool active, primary, restart;
     private double2? aim;
     public int TotalTicks { get; private set; }
+    public bool Paused { get; private set; }
+    public void SetPaused(bool paused)
+    {
+        if (Environment.CurrentManagedThreadId != ownerThread)
+            throw new InvalidOperationException("Session pause belongs to the host thread.");
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (Paused == paused) return;
+        Paused = paused;
+        active = restart = false;
+        primary = false;
+        aim = null;
+        eventCount = 0;
+        clock.Reset();
+        Router.Reset();
+    }
 
     public void Dispose()
     {
@@ -78,6 +93,7 @@ public sealed class BallSandboxSession : IDisposable
         if (!ReferenceEquals(viewport.Arena, Simulation.Gameplay.Arena))
             throw new ArgumentException("Viewport must use this session's arena settings.", nameof(viewport));
         eventCount = 0;
+        if (Paused) { Router.Reset(); return 0; }
         var input = Router.Route(snapshot);
         if (!input.Active)
         {

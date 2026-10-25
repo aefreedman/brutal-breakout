@@ -55,6 +55,25 @@ public sealed class InspectorRuntimeTests
         Assert.False(toggle.Update(sample)); // Captured keyboard can close it too.
     }
 
+    [Fact]
+    public void SelectAndStartRemainIndependentWhenPanelCapturesBothSources()
+    {
+        var toggle = new InspectorToggle(false);
+        var host = new HostControlRouter();
+        var idle = Sample() with { PadConnected = true };
+        toggle.Update(idle); host.Route(idle);
+        var both = idle with { PadPanelToggle = true, PadPause = true };
+        Assert.True(toggle.Update(both));
+        Assert.Equal(new HostControlIntent(true, true), host.Route(both));
+        var filtered = OverlayInputRouting.Filter(both, new(true, true, true));
+        Assert.True(filtered.PadPanelToggle); Assert.True(filtered.PadPause);
+        Assert.True(toggle.Update(both));
+        Assert.Equal(default, host.Route(both));
+        toggle.Update(idle); host.Route(idle);
+        Assert.False(toggle.Update(both));
+        Assert.Equal(new HostControlIntent(true, true), host.Route(both));
+    }
+
     [Theory]
     [InlineData(1f)] [InlineData(1.25f)] [InlineData(1.5f)] [InlineData(2f)]
     public void PhysicalFontSizeIsConvertedOnceAtTheUiBoundary(float scale)

@@ -8,7 +8,7 @@ namespace BrutalBreakout.Presentation;
 /// <summary>Only side boundaries are rendered. Logical geometry shares the collision settings and snapshot.</summary>
 public static class ShmupPresentation
 {
-    public const string Controls = "WASD/LS: move | mouse/RS: aim | Space/click/RT: fire | R/Start: restart";
+    public const string Controls = "WASD/LS: move | mouse/RS: aim | Space/click/RT: fire | R: restart | Start: pause | Back: panel";
     public static ShapeFrame Build(ShapeDrawList draw, ShmupSnapshot snapshot, ShmupSettings settings,
         ColorScheme colors, PresentationStyle style, int width, int height, BallTrailHistory? trails = null)
         => Build(draw, snapshot, settings, colors, style, width, height, out _, trails);
@@ -59,7 +59,7 @@ public static class ShmupPresentation
         new(new OverlayLabel[]
         {
             new($"HP: {snapshot.PlayerHealth} | Balls: {snapshot.Balls.Length} | Bricks: {snapshot.Bricks.Length}", tint),
-            new(snapshot.IsDefeated ? "GAME OVER - R/Start to restart" : $"Shmup | Time: {snapshot.TimeSeconds:F1} | Width: {snapshot.Width:F0}", tint),
+            new(snapshot.IsDefeated ? "GAME OVER - R to restart" : $"Shmup | Time: {snapshot.TimeSeconds:F1} | Width: {snapshot.Width:F0}", tint),
             new(Controls, tint)
         }, new(snapshot.IsDefeated ? "Defeated" : "Shmup",
             $"Entities {snapshot.EntityCount} Bodies {snapshot.BodyCount} Dropped {snapshot.DroppedBalls}/{snapshot.DroppedBricks}", 0, 0, 0, 0));

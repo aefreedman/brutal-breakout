@@ -32,7 +32,8 @@ public sealed class GlfwInputPoller
             PadRightStick = pad is null ? default : new(pad.Axis(GlfwGamepadAxis.RightX), -pad.Axis(GlfwGamepadAxis.RightY)),
             PadRightTrigger = pad is null ? 0 : NormalizeTrigger(pad.Axis(GlfwGamepadAxis.RightTrigger)),
             PadPrimary = pad?.Down(GlfwGamepadButton.A) ?? false,
-            PadRestart = pad?.Down(GlfwGamepadButton.Start) ?? false
+            PadPause = pad?.Down(GlfwGamepadButton.Start) ?? false,
+            PadPanelToggle = pad?.Down(GlfwGamepadButton.Back) ?? false
         };
     }
 }

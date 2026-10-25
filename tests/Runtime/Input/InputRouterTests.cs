@@ -141,7 +141,7 @@ public sealed class InputRouterTests
     {
         var r = new InputRouter(new InputSettings(0.2)); r.Route(Pad);
         var held = Pad with { KeyboardPrimary = true, MousePrimary = true, PadPrimary = true,
-            KeyboardRestart = true, PadRestart = true, PadStick = new(1, 0) };
+            KeyboardRestart = true, PadPause = true, PadStick = new(1, 0) };
         var inactive = r.Route(held with { Focused = minimize, Minimized = minimize });
         Assert.False(inactive.Active); Assert.False(inactive.PrimaryPressed);
         Assert.False(inactive.RestartPressed); Assert.Equal(AimKind.None, inactive.AimKind);
@@ -165,21 +165,21 @@ public sealed class InputRouterTests
     public void PadDisconnectReconnectOrReplacementHeldDoesNotFire(bool replace)
     {
         var r = new InputRouter(new InputSettings(0.2)); r.Route(Pad);
-        Assert.True(r.Route(Pad with { PadPrimary = true, PadRestart = true }).PrimaryPressed);
+        Assert.True(r.Route(Pad with { PadPrimary = true, PadPause = true }).PrimaryPressed);
         if (!replace) Assert.False(r.Route(Idle).PrimaryPressed);
-        var newPad = Pad with { PadId = replace ? 3 : 2, PadPrimary = true, PadRestart = true };
+        var newPad = Pad with { PadId = replace ? 3 : 2, PadPrimary = true, PadPause = true };
         var first = r.Route(newPad);
         Assert.False(first.PrimaryPressed); Assert.False(first.RestartPressed);
         Assert.False(r.Route(newPad).PrimaryPressed);
-        r.Route(newPad with { PadPrimary = false, PadRestart = false });
-        var press = r.Route(newPad); Assert.True(press.PrimaryPressed); Assert.True(press.RestartPressed);
+        r.Route(newPad with { PadPrimary = false, PadPause = false });
+        var press = r.Route(newPad); Assert.True(press.PrimaryPressed); Assert.False(press.RestartPressed);
     }
 
     [Fact]
     public void UnmappedOrMissingPadIgnored()
     {
         var r = new InputRouter(new InputSettings(0.2)); r.Route(Idle);
-        var i = r.Route(Idle with { PadPrimary = true, PadRestart = true, PadStick = new(1, 0) });
+        var i = r.Route(Idle with { PadPrimary = true, PadPause = true, PadStick = new(1, 0) });
         Assert.Null(i.PadId); Assert.Equal(AimKind.None, i.AimKind);
         Assert.False(i.PrimaryPressed); Assert.False(i.RestartPressed);
     }
@@ -189,12 +189,12 @@ public sealed class InputRouterTests
     public void RestartEdgesAndCoemission(bool pad)
     {
         var r = new InputRouter(new InputSettings(0.2));
-        var held = Pad with { KeyboardRestart = !pad, PadRestart = pad, KeyboardPrimary = true };
+        var held = Pad with { KeyboardRestart = !pad, PadPause = pad, KeyboardPrimary = true };
         Assert.False(r.Route(held).RestartPressed);
         r.Route(Pad);
-        var i = r.Route(held); Assert.True(i.RestartPressed); Assert.True(i.PrimaryPressed);
+        var i = r.Route(held); Assert.Equal(!pad, i.RestartPressed); Assert.True(i.PrimaryPressed);
         Assert.False(r.Route(held).RestartPressed);
-        r.Route(Pad); Assert.True(r.Route(held).RestartPressed);
+        r.Route(Pad); Assert.Equal(!pad, r.Route(held).RestartPressed);
     }
 }
 

@@ -29,6 +29,19 @@ public sealed class GameplayControlsTests
         Assert.Throws<ArgumentOutOfRangeException>(() => controls.RequestWiden(width));
     }
     [Fact]
+    public void RestartAndPauseAreQueuedOnceWithoutChangingPublishedState()
+    {
+        var controls = new GameplayControls();
+        controls.Synchronize(GameplayMode.Shmup, 432, 1280, true);
+        controls.RequestRestart();
+        controls.RequestPauseToggle();
+        Assert.True(controls.Paused);
+        var request = controls.Drain();
+        Assert.True(request.Restart); Assert.True(request.TogglePause);
+        Assert.False(controls.Drain().Restart); Assert.False(controls.Drain().TogglePause);
+        Assert.True(controls.Paused);
+    }
+    [Fact]
     public void BreakoutHasNoWidthControl()
     {
         var controls = new GameplayControls();

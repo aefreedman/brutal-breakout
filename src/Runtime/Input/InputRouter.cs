@@ -45,7 +45,6 @@ public sealed class InputRouter
         if (sample.PadConnected)
         {
             primarySources[$"pad:{sample.PadId}"] = sample.PadPrimary;
-            restartSources[$"pad:{sample.PadId}"] = sample.PadRestart;
         }
         bool primary = primaryEdges.Update(true, primarySources);
         bool restart = restartEdges.Update(true, restartSources);

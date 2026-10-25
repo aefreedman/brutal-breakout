@@ -11,14 +11,19 @@ public sealed class GameplayControls
     public double Width { get; private set; }
     public double MaximumWidth { get; private set; }
     public int DrawCount { get; private set; }
+    public bool Paused { get; private set; }
+    private bool requestedRestart, requestedPause;
+    public void RequestRestart() => requestedRestart = true;
+    public void RequestPauseToggle() => requestedPause = true;
     private GameplayMode? requestedMode;
     private double? requestedWidth;
-    public void Synchronize(GameplayMode mode, double width, double maximumWidth) =>
-        (Mode, Width, MaximumWidth) = (mode, width, maximumWidth);
-    public (GameplayMode? Mode, double? Width) Drain()
+    public void Synchronize(GameplayMode mode, double width, double maximumWidth, bool paused = false) =>
+        (Mode, Width, MaximumWidth, Paused) = (mode, width, maximumWidth, paused);
+    public (GameplayMode? Mode, double? Width, bool Restart, bool TogglePause) Drain()
     {
-        var result = (requestedMode, requestedWidth);
+        var result = (requestedMode, requestedWidth, requestedRestart, requestedPause);
         requestedMode = null; requestedWidth = null;
+        requestedRestart = requestedPause = false;
         return result;
     }
     public void RequestMode(GameplayMode mode)
@@ -38,6 +43,9 @@ public sealed class GameplayControls
         DrawCount++;
         if (Ui.Begin("Gameplay"u8))
         {
+            if (Ui.Button("Restart"u8)) RequestRestart();
+            if (Ui.Button(Paused ? "Resume"u8 : "Pause"u8)) RequestPauseToggle();
+            Ui.Text(Paused ? "Paused"u8 : "Running"u8);
             if (Ui.Button("Breakout"u8)) RequestMode(GameplayMode.Breakout);
             if (Ui.Button("Shmup"u8)) RequestMode(GameplayMode.Shmup);
             if (Mode == GameplayMode.Shmup)

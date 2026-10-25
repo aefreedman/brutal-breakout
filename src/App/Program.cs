@@ -126,7 +126,7 @@ try
     var window = Glfw.CreateWindow(new GlfwWindow.CreateInfo
     {
         Title = gallery ? "Brutal Breakout - primitive showcase" :
-            "Brutal Breakout - Space / click / A: launch or catch below line; R / Start: restart; WASD / arrows / stick / mouse: aim",
+            "Brutal Breakout - Space / click / A: launch or catch below line; R: restart; Start: pause; Select/Share: panel; WASD / arrows / stick / mouse: aim",
         Size = new int2(windowConfiguration.Settings.Width, windowConfiguration.Settings.Height),
     });
     if (window.IsNull())
@@ -167,14 +167,15 @@ try
         Console.WriteLine($"Audio host: nativeRequested={modes is not null && !muteAudio && audioConfiguration!.Settings.Enabled}; muted={muteAudio || modes is null}.");
         var poller = new GlfwInputPoller(window);
 #if BREAKOUT_EDITOR
-        var inspector = new InspectorToggle(debugUi || inspectorConfiguration!.Settings.Visible);
-        Console.WriteLine("F1: toggle diagnostics and gameplay controls.");
+        var inspector = new InspectorToggle(shmupSmokeTest || debugUi || inspectorConfiguration!.Settings.Visible);
+        Console.WriteLine("F1 / Select / Share: toggle panel. Start: pause/resume simulation. R / panel Restart: restart.");
 #endif
         using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings, gameplay!.Settings, input!.Settings, execution!.Settings) : null;
         string? lastGameTitle = null;
         var gameplayViewports = new HashSet<(int Width, int Height)>();
         var gameplayFrames = 0;
         var shmupFrames = 0;
+        long pausedSmokeTick = -1;
         var shmupSmokeStage = 0;
         var shmupViewports = new HashSet<(int Width, int Height)>();
         var shmupTrailViewports = new HashSet<(int Width, int Height)>();
@@ -200,9 +201,16 @@ try
             Glfw.PollEvents();
             if (window.ShouldClose) break;
             // Hidden acceptance opens/closes the inspector without desktop input, including after resize.
-            var raw = poller.Poll(); // Inspect F1 before capture filtering, including while ImGui owns keyboard input.
+            var wasPaused = modes?.Paused ?? false;
+            var raw = poller.Poll(); // Host controls precede capture and run while paused.
+            if (shmupSmokeTest)
+                raw = new InputSnapshot { Focused = true, PadConnected = true,
+                    PadPanelToggle = shmupFrames is 2 or 4, PadPause = shmupFrames is 8 or 12 };
 #if BREAKOUT_EDITOR
-            bool? inspectorOverride = shmupSmokeTest ? true : overlaySmokeTest ? renderer.PresentedFrames % 6 is >= 2 and <= 4 : inspector.Update(raw);
+            if (shmupSmokeTest && shmupFrames == 14) gameplayControls.RequestRestart();
+#endif
+#if BREAKOUT_EDITOR
+            bool? inspectorOverride = overlaySmokeTest ? renderer.PresentedFrames % 6 is >= 2 and <= 4 : inspector.Update(raw);
 #else
             bool? inspectorOverride = false;
 #endif
@@ -213,10 +221,21 @@ try
                 modes.Switch(requestedMode);
                 audio!.SetSuppressed(muteAudio, hasFocus: false);
             }
-            if (modes?.Shmup is { } widening && requests.Mode is null && requests.Width is { } requestedWidth)
+            if (requests.Restart)
+            {
+                modes?.RequestRestart();
+                audio?.SetSuppressed(muteAudio, hasFocus: false);
+            }
+            if (requests.TogglePause) modes?.TogglePause();
+            if (modes?.Shmup is { } widening && !modes.Paused && !requests.Restart && requests.Mode is null && requests.Width is { } requestedWidth)
                 widening.Simulation.Widen(Math.Clamp(requestedWidth, widening.Simulation.Snapshot.Width, widening.Settings.Arena.Width));
-            if (modes is not null) gameplayControls.Synchronize(modes.Mode, modes.Shmup?.Simulation.Snapshot.Width ?? 0, shmup!.Settings.Arena.Width);
 #endif
+            modes?.UpdateControls(raw); // Raw Start is processed even when UI captures or simulation is paused.
+#if BREAKOUT_EDITOR
+            if (modes is not null) gameplayControls.Synchronize(modes.Mode, modes.Shmup?.Simulation.Snapshot.Width ?? 0, shmup!.Settings.Arena.Width, modes.Paused);
+#endif
+            if (modes is not null && (wasPaused != modes.Paused || modes.Paused))
+                audio!.SetSuppressed(muteAudio, hasFocus: false);
             if (shmupSmokeTest)
             {
                 if (timer.Elapsed.TotalSeconds > 20) throw new InvalidOperationException("Shmup smoke timed out.");
@@ -247,7 +266,7 @@ try
 #endif
                     if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks || !shmupSawAim || (trails!.Settings.Enabled && (!shmupSawTrails || shmupTrailViewports.Count < 2)))
                         throw new InvalidOperationException("Shmup smoke missing resized, fired-ball or spawned-brick geometry.");
-                    Console.WriteLine($"Shmup smoke PASS: hidden input, widening, resize, isolated mode switches, fresh reset and indexed presentation; aim={shmupSawAim}; trails={shmupSawTrails}.");
+                    Console.WriteLine($"Shmup smoke PASS: hidden input, Select panel, Start pause/resume, queued editor restart, widening, resize, isolated mode switches, fresh reset and indexed presentation; aim={shmupSawAim}; trails={shmupSawTrails}.");
                     break;
                 }
             }
@@ -266,6 +285,11 @@ try
             }
 #else
             capture = overlays is null ? default : renderer.BeginOverlayFrame(inspectorOverride);
+#endif
+#if BREAKOUT_EDITOR
+            if (shmupSmokeTest && shmupFrames is 2 or 4 &&
+                renderer.InspectorActive != (shmupFrames == 4))
+                throw new InvalidOperationException("Synthetic Select did not toggle inspector.");
 #endif
             if (overlaySmokeTest && inspectorOverride == false &&
                 (renderer.InspectorActive || capture.Mouse || capture.Keyboard))
@@ -311,11 +335,24 @@ try
                             Cursor = new(double.NaN, double.NaN) };
                         elapsedSeconds = physics!.Settings.StepSeconds * physics.Settings.MaxCatchUpSteps;
                     }
-                    audio!.SetSuppressed(muteAudio, filtered.Focused && !filtered.Minimized);
+                    audio!.SetSuppressed(muteAudio, filtered.Focused && !filtered.Minimized && !modes!.Paused);
                     if (shmupSession is not null)
                     {
                         shmupSession.Advance(filtered, elapsedSeconds, new(size.X, size.Y, pixels.X, pixels.Y, shmupSession.Settings.Arena));
                         audio.ConsumeShmup(shmupSession.DrainEvents());
+                        if (shmupSmokeTest && shmupFrames is >= 8 and < 12)
+                        {
+                            if (!modes!.Paused) throw new InvalidOperationException("Synthetic Start did not pause.");
+                            if (shmupFrames == 8) pausedSmokeTick = shmupSession.Simulation.Snapshot.Tick;
+                            if (pausedSmokeTick != shmupSession.Simulation.Snapshot.Tick)
+                                throw new InvalidOperationException("Paused shmup advanced.");
+                        }
+                        if (shmupSmokeTest && shmupFrames == 12 && modes!.Paused)
+                            throw new InvalidOperationException("Synthetic Start did not resume.");
+#if BREAKOUT_EDITOR
+                        if (shmupSmokeTest && shmupFrames == 14 && shmupSession.Simulation.Snapshot.Tick != 0)
+                            throw new InvalidOperationException("Queued inspector restart did not reset run.");
+#endif
                         window.Title = $"Brutal Breakout | Shmup | HP: {shmupSession.Simulation.Snapshot.PlayerHealth}";
                         lastGameTitle = null;
                     }
