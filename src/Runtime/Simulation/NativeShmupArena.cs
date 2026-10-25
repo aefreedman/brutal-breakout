@@ -96,7 +96,7 @@ internal sealed class NativeShmupArena : IDisposable
     {
         Guard(); ClearBall(id);
         balls[id].SetTransform(Native(position), B2Rot.Identity);
-        balls[id].SetLinearVelocity(Native(direction * settings.Ball.Speed)); balls[id].Enable();
+        balls[id].Enable(); balls[id].SetLinearVelocity(Native(direction * settings.Ball.Speed));
     }
     internal void ActivateBrick(int id, double2 position)
     {
