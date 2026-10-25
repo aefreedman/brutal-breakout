@@ -3,5 +3,6 @@
   "maxPointsPerBall": 24,
   "durationSeconds": 0.18,
   "widthRadiusRatio": 1.5,
-  "opacity": 0.55
+  "opacity": 0.55,
+  "maxRenderedSegments": 16384
 }
