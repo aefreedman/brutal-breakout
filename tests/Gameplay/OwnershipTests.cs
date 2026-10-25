@@ -17,7 +17,7 @@ public class OwnershipTests
         {
             try
             {
-                using var owner = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input);
+                using var owner = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input, new(2, 64, 2));
                 session = owner;
                 owner.Simulation.Step(new(PrimaryPressed: true));
                 if (fail) throw original;
@@ -41,7 +41,7 @@ public class OwnershipTests
     [InlineData(true, 1)]
     public void DisposedSessionRejectsAdvanceEvenWithoutNativeTick(bool focused, double seconds)
     {
-        using var session = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input);
+        using var session = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input, new(2, 64, 2));
         var snapshot = session.Simulation.State;
         session.Dispose();
         session.Dispose();
@@ -56,7 +56,7 @@ public class OwnershipTests
     [Fact]
     public void WrongThreadCannotAdvanceOrDisposeAndOwnerCanContinue()
     {
-        using var session = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input);
+        using var session = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input, new(2, 64, 2));
         Exception? advance = null, dispose = null;
         var thread = new Thread(() =>
         {
@@ -72,12 +72,36 @@ public class OwnershipTests
     }
 
     [Fact]
+    public void FailedSimulationDrainStillClosesTheHostInputSession()
+    {
+        var session = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input, new(2, 64, 2));
+        try
+        {
+            // Inject only the bridge's recorded managed fault, not a failing native callback.
+            // This exercises the real shutdown queue and native cleanup without corrupting physics.
+            static object Field(object owner, string name) => owner.GetType()
+                .GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .GetValue(owner)!;
+            var core = Field(session.Simulation, "simulation");
+            var bridge = Field(Field(core, "native"), "tasks");
+            var failure = new InvalidOperationException("injected recorded physics fault");
+            bridge.GetType().GetField("fault", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .SetValue(bridge, System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure));
+            Assert.Same(failure, Assert.Throws<InvalidOperationException>(session.Dispose));
+            Assert.Throws<ObjectDisposedException>(() => session.Advance(default, 0, default));
+            Assert.Throws<ObjectDisposedException>(() => { _ = session.DrainEvents(); });
+            Assert.Throws<ObjectDisposedException>(() => session.Simulation.Step());
+        }
+        finally { _ = Record.Exception(session.Dispose); }
+    }
+
+    [Fact]
     public void RepeatedIndependentHostLifetimesDoNotInvalidateHeldWorld()
     {
-        using var held = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input);
+        using var held = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input, new(2, 64, 2));
         for (int i = 0; i < 50; i++)
         {
-            using var temporary = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input);
+            using var temporary = new BallSandboxSession(TestSettings.Baseline, TestSettings.Gameplay, TestSettings.Input, new(2, 64, 2));
             temporary.Simulation.Step(new(PrimaryPressed: true));
             Assert.True(temporary.Simulation.Preview().HasHit);
         }

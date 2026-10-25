@@ -188,7 +188,7 @@ public class GameplayConfigurationTests
         using var files = new Files();
         var game = GameplayConfiguration.Load(files.Put(Valid));
         var input = InputConfiguration.Load(files.Put("{\"stickDeadzone\":0.55}", "i.json"));
-        using var session = new BallSandboxSession(TestSettings.Baseline, game.Settings, input.Settings);
+        using var session = new BallSandboxSession(TestSettings.Baseline, game.Settings, input.Settings, new(2, 64, 2));
         Assert.Same(game.Settings, session.Simulation.Gameplay);
         Assert.Same(input.Settings, session.Router.Settings);
         var viewport = new ArenaViewport(1000, 1000, 2000, 2000, game.Settings.Arena);

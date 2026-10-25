@@ -31,6 +31,7 @@ if (smokeTest || cleanupSelfTest) VerifyCleanupFailureHandling();
 if (cleanupSelfTest) return;
 LoadedWindowConfiguration windowConfiguration;
 LoadedPhysicsConfiguration? physics;
+LoadedExecutionConfiguration? execution;
 LoadedGameplayConfiguration? gameplay;
 LoadedInputConfiguration? input;
 LoadedColorSchemeConfiguration? colors;
@@ -41,6 +42,7 @@ try
 {
     windowConfiguration = WindowConfiguration.LoadForMode(args, AppContext.BaseDirectory, Environment.CurrentDirectory);
     physics = PhysicsConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    execution = ExecutionConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     gameplay = GameplayConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     input = InputConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     colors = ColorSchemeConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
@@ -55,6 +57,7 @@ try
     if (physics is not null && gameplay is not null) GameplayConfiguration.ValidatePhysics(gameplay, physics);
     Console.WriteLine(windowConfiguration.Describe());
     if (physics is not null) Console.WriteLine(physics.Describe());
+    if (execution is not null) Console.WriteLine(execution.Describe());
     if (gameplay is not null) Console.WriteLine(gameplay.Describe());
     if (input is not null) Console.WriteLine(input.Describe());
     if (colors is not null) Console.WriteLine(colors.Describe());
@@ -107,7 +110,7 @@ try
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
             "Breakout: leave the lower zone, hit something, return below the line to catch; release/repress to relaunch. R restarts. See README.");
-        using var session = !gallery && !gameplaySmokeTest ? new BallSandboxSession(physics!.Settings, gameplay!.Settings, input!.Settings) : null;
+        using var session = !gallery && !gameplaySmokeTest ? new BallSandboxSession(physics!.Settings, gameplay!.Settings, input!.Settings, execution!.Settings) : null;
         // Hidden/showcase paths never create an audio device, even with enabled audio.json.
         string? audioDiagnostic = null;
         using var audio = session is null ? null : new GameAudio(audioConfiguration!.Settings,
@@ -117,7 +120,7 @@ try
         var poller = new GlfwInputPoller(window);
         var inspector = new InspectorToggle(debugUi || overlays!.Inspector.Visible);
         Console.WriteLine("F1: toggle the read-only diagnostics inspector.");
-        using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings, gameplay!.Settings, input!.Settings) : null;
+        using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings, gameplay!.Settings, input!.Settings, execution!.Settings) : null;
         string? lastGameTitle = null;
         var gameplayViewports = new HashSet<(int Width, int Height)>();
         var gameplayFrames = 0;

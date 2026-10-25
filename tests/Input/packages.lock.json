@@ -118,8 +118,8 @@
       },
       "CrushKit.Brutal.Input": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.2",
-        "contentHash": "wet9yyoK1pFZ1bdrNuBUhivsTs8s03WZFcaLccIqat5+NEG74pfFV4catGiNwpX3wy9ZcNbtHcUOrsfEvQSWMw==",
+        "resolved": "0.1.0-preview.3",
+        "contentHash": "71K08PIbvhFh5ueiSbYXyb597pVNIVYi4nHIrOffzuLNk3OyWDeVMTrIeP6yxEBQttnSQFRodqoNpBM8AjLe+w==",
         "dependencies": {
           "Ahwoo.BRUTAL.Glfw": "[2026.10.5]",
           "Ahwoo.BRUTAL.Numerics": "[2026.10.2]"
@@ -307,7 +307,7 @@
       "brutalbreakout.input": {
         "type": "Project",
         "dependencies": {
-          "CrushKit.Brutal.Input": "[0.1.0-preview.2, )"
+          "CrushKit.Brutal.Input": "[0.1.0-preview.3, )"
         }
       }
     }

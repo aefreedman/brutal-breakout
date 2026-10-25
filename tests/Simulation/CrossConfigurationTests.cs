@@ -15,7 +15,7 @@ public class CrossConfigurationTests
     {
         var physics = new PhysicsSettings(1e-20, 4, 8, 120, 1);
         Assert.Throws<ArgumentException>(() => TestSettings.Gameplay.ValidatePhysics(physics));
-        Assert.Throws<ArgumentException>(() => new BallSimulation(physics, TestSettings.Gameplay));
+        Assert.Throws<ArgumentException>(() => new BallSimulation(physics, TestSettings.Gameplay, new(2, 64, 2)));
     }
 
     [Fact]

@@ -134,7 +134,7 @@ public class AudioTests
     [Fact]
     public void CatchupCapturesFirstTickLaunchOnceAndNeverHeldReturnLaunch()
     {
-        using var session = new BallSandboxSession(Physics, Game, new InputSettings(.2));
+        using var session = new BallSandboxSession(Physics, Game, new InputSettings(.2), new(2, 64, 2));
         var viewport = new ArenaViewport(1000, 900, 1000, 900, session.Simulation.Gameplay.Arena);
         var idle = new InputSnapshot { Focused = true };
         var held = idle with { KeyboardPrimary = true };
@@ -154,7 +154,7 @@ public class AudioTests
     [Fact]
     public void MissInsideCatchupBatchSurvivesLaterIdleTicks()
     {
-        using var session = new BallSandboxSession(Physics, Game, new InputSettings(.2));
+        using var session = new BallSandboxSession(Physics, Game, new InputSettings(.2), new(2, 64, 2));
         var viewport = new ArenaViewport(1000, 900, 1000, 900, session.Simulation.Gameplay.Arena);
         var idle = new InputSnapshot { Focused = true, KeyboardDirection = new(0, -1) };
         session.Advance(idle, 0, viewport);
@@ -174,7 +174,7 @@ public class AudioTests
     [Fact]
     public void FocusAndRestartCannotReplayUndrainedFacts()
     {
-        using var session = new BallSandboxSession(Physics, Game, new InputSettings(.2));
+        using var session = new BallSandboxSession(Physics, Game, new InputSettings(.2), new(2, 64, 2));
         var viewport = new ArenaViewport(1000, 900, 1000, 900, session.Simulation.Gameplay.Arena);
         var idle = new InputSnapshot { Focused = true };
         session.Advance(idle, 0, viewport);
@@ -187,19 +187,19 @@ public class AudioTests
     [Fact]
     public void SimulationFactsDistinguishMissWinLossAndClearOnIdleRestart()
     {
-        using var miss = new BallSimulation(Physics, Game);
+        using var miss = new BallSimulation(Physics, Game, new(2, 64, 2));
         miss.Step(new(new(0, 1), PrimaryPressed: true));
         for (int i = 0; i < 300 && (miss.Events & SimulationEvents.Miss) == 0; i++) miss.Step();
         Assert.Equal(SimulationEvents.Miss, miss.Events); Assert.Equal(BallPhase.Aiming, miss.State.Phase);
         miss.Step(); Assert.Equal(SimulationEvents.None, miss.Events);
         miss.Step(new(RestartPressed: true)); Assert.Equal(SimulationEvents.Restart, miss.Events);
         var game = Game;
-        using var win = new BallSimulation(Physics, new(game.Arena, game.Ball, new(1, 1.0 / 3, 12, [new(450, 200, 100, 30)])));
+        using var win = new BallSimulation(Physics, new(game.Arena, game.Ball, new(1, 1.0 / 3, 12, [new(450, 200, 100, 30)])), new(2, 64, 2));
         win.Step(new(PrimaryPressed: true));
         for (int i = 0; i < 300 && win.RoundPhase == RoundPhase.Playing; i++) win.Step();
         Assert.Equal(SimulationEvents.Brick | SimulationEvents.Win, win.Events);
         win.Step(); Assert.Equal(SimulationEvents.None, win.Events);
-        using var loss = new BallSimulation(Physics, new(game.Arena, game.Ball, new(1, 1.0 / 3, 12, [new(450, 200, 100, 30)])));
+        using var loss = new BallSimulation(Physics, new(game.Arena, game.Ball, new(1, 1.0 / 3, 12, [new(450, 200, 100, 30)])), new(2, 64, 2));
         loss.Step(new(new(0, 1), PrimaryPressed: true));
         for (int i = 0; i < 300 && loss.RoundPhase == RoundPhase.Playing; i++) loss.Step();
         Assert.Equal(SimulationEvents.Miss | SimulationEvents.Loss, loss.Events);

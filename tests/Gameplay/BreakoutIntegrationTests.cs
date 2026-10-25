@@ -79,7 +79,7 @@ public class BreakoutIntegrationTests
     public void RealHostCatchesBelowLineThenMissesAndRestartsWithoutRestoringBricksOnMiss(int hz)
     {
         var game = Game();
-        using var host = new BallSandboxSession(new(hz, 4, 8, 120, 1), game, TestSettings.Input);
+        using var host = new BallSandboxSession(new(hz, 4, 8, 120, 1), game, TestSettings.Input, new(2, 64, 2));
         var viewport = new ArenaViewport(1000, 900, 2000, 1800, game.Arena);
         var idle = new InputSnapshot { Focused = true };
         host.Advance(idle, 0, viewport);
@@ -108,7 +108,7 @@ public class BreakoutIntegrationTests
     public void TerminalSceneHasRealStatusGeometryAndRestarts(bool lose)
     {
         var game = Game(1, oneBrick: true, downward: lose);
-        using var host = new BallSandboxSession(TestSettings.Baseline, game, TestSettings.Input);
+        using var host = new BallSandboxSession(TestSettings.Baseline, game, TestSettings.Input, new(2, 64, 2));
         var viewport = new ArenaViewport(1000, 900, 1000, 900, game.Arena);
         var idle = new InputSnapshot { Focused = true };
         host.Advance(idle, 0, viewport);
@@ -129,7 +129,7 @@ public class BreakoutIntegrationTests
     {
         var c = new LinearColor(.5f, .5f, .5f);
         var same = new ColorScheme("same", c, c, c, c, c, c, c, c, c, c, c, c, c, c);
-        using var sim = new BallSimulation(TestSettings.Baseline, Game());
+        using var sim = new BallSimulation(TestSettings.Baseline, Game(), new(2, 64, 2));
         using var draw = new ShapeDrawList();
         var frame = BallSandbox.Build(draw, sim, same, TestSettings.Style, 0, 1000, 900, out var e);
         Assert.Equal(18, e.ArenaIndices);

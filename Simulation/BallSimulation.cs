@@ -1,4 +1,5 @@
 using Brutal.Numerics;
+using CrushKit.Brutal.Ecs;
 
 namespace BrutalBreakout.Simulation;
 
@@ -24,161 +25,125 @@ public readonly struct BallState
         => (Position, Velocity, AimDirection, Phase, CatchEligible) = (position, velocity, aimDirection, phase, catchEligible);
 }
 
-/// <summary>One owned native world and synchronous configured-frequency gameplay. No paddle.</summary>
+/// <summary>Game facade over an Arch world and dependency jobs. Publications are immutable;
+/// submissions may come from any thread and execute in submission order.</summary>
 public sealed class BallSimulation : IDisposable
 {
-    /// <summary>Facts from the most recent Step only; replaced even on idle/restart ticks.</summary>
-    public SimulationEvents Events { get; private set; }
-    public PhysicsSettings Settings { get; }
-    public double StepSeconds => Settings.StepSeconds;
-    private readonly NativeArena native;
-    private readonly BrickState[] bricks;
-    private bool leftCatchZone, contactSinceLaunch;
-    public GameplaySettings Gameplay { get; }
-    public ReadOnlySpan<BrickState> Bricks => bricks;
-    public int RemainingBricks { get; private set; }
-    /// <summary>Includes the active ball, matching Unity's total permitted spawns.</summary>
-    public int BallsRemaining { get; private set; }
-    public RoundPhase RoundPhase { get; private set; } = RoundPhase.Playing;
-    public long BouncesWithoutBrick { get; private set; }
-    /// <summary>Y-down canvas coordinate; NaN in explicit physics-reference mode.</summary>
-    public double CatchLineY => Gameplay.CatchLineY;
+    private readonly ArchRuntime runtime;
+    private readonly BreakoutWorld simulation;
+    private readonly object submissionGate = new();
+    private SimulationSnapshot snapshot;
+    private Task? shutdown;
 
-    public BallSimulation(PhysicsSettings physics, GameplaySettings gameplay)
+    public PhysicsSettings Settings { get; }
+    public GameplaySettings Gameplay { get; }
+    public ExecutionSettings Execution { get; }
+    public double StepSeconds => Settings.StepSeconds;
+    public double CatchLineY => Gameplay.CatchLineY;
+    public SimulationSnapshot Snapshot => Volatile.Read(ref snapshot);
+    public BallState State => Snapshot.State;
+    public SimulationEvents Events => Snapshot.Events;
+    public ReadOnlySpan<BrickState> Bricks => Snapshot.Bricks;
+    public int RemainingBricks => Snapshot.RemainingBricks;
+    public int BallsRemaining => Snapshot.BallsRemaining;
+    public RoundPhase RoundPhase => Snapshot.RoundPhase;
+    public long BouncesWithoutBrick => Snapshot.BouncesWithoutBrick;
+
+    public BallSimulation(PhysicsSettings physics, GameplaySettings gameplay, ExecutionSettings execution)
     {
         ArgumentNullException.ThrowIfNull(physics);
         ArgumentNullException.ThrowIfNull(gameplay);
+        ArgumentNullException.ThrowIfNull(execution);
+        gameplay.ValidatePhysics(physics); // Reject incompatible settings before workers/native allocation.
         Settings = physics;
         Gameplay = gameplay;
-        bricks = new BrickState[gameplay.Breakout?.Bricks.Count ?? 0];
-        RestoreRoundState();
-        native = new(physics, gameplay);
-    }
-    public BallState State { get; private set; }
-
-    private BallState InitialState() => new(Gameplay.Ball.Spawn, default, Gameplay.Ball.InitialAim, BallPhase.Aiming, false);
-    private void ClearShotFacts()
-    {
-        leftCatchZone = contactSinceLaunch = false;
-        BouncesWithoutBrick = 0;
-    }
-    private void RestoreRoundState()
-    {
-        for (int i = 0; i < bricks.Length; i++) bricks[i] = new(i, Gameplay.Breakout!.Bricks[i], true);
-        RemainingBricks = bricks.Length;
-        BallsRemaining = Gameplay.Breakout?.StartingBalls ?? 0;
-        RoundPhase = RoundPhase.Playing;
-        ClearShotFacts();
-        State = InitialState();
-    }
-
-    public WallContact Preview() => Query(State.Position, State.AimDirection);
-    public WallContact Query(double2 origin, double2 direction) => native.Query(origin, direction);
-    public void Dispose() => native.Dispose();
-
-    private void FinishRound(RoundPhase phase, double2 position, double2 aim)
-    {
-        native.Freeze();
-        RoundPhase = phase;
-        Events |= phase == RoundPhase.Won ? SimulationEvents.Win : SimulationEvents.Loss;
-        State = new(position, default, aim, BallPhase.Aiming, false);
-    }
-    private void LoseBall(double2 position, double2 aim)
-    {
-        Events |= SimulationEvents.Miss;
-        BallsRemaining--;
-        ClearShotFacts();
-        if (BallsRemaining == 0) FinishRound(RoundPhase.Lost, position, aim);
-        else
+        Execution = execution;
+        runtime = new(execution.Jobs);
+        BreakoutWorld? created = null;
+        SimulationSnapshot? initial = null;
+        try
         {
-            native.Reset();
-            State = InitialState();
+            runtime.Initialize(world =>
+            {
+                created = new(world, physics, gameplay, execution);
+                initial = created.Publish();
+            });
+            simulation = created!;
+            snapshot = initial!;
+        }
+        catch
+        {
+            try { created?.Dispose(); }
+            finally { runtime.Dispose(); }
+            throw;
         }
     }
 
-    /// <summary>Commands apply before movement. Launch moves during this tick; catch and restart do not.</summary>
-    public void Step(SimulationCommand command = default)
+    /// <summary>Queues one complete tick. Independent ball/round and brick systems can overlap.
+    /// The task completes after all branches join and a consistent snapshot is published.</summary>
+    public Task<SimulationSnapshot> StepAsync(SimulationCommand command = default)
     {
-        native.Guard();
-        Events = SimulationEvents.None;
-        if (command.RestartPressed)
+        lock (submissionGate)
         {
-            native.Reset();
-            native.ResetBricks();
-            Events = SimulationEvents.Restart;
-            RestoreRoundState();
-            return;
-        }
-        if (RoundPhase != RoundPhase.Playing) return;
+            ObjectDisposedException.ThrowIf(shutdown is not null, this);
+            SimulationSnapshot? result = null;
+            var completion = runtime.RunAsync(
+                new WorldJob("input-physics", _ => simulation.PreparePhysics(command)),
+                new WorldJob("ball-round-rules", _ => simulation.ResolveGameplay(), 0),
+                new WorldJob("brick-state", _ => simulation.SynchronizeBricks(), 0),
+                new WorldJob("publish", _ =>
+                {
+                    result = simulation.Publish();
+                    Volatile.Write(ref snapshot, result);
+                }, 1, 2));
+            return CompletedSnapshot(completion);
 
-        var state = State;
-        double2 aim = state.AimDirection;
-        if (command.AimDirection is { } direction && Arena.Finite(direction) && (direction.X != 0 || direction.Y != 0))
-            aim = Arena.Normalize(direction);
-
-        var phase = state.Phase;
-        bool eligible = state.CatchEligible;
-        if (command.PrimaryPressed)
-        {
-            if (phase == BallPhase.Aiming)
+            async Task<SimulationSnapshot> CompletedSnapshot(Task task)
             {
-                ClearShotFacts();
-                native.Launch(aim);
-                Events |= SimulationEvents.Launch;
-                phase = BallPhase.Flying;
-                eligible = false;
-            }
-            else if (eligible)
-            {
-                native.Freeze();
-                Events |= SimulationEvents.Catch;
-                ClearShotFacts();
-                State = new(state.Position, default, aim, BallPhase.Aiming, false);
-                return; // A catch never fires or advances native motion on the same edge.
+                await task.ConfigureAwait(false);
+                return result!;
             }
         }
+    }
 
-        if (phase != BallPhase.Flying)
+    /// <summary>Blocking compatibility boundary for the current host, not a single-threaded simulation.</summary>
+    public void Step(SimulationCommand command = default) => StepAsync(command).GetAwaiter().GetResult();
+    public WallContact Preview()
+    {
+        lock (submissionGate)
         {
-            State = new(state.Position, state.Velocity, aim, phase, eligible);
-            return;
-        }
-
-        var result = native.Step();
-        var position = native.Position;
-        var velocity = native.Velocity;
-        if (Gameplay.Breakout is not { } rules)
-        {
-            // Explicit physics-reference mode preserves the existing four-wall fixture behavior.
-            State = new(position, velocity, aim, phase, eligible || result.HasContact);
-            return;
-        }
-
-        leftCatchZone |= state.Position.Y < CatchLineY || position.Y < CatchLineY;
-        contactSinceLaunch |= result.HasContact;
-        if (result.BricksDestroyed > 0)
-        {
-            Events |= SimulationEvents.Brick;
-            for (int i = 0; i < bricks.Length; i++)
-                if (bricks[i].Alive && !native.IsBrickAlive(i)) bricks[i] = bricks[i] with { Alive = false };
-            RemainingBricks -= result.BricksDestroyed;
-            BouncesWithoutBrick = 0;
-            if (RemainingBricks == 0)
+            ObjectDisposedException.ThrowIf(shutdown is not null, this);
+            WallContact hit = default;
+            // Read the pose inside the ordered job, not before pending ticks finish.
+            runtime.RunAsync(new WorldJob("preview", _ =>
             {
-                FinishRound(RoundPhase.Won, position, aim);
-                return;
-            }
+                var state = Snapshot.State;
+                hit = simulation.Query(state.Position, state.AimDirection);
+            })).GetAwaiter().GetResult();
+            return hit;
         }
-        else BouncesWithoutBrick += result.WallContacts;
-
-        // Like Unity, the restriction is center-based and applies to the BALL, not the cursor.
-        eligible = leftCatchZone && contactSinceLaunch && Gameplay.IsInCatchZone(position.Y);
-        if (position.Y - Gameplay.Ball.Radius > Gameplay.Arena.Bottom ||
-            (rules.MaxBouncesWithoutBrick > 0 && BouncesWithoutBrick > rules.MaxBouncesWithoutBrick))
+    }
+    public WallContact Query(double2 origin, double2 direction)
+    {
+        lock (submissionGate)
         {
-            LoseBall(position, aim);
-            return;
+            ObjectDisposedException.ThrowIf(shutdown is not null, this);
+            WallContact hit = default;
+            runtime.RunAsync(new WorldJob("shape-query", _ => hit = simulation.Query(origin, direction)))
+                .GetAwaiter().GetResult();
+            return hit;
         }
-        State = new(position, velocity, aim, phase, eligible);
+    }
+
+    public void Dispose()
+    {
+        Task completion;
+        lock (submissionGate)
+        {
+            shutdown ??= runtime.RunAsync(new WorldJob("destroy-physics", _ => simulation.Dispose()));
+            completion = shutdown;
+        }
+        try { completion.GetAwaiter().GetResult(); }
+        finally { runtime.Dispose(); }
     }
 }

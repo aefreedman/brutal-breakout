@@ -23,7 +23,8 @@ public readonly record struct ArenaViewport(int WindowWidth, int WindowHeight, i
     }
 }
 
-/// <summary>Single-threaded host bridge: input edges survive render-only frames, never catch-up ticks.</summary>
+/// <summary>Host-thread input staging for the worker-driven simulation. Input edges survive
+/// render-only frames, never repeat across catch-up ticks.</summary>
 public sealed class BallSandboxSession : IDisposable
 {
     public BallSimulation Simulation { get; }
@@ -43,13 +44,13 @@ public sealed class BallSandboxSession : IDisposable
         return events;
     }
 
-    public BallSandboxSession(PhysicsSettings physics, GameplaySettings gameplay, InputSettings input)
+    public BallSandboxSession(PhysicsSettings physics, GameplaySettings gameplay, InputSettings input, ExecutionSettings execution)
     {
         Router = new(input);
         ArgumentNullException.ThrowIfNull(gameplay);
         clock = new(physics); // Validate managed dependencies before creating the native world.
         tickEvents = new SimulationEvents[physics.MaxCatchUpSteps];
-        Simulation = new(physics, gameplay);
+        Simulation = new(physics, gameplay, execution);
     }
     private readonly int ownerThread = Environment.CurrentManagedThreadId;
     private bool disposed;
@@ -59,9 +60,14 @@ public sealed class BallSandboxSession : IDisposable
 
     public void Dispose()
     {
-        Simulation.Dispose(); // Enforces owner-thread destruction, including repeated disposal.
-        eventCount = 0;
-        disposed = true;
+        if (Environment.CurrentManagedThreadId != ownerThread)
+            throw new InvalidOperationException("Session input buffers must be disposed on the host thread.");
+        try { Simulation.Dispose(); } // Drains worker jobs before releasing native/ECS resources.
+        finally
+        {
+            eventCount = 0;
+            disposed = true;
+        }
     }
 
     public int Advance(InputSnapshot snapshot, double seconds, ArenaViewport viewport)

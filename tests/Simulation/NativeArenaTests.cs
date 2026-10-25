@@ -10,7 +10,7 @@ public class NativeArenaTests
     [Fact]
     public void PublishedNativeWorldCreateStepCastAndDispose()
     {
-        using var world = new NativeArena(TestSettings.Baseline, TestSettings.Gameplay);
+        using var world = new NativeArena(TestSettings.Baseline, TestSettings.Gameplay, 2);
         var hit = world.Query(new(640, 360), new(1, 0));
         Assert.True(hit.HasHit);
         ArenaTests.Near(new(1220, 360), hit.Position, 1);

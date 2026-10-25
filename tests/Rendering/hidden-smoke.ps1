@@ -2,6 +2,7 @@
 param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug',
       [ValidateSet('Showcase', 'Gameplay')][string] $Mode = 'Showcase',
       [string] $PhysicsConfig,
+      [string] $ExecutionConfig,
       [string] $GameplayConfig,
       [string] $InputConfig,
       [string] $ColorsConfig,
@@ -30,6 +31,10 @@ if ($Mode -eq 'Gameplay') {
         Join-Path $root 'tests/Gameplay/Fixtures/physics-default.json'
     } else { [IO.Path]::GetFullPath($PhysicsConfig) }
     $physicsExpected = [IO.File]::ReadAllText($physicsPath) | ConvertFrom-Json
+    $executionPath = if ([string]::IsNullOrWhiteSpace($ExecutionConfig)) {
+        Join-Path $root 'tests/Gameplay/Fixtures/execution-default.json'
+    } else { [IO.Path]::GetFullPath($ExecutionConfig) }
+    $executionExpected = [IO.File]::ReadAllText($executionPath) | ConvertFrom-Json
     $gameplayPath = if ([string]::IsNullOrWhiteSpace($GameplayConfig)) {
         Join-Path $root 'tests/Gameplay/Fixtures/gameplay-default.json'
     } else { [IO.Path]::GetFullPath($GameplayConfig) }
@@ -42,7 +47,7 @@ if ($Mode -eq 'Gameplay') {
     $colorsExpected = [IO.File]::ReadAllText($colorsPath) | ConvertFrom-Json
     $stylePath = if ([string]::IsNullOrWhiteSpace($StyleConfig)) { Join-Path $root 'style.json' } else { [IO.Path]::GetFullPath($StyleConfig) }
     $styleExpected = [IO.File]::ReadAllText($stylePath) | ConvertFrom-Json
-} elseif (-not [string]::IsNullOrWhiteSpace($PhysicsConfig) -or
+} elseif (-not [string]::IsNullOrWhiteSpace($PhysicsConfig) -or -not [string]::IsNullOrWhiteSpace($ExecutionConfig) -or
           -not [string]::IsNullOrWhiteSpace($GameplayConfig) -or -not [string]::IsNullOrWhiteSpace($InputConfig) -or -not [string]::IsNullOrWhiteSpace($ColorsConfig) -or -not [string]::IsNullOrWhiteSpace($StyleConfig)) {
     throw 'Configuration overrides apply only to -Mode Gameplay.'
 }
@@ -84,6 +89,8 @@ try {
     if ($Mode -eq 'Gameplay') {
         $start.ArgumentList.Add('--physics-config')
         $start.ArgumentList.Add($physicsPath)
+        $start.ArgumentList.Add('--execution-config')
+        $start.ArgumentList.Add($executionPath)
         $start.ArgumentList.Add('--gameplay-config')
         $start.ArgumentList.Add($gameplayPath)
         $start.ArgumentList.Add('--input-config')
@@ -148,6 +155,8 @@ try {
     }
     if ($sizes.Count -lt 2) { throw 'Missing distinct nonempty resize viewports.' }
     } else {
+        $expectedExecution = "Execution configuration: workers=$($executionExpected.workerCount); physicsWorkers=$($executionExpected.physicsWorkerCount); maxExpectedConcurrentJobs=$($executionExpected.maxExpectedConcurrentJobs); path=$executionPath"
+        if (-not $output.Contains($expectedExecution)) { throw 'Loaded execution budgets/path do not match selected fixture.' }
         $loaded = [regex]::Match($output, 'Physics configuration: updateHz=([^;]+); stepSeconds=([^;]+); substeps=(\d+); maxCatchUpSteps=(\d+); contactHertz=([^;]+); contactDampingRatio=([^;]+); path=([^\r\n]+)')
         if (-not $loaded.Success) { throw 'Missing actual loaded physics settings.' }
         $culture = [Globalization.CultureInfo]::InvariantCulture

@@ -7,7 +7,10 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Ahwoo.BRUTAL.Box2D" Version="[2026.10.2]" />
+    <PackageReference Include="CrushKit.Brutal.Ecs" Version="$(CrushKitVersion)" Condition="'$(UseCrushKitProjects)' != 'true'" />
+    <PackageReference Include="CrushKit.Brutal.Physics" Version="$(CrushKitVersion)" Condition="'$(UseCrushKitProjects)' != 'true'" />
+    <ProjectReference Include="$(CrushKitRoot)/src/CrushKit.Brutal.Ecs/CrushKit.Brutal.Ecs.csproj" Condition="'$(UseCrushKitProjects)' == 'true'" />
+    <ProjectReference Include="$(CrushKitRoot)/src/CrushKit.Brutal.Physics/CrushKit.Brutal.Physics.csproj" Condition="'$(UseCrushKitProjects)' == 'true'" />
     <InternalsVisibleTo Include="Simulation.Tests" />
   </ItemGroup>
 </Project>

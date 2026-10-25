@@ -8,9 +8,9 @@ namespace BrutalBreakout.Presentation;
 internal sealed class BallSandboxSmoke : IDisposable
 {
     public BallSandboxSession Session { get; }
-    public BallSandboxSmoke(PhysicsSettings physics, GameplaySettings gameplay, InputSettings input)
+    public BallSandboxSmoke(PhysicsSettings physics, GameplaySettings gameplay, InputSettings input, ExecutionSettings execution)
     {
-        Session = new(physics, gameplay, input);
+        Session = new(physics, gameplay, input, execution);
         try { VerifyConfiguredDeadzone(); }
         catch { Session.Dispose(); throw; }
     }

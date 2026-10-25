@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Update="overlay.json;Assets/Fonts/**/*;Assets/Images/**/*;window.json;physics.json;gameplay.json;input.json;colors.json;style.json;color-schemes/**/*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="overlay.json;Assets/Fonts/**/*;Assets/Images/**/*;window.json;physics.json;execution.json;gameplay.json;input.json;colors.json;style.json;color-schemes/**/*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

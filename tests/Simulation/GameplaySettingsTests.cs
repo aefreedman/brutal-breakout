@@ -17,7 +17,7 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
     public void CustomNativeMotionCastContactCatchAndExactReset(double radius, double speed)
     {
         var g = Custom(radius, speed);
-        using var sim = new BallSimulation(TestSettings.Baseline, g);
+        using var sim = new BallSimulation(TestSettings.Baseline, g, new(2, 64, 2));
         Assert.Same(g, sim.Gameplay);
         Assert.Same(TestSettings.Baseline, sim.Settings);
         var initial = sim.State;
@@ -52,7 +52,7 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
         double speed = B2WorldDef.Default.MaximumLinearSpeed * 200;
         output.WriteLine($"Published default maximum = {B2WorldDef.Default.MaximumLinearSpeed} m/s; configured = {speed} logical units/s.");
         var g = new GameplaySettings(new(100000, 80000, 1000, 1000, 99000, 79000, 100), new(40, speed, 50000, 40000, 1, 0), null);
-        using var sim = new BallSimulation(TestSettings.Baseline, g);
+        using var sim = new BallSimulation(TestSettings.Baseline, g, new(2, 64, 2));
         Assert.True(speed > B2WorldDef.Default.MaximumLinearSpeed * 100);
         var hit = sim.Preview();
         Assert.True(hit.HasHit);
@@ -104,8 +104,8 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.ThrowsAny<ArgumentException>(() => new BallSettings(7, 350, 420, 600, 0, 0));
         Assert.Throws<ArgumentNullException>(() => new GameplaySettings(null!, Custom().Ball, null));
         Assert.Throws<ArgumentNullException>(() => new GameplaySettings(Custom().Arena, null!, null));
-        Assert.Throws<ArgumentNullException>(() => new BallSimulation(TestSettings.Baseline, null!));
-        Assert.Throws<ArgumentNullException>(() => new BallSandboxSession(TestSettings.Baseline, Custom(), null!));
+        Assert.Throws<ArgumentNullException>(() => new BallSimulation(TestSettings.Baseline, null!, new(2, 64, 2)));
+        Assert.Throws<ArgumentNullException>(() => new BallSandboxSession(TestSettings.Baseline, Custom(), null!, new(2, 64, 2)));
         var extremeAim = new BallSettings(7, 350, 420, 600, double.MaxValue, double.MaxValue);
         ArenaTests.Near(new(Math.Sqrt(.5), Math.Sqrt(.5)), extremeAim.InitialAim);
     }
@@ -113,11 +113,11 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
     [Fact]
     public void CustomWorldFiltersStayIndependentAcrossRepeatedOwnership()
     {
-        using var held = new BallSimulation(TestSettings.Baseline, Custom());
+        using var held = new BallSimulation(TestSettings.Baseline, Custom(), new(2, 64, 2));
         var preview = held.Preview();
         for (int i = 0; i < 20; i++)
         {
-            using var other = new BallSimulation(TestSettings.Baseline, Custom(23, 950));
+            using var other = new BallSimulation(TestSettings.Baseline, Custom(23, 950), new(2, 64, 2));
             other.Step(new(PrimaryPressed: true));
             Assert.Equal(preview, held.Preview());
             other.Dispose(); other.Dispose();
@@ -139,7 +139,7 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
     {
         Assert.Equal(typeof(float), typeof(B2WorldDef).GetField(nameof(B2WorldDef.MaximumLinearSpeed))!.FieldType);
         var physics = new PhysicsSettings(1e-15, 1, 1, 0, 0);
-        Assert.Throws<ArgumentException>(() => new BallSimulation(physics, Custom(7, 1e10)));
+        Assert.Throws<ArgumentException>(() => new BallSimulation(physics, Custom(7, 1e10), new(2, 64, 2)));
         // All relationships are valid as doubles, but walls disappear at float coordinates.
         Assert.Throws<ArgumentException>(() => new GameplaySettings(
             new(100000, 80000, 10000, 10000, 90000, 70000, .000001),
@@ -150,7 +150,7 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
     public void SessionMapsDpiPointerViaItsOwnCustomArena()
     {
         var g = Custom();
-        using var session = new BallSandboxSession(TestSettings.Baseline, g, TestSettings.Input);
+        using var session = new BallSandboxSession(TestSettings.Baseline, g, TestSettings.Input, new(2, 64, 2));
         var v = new ArenaViewport(1000, 1000, 2000, 2000, g.Arena);
         var idle = new BrutalBreakout.Platform.Input.InputSnapshot { Focused = true, Cursor = new(500, 500) };
         session.Advance(idle, 0, v);
@@ -174,7 +174,7 @@ public class GameplaySettingsTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.False(viewport.TryWorld(new(500, 0), out _));
         Assert.False(viewport.TryWorld(new(float.NaN, 1), out _));
         Assert.False(new ArenaViewport(0, 0, 0, 0, g.Arena).TryWorld(default, out _));
-        using var session = new BallSandboxSession(TestSettings.Baseline, g, TestSettings.Input);
+        using var session = new BallSandboxSession(TestSettings.Baseline, g, TestSettings.Input, new(2, 64, 2));
         Assert.Same(TestSettings.Input, session.Router.Settings);
         Assert.Throws<ArgumentException>(() => session.Advance(default, 0, new(1000, 1000, 2000, 2000, Custom().Arena)));
         using var draw = new ShapeDrawList();

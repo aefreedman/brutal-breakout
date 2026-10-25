@@ -13,7 +13,7 @@ public class VisualFidelityTests
     [InlineData(1280, 720)] [InlineData(960, 540)] [InlineData(2000, 1800)] [InlineData(720, 1280)]
     public void HeldRingIsScreenRelativeRoundedGappedAndAnimatesWithoutSimulation(int w, int h)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         using var draw = new ShapeDrawList();
         var state = sim.State;
         var frame = BallSandbox.Build(draw, sim, TestSettings.Colors, TestSettings.Style, 0, w, h, out var e);
@@ -58,7 +58,7 @@ public class VisualFidelityTests
     [InlineData(1280, 720)] [InlineData(960, 540)] [InlineData(2000, 1800)] [InlineData(720, 1280)]
     public void RealHeldRingProducerSurvivesPreviouslyCrashingAnimationTimeAndResize(int w, int h)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         using var draw = new ShapeDrawList();
         var before = sim.State;
         var failedTimes = new[] { .058823029411764705, .10588065702741996, .04706206663840547 };
@@ -78,7 +78,7 @@ public class VisualFidelityTests
     [Fact]
     public void CaughtBallRendersCriticalAndOrdinaryPhasesWithoutMovingSimulation()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         using var draw = new ShapeDrawList();
         sim.Step(new(PrimaryPressed: true));
         for (int i = 0; i < 2000 && !sim.State.CatchEligible; i++) sim.Step();
@@ -99,7 +99,7 @@ public class VisualFidelityTests
     [Fact]
     public void HeldRingFailureRetainsInvariantReproductionContextAndInnerCause()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         using var draw = new ShapeDrawList();
         var s = TestSettings.Style;
         var unsupported = new PresentationStyle(10000, s.HeldRingWidthScreenFraction, s.HeldRingDashCount,
@@ -126,7 +126,7 @@ public class VisualFidelityTests
     [Fact]
     public void FlyingBallIsOnlyConfiguredDiscWithNoHaloOrReadyRecolor()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         sim.Step(new(PrimaryPressed: true));
         for (int i = 0; i < 500 && !sim.State.CatchEligible; i++) sim.Step();
         Assert.True(sim.State.CatchEligible);
@@ -148,7 +148,7 @@ public class VisualFidelityTests
     [Fact]
     public void NativeAimUsesSurfaceClearancesRadiusRatiosAndShortReflectedLeg()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         var hit = sim.Preview(); Assert.True(hit.HasHit);
         using var draw = new ShapeDrawList();
         var frame = BallSandbox.Build(draw, sim, TestSettings.Colors, TestSettings.Style, 0, 1280, 720, out var e);
@@ -175,7 +175,7 @@ public class VisualFidelityTests
     {
         var game = new GameplaySettings(TestSettings.Gameplay.Arena, TestSettings.Gameplay.Ball,
             new(3, 1.0 / 3, 12, [new(450, 200, 100, 30)]));
-        using var sim = new BallSimulation(TestSettings.Baseline, game);
+        using var sim = new BallSimulation(TestSettings.Baseline, game, new(2, 64, 2));
         using var draw = new ShapeDrawList();
         var frame = BallSandbox.Build(draw, sim, TestSettings.Colors, TestSettings.Style, 0, w, h, out var e);
         var line = Category(frame, e.BackgroundIndices + e.ArenaIndices + e.BrickIndices, e.CatchLineIndices);
@@ -196,7 +196,7 @@ public class VisualFidelityTests
     public void OpenBottomNoHitOnlyDrawsBoundedPlainDirectionSegment()
     {
         var game = new GameplaySettings(TestSettings.Gameplay.Arena, new(12, 600, 640, 612, 0, 1), new(3, 1.0 / 3, 12, [new(450, 200, 100, 30)]));
-        using var sim = new BallSimulation(TestSettings.Baseline, game);
+        using var sim = new BallSimulation(TestSettings.Baseline, game, new(2, 64, 2));
         Assert.False(sim.Preview().HasHit);
         using var draw = new ShapeDrawList();
         var frame = BallSandbox.Build(draw, sim, TestSettings.Colors, TestSettings.Style, 0, 1280, 720, out var e);
@@ -210,7 +210,7 @@ public class VisualFidelityTests
     [InlineData(double.NaN)] [InlineData(double.PositiveInfinity)] [InlineData(-1)]
     public void AnimationTimeMustBeExplicitFiniteAndNonnegative(double seconds)
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         using var draw = new ShapeDrawList();
         Assert.Throws<ArgumentOutOfRangeException>(() => BallSandbox.Build(draw, sim, TestSettings.Colors, TestSettings.Style, seconds, 1280, 720, out _));
     }
@@ -219,7 +219,7 @@ public class VisualFidelityTests
     public void LongFiniteAnimationTimeDoesNotOverflow()
     {
         Assert.InRange(TestSettings.Style.RingOffset(double.MaxValue), 0, 1);
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         using var draw = new ShapeDrawList();
         Assert.True(BallSandbox.Build(draw, sim, TestSettings.Colors, TestSettings.Style, double.MaxValue, 1280, 720, out _).Indices.Length > 0);
     }

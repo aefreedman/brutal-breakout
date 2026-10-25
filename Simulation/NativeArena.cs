@@ -1,14 +1,16 @@
 using Brutal.Box2DApi;
 using Brutal.Numerics;
+using CrushKit.Brutal.Physics;
 
 namespace BrutalBreakout.Simulation;
 
-/// <summary>One synchronous, thread-affine native world. All native distances are meters.</summary>
+/// <summary>Game-specific native arena. The job graph guarantees exclusive native access;
+/// Box2D may dispatch internal collision/solver tasks. All native distances are meters.</summary>
 internal sealed class NativeArena : IDisposable
 {
     internal const float UnitsPerMeter = 100;
-    private readonly int ownerThread = Environment.CurrentManagedThreadId;
     private readonly B2World world;
+    private readonly Box2DTaskScheduler tasks;
     private readonly B2Body ball;
     private readonly B2Shape ballShape;
     private readonly B2Shape[] walls = new B2Shape[4];
@@ -24,7 +26,7 @@ internal sealed class NativeArena : IDisposable
     private readonly PhysicsSettings settings;
     private readonly GameplaySettings gameplay;
 
-    internal NativeArena(PhysicsSettings settings, GameplaySettings gameplay)
+    internal NativeArena(PhysicsSettings settings, GameplaySettings gameplay, int physicsWorkerCount)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(gameplay);
@@ -42,13 +44,19 @@ internal sealed class NativeArena : IDisposable
         definition.Gravity = default;
         definition.EnableSleep = false;
         definition.EnableContinuous = true;
-        definition.WorkerCount = 0;
+        // The published binding needs callbacks as well as a worker budget.
+        tasks = new(physicsWorkerCount);
         definition.RestitutionThreshold = 0;
         definition.HitEventThreshold = 0;
         // Published contact tuning: stiffness in Hz, 1 = critical damping.
         definition.ContactHertz = settings.ContactHertz;
         definition.ContactDampingRatio = settings.ContactDampingRatio;
-        world = Box2D.CreateWorld(in definition);
+        try
+        {
+            tasks.Configure(ref definition);
+            world = Box2DWorldLifetime.CreateWorld(in definition);
+        }
+        catch { tasks.Dispose(); throw; }
         try
         {
             var shape = B2ShapeDef.Default;
@@ -99,16 +107,16 @@ internal sealed class NativeArena : IDisposable
         }
         catch
         {
-            world.Dispose();
+            try { Box2DWorldLifetime.DestroyWorld(world); }
+            finally { tasks.Dispose(); }
             throw;
         }
     }
 
     internal void Guard()
     {
-        if (Environment.CurrentManagedThreadId != ownerThread)
-            throw new InvalidOperationException("The native world must be accessed on its owner thread.");
         ObjectDisposedException.ThrowIf(disposed, this);
+        tasks.ThrowIfFaulted();
     }
 
     internal double2 Position { get { Guard(); return Logical(ball.GetPosition()); } }
@@ -190,6 +198,7 @@ internal sealed class NativeArena : IDisposable
         Guard();
         Array.Clear(wallHit); Array.Clear(brickHit);
         world.Step((float)settings.StepSeconds, settings.Substeps);
+        tasks.ThrowIfFaulted();
         // First consume both complete native buffers into owned flags. Never mutate bodies while
         // traversing borrowed events. Begin + hit (or multiple hits) identify each shape only once.
         var events = world.GetContactEvents();
@@ -267,10 +276,16 @@ internal sealed class NativeArena : IDisposable
 
     public void Dispose()
     {
-        if (Environment.CurrentManagedThreadId != ownerThread)
-            throw new InvalidOperationException("The native world must be disposed on its owner thread.");
         if (disposed) return;
-        world.Dispose();
-        disposed = true;
+        try { tasks.Drain(); }
+        finally
+        {
+            try { Box2DWorldLifetime.DestroyWorld(world); }
+            finally
+            {
+                disposed = true;
+                tasks.Dispose();
+            }
+        }
     }
 }

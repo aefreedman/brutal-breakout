@@ -14,6 +14,8 @@ public class GameplayConfigurationStartupTests
     [InlineData("--smoke-test", "window")]
     [InlineData("--gameplay-smoke-test", "style")]
     [InlineData("--smoke-test", "style")]
+    [InlineData("--gameplay-smoke-test", "execution")]
+    [InlineData("--smoke-test", "execution")]
     public async Task InvalidNewConfigurationOrCombinedSettingsExitsBeforePlatform(string mode, string invalid)
     {
         using var files = new GameplayConfigurationTests.Files();
@@ -24,13 +26,14 @@ public class GameplayConfigurationStartupTests
         string input = files.Put(invalid == "input" ? "{}" : "{\"stickDeadzone\":0.55}", "i.json");
         string style = files.Put(invalid == "style" ? "{}" : PresentationStyleConfigurationTests.Valid, "s.json");
         string window = files.Put(invalid == "window" ? "{}" : "{\"width\":800,\"height\":600}", "w.json");
+        string execution = files.Put(invalid == "execution" ? "{}" : "{\"workerCount\":2,\"maxExpectedConcurrentJobs\":64,\"physicsWorkerCount\":2}", "e.json");
         var start = new ProcessStartInfo("dotnet")
         {
             UseShellExecute = false, CreateNoWindow = true,
             RedirectStandardOutput = true, RedirectStandardError = true
         };
         start.ArgumentList.Add(typeof(GameplayConfiguration).Assembly.Location);
-        foreach (string arg in new[] { mode, "--window-config", window, "--physics-config", physics, "--gameplay-config", game, "--input-config", input, "--style-config", style })
+        foreach (string arg in new[] { mode, "--window-config", window, "--physics-config", physics, "--gameplay-config", game, "--input-config", input, "--style-config", style, "--execution-config", execution })
             start.ArgumentList.Add(arg);
         using var process = Process.Start(start)!;
         try
@@ -40,7 +43,7 @@ public class GameplayConfigurationStartupTests
             if (!process.WaitForExit(10000)) { process.Kill(true); throw new TimeoutException("Configuration rejection timed out."); }
             string output = await stdout, errors = await stderr;
             Assert.NotEqual(0, process.ExitCode);
-            Assert.Contains(invalid == "window" ? window : invalid == "style" ? style : invalid == "input" ? input : game, errors);
+            Assert.Contains(invalid == "execution" ? execution : invalid == "window" ? window : invalid == "style" ? style : invalid == "input" ? input : game, errors);
             if (invalid == "combined") Assert.Contains(physics, errors);
             Assert.DoesNotContain("GPU:", output); Assert.DoesNotContain("Vulkan", output);
             Assert.DoesNotContain("Ball arena:", output); Assert.DoesNotContain("Gameplay stage:", output);

@@ -21,7 +21,7 @@ public class BreakoutTests
     public void NativeBrickReflectsOnceDisappearsAndNoLongerBlocksCircleCast()
     {
         var game = Game();
-        using var sim = new BallSimulation(TestSettings.Baseline, game);
+        using var sim = new BallSimulation(TestSettings.Baseline, game, new(2, 64, 2));
         var before = sim.Preview();
         Assert.True(before.HasHit);
         Assert.InRange(before.Position.Y, 239.49, 240.51);
@@ -44,7 +44,7 @@ public class BreakoutTests
     [Fact]
     public void BeginAndHitAreDeduplicatedBeforeNativeBodyDestruction()
     {
-        using var native = new NativeArena(TestSettings.Baseline, Game());
+        using var native = new NativeArena(TestSettings.Baseline, Game(), 2);
         native.Launch(new(0, -1));
         NativeArena.StepResult result = default;
         for (int i = 0; i < 300 && result.BricksDestroyed == 0; i++) result = native.Step();
@@ -62,7 +62,7 @@ public class BreakoutTests
     public void OneNativeStepCanDestroyBothBricksAtASeam()
     {
         using var native = new NativeArena(TestSettings.Baseline,
-            Game(bricks: [new(450, 200, 50, 30), new(500, 200, 50, 30), new(100, 120, 80, 25)]));
+            Game(bricks: [new(450, 200, 50, 30), new(500, 200, 50, 30), new(100, 120, 80, 25)]), 2);
         native.Launch(new(0, -1));
         NativeArena.StepResult result = default;
         for (int i = 0; i < 300 && result.BricksDestroyed == 0; i++) result = native.Step();
@@ -74,7 +74,7 @@ public class BreakoutTests
     [Fact]
     public void MustLeaveAndHitThenReturnBelowLineBeforeCatching()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, Game());
+        using var sim = new BallSimulation(TestSettings.Baseline, Game(), new(2, 64, 2));
         Assert.Equal(600, sim.CatchLineY);
         sim.Step(new(PrimaryPressed: true));
         Until(sim, () => sim.State.Position.Y < sim.CatchLineY);
@@ -126,7 +126,7 @@ public class BreakoutTests
     public void OpenBottomMissConsumesBallAndPreservesDestroyedBricksUntilRestart()
     {
         var game = Game();
-        using var sim = new BallSimulation(TestSettings.Baseline, game);
+        using var sim = new BallSimulation(TestSettings.Baseline, game, new(2, 64, 2));
         Assert.False(sim.Query(game.Ball.Spawn, new(0, 1)).HasHit);
         sim.Step(new(PrimaryPressed: true));
         Until(sim, () => sim.State.CatchEligible);
@@ -166,7 +166,7 @@ public class BreakoutTests
     public void LastBrickWinsFreezesAndOnlyRestartResumes()
     {
         var game = Game(bricks: [new(450, 200, 100, 30)]);
-        using var sim = new BallSimulation(TestSettings.Baseline, game);
+        using var sim = new BallSimulation(TestSettings.Baseline, game, new(2, 64, 2));
         sim.Step(new(PrimaryPressed: true));
         Until(sim, () => sim.RoundPhase == RoundPhase.Won);
         Assert.Equal(0, sim.RemainingBricks);
@@ -187,7 +187,7 @@ public class BreakoutTests
     [Fact]
     public void WallBounceExpiryUsesUniqueContactsAndConfiguredLimit()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, Game(maxBounces: 1, aimX: 1, aimY: 0));
+        using var sim = new BallSimulation(TestSettings.Baseline, Game(maxBounces: 1, aimX: 1, aimY: 0), new(2, 64, 2));
         sim.Step(new(PrimaryPressed: true));
         Until(sim, () => sim.BouncesWithoutBrick > 0);
         Assert.Equal(1, sim.BouncesWithoutBrick);
@@ -202,7 +202,7 @@ public class BreakoutTests
     [Fact]
     public void ZeroDisablesBounceExpiryAndBelowLineWallHitsCannotEnableCatch()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, Game(maxBounces: 0, aimX: 1, aimY: 0));
+        using var sim = new BallSimulation(TestSettings.Baseline, Game(maxBounces: 0, aimX: 1, aimY: 0), new(2, 64, 2));
         sim.Step(new(PrimaryPressed: true));
         for (int i = 0; i < 1600; i++)
         {
@@ -218,7 +218,7 @@ public class BreakoutTests
     public void BrickHitResetsWallOnlyBounceBudget()
     {
         using var sim = new BallSimulation(TestSettings.Baseline,
-            Game(aimX: 1, aimY: -1, bricks: [new(720, 100, 100, 25), new(100, 100, 70, 25)]));
+            Game(aimX: 1, aimY: -1, bricks: [new(720, 100, 100, 25), new(100, 100, 70, 25)]), new(2, 64, 2));
         sim.Step(new(PrimaryPressed: true));
         Until(sim, () => sim.BouncesWithoutBrick == 1);
         Assert.Equal(2, sim.RemainingBricks);
@@ -229,7 +229,7 @@ public class BreakoutTests
     [Fact]
     public void AimingDoesNotDestroyBricksAndRestartClearsShotFacts()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, Game());
+        using var sim = new BallSimulation(TestSettings.Baseline, Game(), new(2, 64, 2));
         for (int i = 0; i < 50; i++) sim.Step();
         Assert.Equal(2, sim.RemainingBricks);
         sim.Step(new(PrimaryPressed: true));
@@ -245,11 +245,11 @@ public class BreakoutTests
     [Fact]
     public void RepeatedDestroyRestartAndDisposeKeepsIndependentWorldsValid()
     {
-        using var held = new BallSimulation(TestSettings.Baseline, Game());
+        using var held = new BallSimulation(TestSettings.Baseline, Game(), new(2, 64, 2));
         var original = held.Preview();
         for (int cycle = 0; cycle < 20; cycle++)
         {
-            using var sim = new BallSimulation(TestSettings.Baseline, Game(bricks: [new(450, 200, 100, 30)]));
+            using var sim = new BallSimulation(TestSettings.Baseline, Game(bricks: [new(450, 200, 100, 30)]), new(2, 64, 2));
             for (int i = 0; i < 3; i++)
             {
                 sim.Step(new(PrimaryPressed: true));
@@ -270,7 +270,7 @@ public class BreakoutTests
     {
         var game = new GameplaySettings(new(1800, 1000, 80, 120, 1600, 850, 24), new(radius, speed, 420, 750, 0, -1),
             new(2, 1.0 / 3, 12, [new(360, 200, 120, 40), new(1000, 200, 120, 40)]));
-        using var sim = new BallSimulation(new(rate, substeps, 8, 120, 1), game);
+        using var sim = new BallSimulation(new(rate, substeps, 8, 120, 1), game, new(2, 64, 2));
         sim.Step(new(PrimaryPressed: true));
         Until(sim, () => sim.RemainingBricks == 1);
         Assert.InRange(double2.Distance(default, sim.State.Velocity), speed - .1, speed + .1);
@@ -291,7 +291,7 @@ public class BreakoutTests
     [Fact]
     public void RepeatedCatchRelaunchRequiresNewContactAndKeepsCurrentPose()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, Game());
+        using var sim = new BallSimulation(TestSettings.Baseline, Game(), new(2, 64, 2));
         for (int cycle = 0; cycle < 5; cycle++)
         {
             sim.Step(new(new double2(0, -1), true));
@@ -309,13 +309,15 @@ public class BreakoutTests
     }
 
     [Fact]
-    public void BreakoutNativeOperationsStillRequireOwnerThread()
+    public void BreakoutTicksCanBeSubmittedFromAnotherThread()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, Game());
+        using var sim = new BallSimulation(TestSettings.Baseline, Game(), new(2, 64, 2));
         Exception? error = null;
         var other = new Thread(() => error = Record.Exception(() => sim.Step(new(RestartPressed: true))));
         other.Start();
         Assert.True(other.Join(TimeSpan.FromSeconds(10)));
-        Assert.IsType<InvalidOperationException>(error);
+        Assert.Null(error);
+        Assert.Equal(SimulationEvents.Restart, sim.Events);
+        Assert.Equal(Game().Breakout!.Bricks.Count, sim.RemainingBricks);
     }
 }

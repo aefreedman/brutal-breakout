@@ -28,7 +28,7 @@ public class HudGeometryTests
         var game = new GameplaySettings(new(1000, 900, 50, 50, 950, 850, 20),
             new(10, 600, 500, 750, 0, lose ? 1 : -1), new(1, 1.0 / 3, 12, [new(450, 200, 100, 30)]));
         style.Validate(game);
-        using var sim = new BallSimulation(TestSettings.Baseline, game);
+        using var sim = new BallSimulation(TestSettings.Baseline, game, new(2, 64, 2));
         sim.Step(new(PrimaryPressed: true));
         for (int i = 0; i < 2000 && sim.RoundPhase == RoundPhase.Playing; i++) sim.Step();
         Assert.Equal(lose ? RoundPhase.Lost : RoundPhase.Won, sim.RoundPhase);

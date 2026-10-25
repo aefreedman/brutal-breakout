@@ -49,9 +49,9 @@ public class PhysicsSettingsTests
     public void RequiredSettingsRejectNull()
     {
         Assert.Throws<ArgumentNullException>(() => new FixedStepClock(null!));
-        Assert.Throws<ArgumentNullException>(() => new BallSimulation(null!, TestSettings.Gameplay));
-        Assert.Throws<ArgumentNullException>(() => new NativeArena(null!, TestSettings.Gameplay));
-        Assert.Throws<ArgumentNullException>(() => new BallSandboxSession(null!, TestSettings.Gameplay, TestSettings.Input));
+        Assert.Throws<ArgumentNullException>(() => new BallSimulation(null!, TestSettings.Gameplay, new(2, 64, 2)));
+        Assert.Throws<ArgumentNullException>(() => new NativeArena(null!, TestSettings.Gameplay, 2));
+        Assert.Throws<ArgumentNullException>(() => new BallSandboxSession(null!, TestSettings.Gameplay, TestSettings.Input, new(2, 64, 2)));
     }
 
     [Fact]

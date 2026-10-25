@@ -2,9 +2,28 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
-      "Ahwoo.BRUTAL.Box2D": {
+      "CrushKit.Brutal.Ecs": {
         "type": "Direct",
-        "requested": "[2026.10.2, 2026.10.2]",
+        "requested": "[0.1.0-preview.3, )",
+        "resolved": "0.1.0-preview.3",
+        "contentHash": "DjkVfNUcE2C8Spj5wgJXsyc6TV/6OM9VM3A3EdQXRT4kVhABkkEjtBSLBBpjee/wAEFLHhUsQjRCp4uo3zcnJw==",
+        "dependencies": {
+          "Arch": "[2.1.0]",
+          "ZeroAllocJobScheduler": "[1.1.2]"
+        }
+      },
+      "CrushKit.Brutal.Physics": {
+        "type": "Direct",
+        "requested": "[0.1.0-preview.3, )",
+        "resolved": "0.1.0-preview.3",
+        "contentHash": "qRl6gMUq//RLezgbtDyv/9xlQZ/CH5RIheTM1oB1EfoDtkXSQh+s6TIVurgxnyE6eAB/7K1PpI9P7wdBIdeGSQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Box2D": "[2026.10.2]",
+          "ZeroAllocJobScheduler": "[1.1.2]"
+        }
+      },
+      "Ahwoo.BRUTAL.Box2D": {
+        "type": "Transitive",
         "resolved": "2026.10.2",
         "contentHash": "d6DBNrrVkrSU5z0LyA+GgG46H6KPgjHVUG7YGGgs7yS1mNPP6GO/j2/poppqTrRVe9o9jAjKk7/81S5BjDOrzQ==",
         "dependencies": {
@@ -38,6 +57,31 @@
           "Microsoft.Extensions.Logging": "10.0.0",
           "Microsoft.Extensions.Logging.Console": "10.0.0"
         }
+      },
+      "Arch": {
+        "type": "Transitive",
+        "resolved": "2.1.0",
+        "contentHash": "Z9zxQztEvD/c2tsdW+LDm5E3Rd04JKeWRa6S0JOBfEFE7800+JLa7pgMAL6I/hvOY6q93QXvQ6Y+5E/TPc5Tfw==",
+        "dependencies": {
+          "Arch.LowLevel": "1.1.5",
+          "Collections.Pooled": "2.0.0-preview.27",
+          "CommunityToolkit.HighPerformance": "8.2.2",
+          "Microsoft.Extensions.ObjectPool": "7.0.0",
+          "ZeroAllocJobScheduler": "1.1.2"
+        }
+      },
+      "Arch.LowLevel": {
+        "type": "Transitive",
+        "resolved": "1.1.5",
+        "contentHash": "kc6T2qAsgzdb5RV+RIqVQ33LROhgXmA5fZRUhXRK+AJ1J58NML1i2M6XTKIj1ISirCwuqgYnM4qYkhqGcngG1g==",
+        "dependencies": {
+          "CommunityToolkit.HighPerformance": "8.2.2"
+        }
+      },
+      "Collections.Pooled": {
+        "type": "Transitive",
+        "resolved": "2.0.0-preview.27",
+        "contentHash": "VS3uHc1GNamanS1i1hQ3PoZUddIagCswVMWvucAgqWwY2KVwgL2Q7raGu0hTqP/CWuROoq0RiNbIvu4ST1bMzg=="
       },
       "CommunityToolkit.HighPerformance": {
         "type": "Transitive",
@@ -128,6 +172,11 @@
           "Microsoft.Extensions.Options": "10.0.0"
         }
       },
+      "Microsoft.Extensions.ObjectPool": {
+        "type": "Transitive",
+        "resolved": "7.0.0",
+        "contentHash": "udvKco0sAVgYGTBnHUb0tY9JQzJ/nPDiv/8PIyz69wl1AibeCDZOLVVI+6156dPfHmJH7ws5oUJRiW4ZmAvuuA=="
+      },
       "Microsoft.Extensions.Options": {
         "type": "Transitive",
         "resolved": "10.0.0",
@@ -153,6 +202,11 @@
         "type": "Transitive",
         "resolved": "10.0.0",
         "contentHash": "inRnbpCS0nwO/RuoZIAqxQUuyjaknOOnCEZB55KSMMjRhl0RQDttSmLSGsUJN3RQ3ocf5NDLFd2mOQViHqMK5w=="
+      },
+      "ZeroAllocJobScheduler": {
+        "type": "Transitive",
+        "resolved": "1.1.2",
+        "contentHash": "PKu/zSvwV1fWxt8+CEW15O9OlQ2zB9UoeAaor/aJJ0QeTKxxSjigczYLoVPKjYLAQu3ddZQd7Z3zplVTtUgigQ=="
       }
     }
   }

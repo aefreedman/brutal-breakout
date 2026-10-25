@@ -1,0 +1,5 @@
+{
+  "workerCount": 2,
+  "maxExpectedConcurrentJobs": 64,
+  "physicsWorkerCount": 2
+}

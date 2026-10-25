@@ -10,7 +10,7 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     [Fact]
     public void DisposeIsIdempotentAndAllNativeOperationsRejectUseAfterDispose()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         sim.Dispose();
         sim.Dispose();
         Assert.Throws<ObjectDisposedException>(() => sim.Step());
@@ -21,9 +21,9 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void WrongThreadCannotQueryStepOrDestroyOwnerWorld()
+    public void AnyCallerThreadCanSubmitOrderedPhysicsOperations()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         Exception? step = null, query = null, preview = null, dispose = null;
         var thread = new Thread(() =>
         {
@@ -34,21 +34,20 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
         });
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(10)));
-        Assert.IsType<InvalidOperationException>(step);
-        Assert.IsType<InvalidOperationException>(query);
-        Assert.IsType<InvalidOperationException>(preview);
-        Assert.IsType<InvalidOperationException>(dispose);
-        Assert.True(sim.Preview().HasHit);
-        sim.Step(new(PrimaryPressed: true));
+        Assert.Null(step);
+        Assert.Null(query);
+        Assert.Null(preview);
+        Assert.Null(dispose);
+        Assert.Throws<ObjectDisposedException>(() => sim.Step());
     }
 
     [Fact]
     public void IndependentWorldsAndRepeatedDestructionDoNotShareGameplay()
     {
-        using var still = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var still = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         for (int cycle = 0; cycle < 100; cycle++)
         {
-            using var moving = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+            using var moving = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
             moving.Step(new(new double2(1, 0), true));
             for (int tick = 0; tick < 130; tick++) moving.Step();
             Assert.True(moving.State.CatchEligible);
@@ -61,7 +60,7 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     [Fact]
     public void RepeatedCatchHoldRelaunchRestartKeepsCurrentPoseAndSeparateEdges()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         double penetration = 0, drift = 0;
         for (int cycle = 0; cycle < 50; cycle++)
         {
@@ -108,7 +107,7 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     [Fact]
     public void NativeElapsedMovementUsesTheFixedTimestep()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         sim.Step(new(new double2(1, 0), true));
         for (int i = 1; i < 100; i++) sim.Step();
         ArenaTests.Near(new(1140, 612), sim.State.Position, .01);
@@ -119,14 +118,17 @@ public class LifetimeAndCycleTests(ITestOutputHelper output)
     [Fact]
     public void NativeStepAllocationMeasurement()
     {
-        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));
         sim.Step(new(new double2(1, -.731), true));
         for (int i = 0; i < 200; i++) sim.Step();
+        long totalBefore = GC.GetTotalAllocatedBytes(precise: true);
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 10000; i++) sim.Step();
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        output.WriteLine($"10000 warmed native steps allocated {allocated} managed bytes on owner thread");
-        // Measurement, not a fabricated zero-allocation promise about native binding internals.
+        long total = GC.GetTotalAllocatedBytes(precise: true) - totalBefore;
+        output.WriteLine($"10000 warmed ECS/job ticks: caller={allocated} managed bytes; process={total} managed bytes (includes workers/harness, excludes native allocations)");
+        // Measurement, not a zero-allocation promise: each tick owns its dependency graph/tasks
+        // and immutable publication. Process totals include unrelated harness/background activity.
         Assert.Equal(BallPhase.Flying, sim.State.Phase);
     }
 }
