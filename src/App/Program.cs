@@ -184,6 +184,7 @@ try
         var resizeRequested = false;
         var lastElapsed = TimeSpan.Zero;
         var shapeFrames = 0;
+        var presentedGeometryFrames = 0; // All modes, not just smoke-test stage counters.
         var shapeViewports = new HashSet<(int Width, int Height)>();
         var overlayViewports = new Dictionary<(int Width, int Height), OverlayPresentationEvidence>();
         var hudOnlyViewports = new HashSet<(int Width, int Height)>();
@@ -452,8 +453,12 @@ try
                     colors?.Settings.Hud ?? LinearColor.FromSrgb(1, 1, 1));
 #if BREAKOUT_EDITOR
                 overlayFrame = InspectorHost.Compose(overlayFrame, (gameplayScript?.Session ?? session)?.Simulation,
-                    elapsedSeconds * 1000, gameplayFrames + shapeFrames + shmupFrames, frame?.Vertices.Length ?? 0, frame?.Indices.Length ?? 0,
+                    elapsedSeconds * 1000, presentedGeometryFrames, frame?.Vertices.Length ?? 0, frame?.Indices.Length ?? 0,
                     shmupSession?.Simulation.Snapshot, modes?.Paused ?? false);
+                if (gpuTest && overlayFrame.Diagnostics.PresentedShapeFrames != presentedGeometryFrames)
+                    throw new InvalidOperationException("Inspector lost the prior successful geometry presentation count.");
+                if (gpuTest && presentedGeometryFrames == 1)
+                    Console.WriteLine($"Inspector geometry receipt: priorSuccessfulGeometryFrames=1; diagnosticsShapeFrames={overlayFrame.Diagnostics.PresentedShapeFrames}.");
 #endif
                 // Ordinary gallery keeps its original artwork; F1 can still inspect it. GPU fixtures exercise labels too.
                 if (gallery && !gpuTest) overlayFrame = overlayFrame with { Labels = Array.Empty<OverlayLabel>() };
@@ -461,6 +466,7 @@ try
             }
             var previousOverlay = renderer.OverlayEvidence;
             var geometryPresented = renderer.Draw(frame, colors?.Settings.Background ?? ShapeShowcase.Background);
+            if (geometryPresented) presentedGeometryFrames++;
             // The host owns event waiting; the reusable renderer must not pump the OS.
             // Keep processing pause/capture transitions above, then avoid spinning while no framebuffer is available.
             if (wasIconified || framebuffer.X <= 0 || framebuffer.Y <= 0)
@@ -515,7 +521,7 @@ try
             }
             if (injectStaleFrame && frame.HasValue && renderer.PresentedFrames > framesBeforeDraw)
             {
-                if (geometryPresented || gameplayFrames != 0 || gameplayViewports.Count != 0 || !gameplayScript!.IsInitial)
+                if (geometryPresented || presentedGeometryFrames != 0 || gameplayFrames != 0 || gameplayViewports.Count != 0 || !gameplayScript!.IsInitial)
                     throw new InvalidOperationException("Gameplay: stale frame advanced geometry evidence or stage.");
                 staleFrameRegressionPassed = true;
                 Console.WriteLine("Gameplay receipt regression PASS: clearOnlyPresented=True; geometryPresented=False; nonemptyPresentedFrames=0; viewports=0; stage=Initial.");
