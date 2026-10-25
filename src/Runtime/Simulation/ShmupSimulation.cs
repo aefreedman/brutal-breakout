@@ -13,9 +13,8 @@ public sealed class ShmupSimulation : IDisposable
     private readonly Entity[] balls, bricks;
     private ShmupSnapshot snapshot = null!;
     private bool disposed;
-    private double width, time, fireDelay, rowDelay, invulnerability;
-    private double2 player, aim;
-    private int health;
+    private double width, time, fireDelay, rowDelay;
+    private readonly ShmupAvatarController avatar;
     private long tick, row, droppedBalls, droppedBricks;
     public ShmupSettings Settings { get; }
     public PhysicsSettings Physics { get; }
@@ -34,6 +33,7 @@ public sealed class ShmupSimulation : IDisposable
         ArgumentNullException.ThrowIfNull(physics); ArgumentNullException.ThrowIfNull(settings); ArgumentNullException.ThrowIfNull(execution);
         settings.ValidatePhysics(physics); // All managed validation precedes ECS/native allocation.
         (Physics, Settings, Execution) = (physics, settings, execution);
+        avatar = new(settings);
         world = World.Create();
         try
         {
@@ -55,9 +55,9 @@ public sealed class ShmupSimulation : IDisposable
         for (int i = 0; i < balls.Length; i++) { long generation = Ball(i).Generation; Ball(i) = new() { Generation = generation }; }
         for (int i = 0; i < bricks.Length; i++) { long generation = Brick(i).Generation; Brick(i) = new() { Generation = generation }; }
         width = Settings.Arena.InitialPlayAreaWidth; native.Widen(width);
-        time = fireDelay = rowDelay = invulnerability = 0;
-        tick = row = droppedBalls = droppedBricks = 0; health = Settings.Avatar.Health;
-        player = new(Settings.Arena.Width / 2, Settings.Arena.Height - 2 * Settings.Avatar.Radius); aim = new(0, -1);
+        time = fireDelay = rowDelay = 0;
+        tick = row = droppedBalls = droppedBricks = 0;
+        avatar.Reset();
         Publish();
     }
     /// <summary>Width is centered on the configured canvas. Narrowing/nonfinite/out-of-canvas widths are rejected.</summary>
@@ -77,22 +77,15 @@ public sealed class ShmupSimulation : IDisposable
         {
             Guard();
             if (command.RestartPressed) { Reset(); return; }
-            if (health == 0) return; // Freeze everything, including clocks and publication identity.
+            if (avatar.Health == 0) return; // Freeze everything, including clocks and publication identity.
             double dt = StepSeconds;
-            tick++; time += dt; invulnerability = Math.Max(0, invulnerability - dt);
-            if (command.AimDirection is { } direction && Arena.Finite(direction) && (direction.X != 0 || direction.Y != 0)) aim = Arena.Normalize(direction);
-            double2 move = Arena.Finite(command.MoveDirection) ? command.MoveDirection : default;
-            // Overflow-safe analog normalization; values within unit length preserve analog magnitude.
-            double magnitude = Math.Max(Math.Abs(move.X), Math.Abs(move.Y));
-            if (magnitude > 1 || (magnitude > 0 && move.X * move.X + move.Y * move.Y > 1)) move = Arena.Normalize(move);
-            player += move * (Settings.Avatar.MoveSpeed * dt);
-            double left = (Settings.Arena.Width - width) / 2, r = Settings.Avatar.Radius;
-            player = new(Math.Clamp(player.X, left + r, left + width - r), Math.Clamp(player.Y, r, Settings.Arena.Height - r));
+            tick++; time += dt;
+            avatar.Advance(command, dt, width);
             rowDelay -= dt;
             if (rowDelay <= 0) { SpawnRow(); rowDelay += RowInterval; }
             fireDelay = Math.Max(0, fireDelay - dt);
             if (command.FireHeld && fireDelay <= dt * 1e-9) { Fire(); fireDelay = 1 / Settings.Ball.FireRate; }
-            native.Step(DescentSpeed, player);
+            native.Step(DescentSpeed, avatar.PreviousPosition, avatar.Position);
             Resolve(); Publish();
         }
     }
@@ -113,7 +106,7 @@ public sealed class ShmupSimulation : IDisposable
     private void Fire()
     {
         // Spawn at the avatar center: no own-body collision, and every firing direction remains inside the area.
-        if (SpawnBall(player, aim) < 0) droppedBalls++;
+        if (SpawnBall(avatar.Position, avatar.Aim) < 0) droppedBalls++;
     }
     internal int SpawnBall(double2 position, double2 direction)
     {
@@ -138,7 +131,6 @@ public sealed class ShmupSimulation : IDisposable
         }
         droppedBricks++; return -1;
     }
-    private void DamagePlayer(int damage) => health = Math.Max(0, health - damage);
     private void Resolve()
     {
         // First gather every pair's damage without disabling/reusing resources. Brick interaction wins
@@ -155,10 +147,7 @@ public sealed class ShmupSimulation : IDisposable
             }
             ball.WallHits = brickInteraction ? 0 : (int)Math.Min(int.MaxValue, (long)ball.WallHits + native.WallHits[i]);
         }
-        if (native.AvatarContact && invulnerability <= StepSeconds * 1e-9)
-        {
-            DamagePlayer(Settings.Avatar.ContactDamage); invulnerability = Settings.Avatar.InvulnerabilitySeconds;
-        }
+        avatar.Contact(native.AvatarContact, StepSeconds);
         for (int j = 0; j < bricks.Length; j++)
         {
             ref var brick = ref Brick(j); if (!brick.Active) continue;
@@ -166,7 +155,7 @@ public sealed class ShmupSimulation : IDisposable
             if (brick.Health == 0 || escaped)
             {
                 // A killed brick does not also inflict escape damage in the same tick.
-                if (escaped && brick.Health > 0) DamagePlayer(Settings.Brick.EscapeDamage);
+                if (escaped && brick.Health > 0) avatar.Damage(Settings.Brick.EscapeDamage);
                 native.ClearBrick(j); brick.Active = false;
             }
         }
@@ -191,9 +180,9 @@ public sealed class ShmupSimulation : IDisposable
             ref var brick = ref Brick(i);
             if (brick.Active) brickStates.Add(new(i, brick.Generation, native.BrickPosition(i), Settings.Brick.Size, brick.Health));
         }
-        Volatile.Write(ref snapshot, new(width, Settings.Arena.Height, player, aim, health, time, Settings.Ball.Speed,
-            DescentSpeed, RowInterval, invulnerability, tick, row, droppedBalls, droppedBricks,
-            balls.Length + bricks.Length, native.BodyCount, ballStates.ToArray(), brickStates.ToArray()));
+        Volatile.Write(ref snapshot, new(width, Settings.Arena.Height, avatar.Position, avatar.Aim, avatar.Health, time, Settings.Ball.Speed,
+            DescentSpeed, RowInterval, avatar.InvulnerabilityRemaining, tick, row, droppedBalls, droppedBricks,
+            world.Size, native.BodyCount, ballStates.ToArray(), brickStates.ToArray()));
     }
     public void Dispose()
     {

@@ -22,7 +22,7 @@ internal sealed class NativeShmupArena : IDisposable
     internal bool[,] BrickHits { get; }
     internal int[] WallHits { get; }
     internal bool AvatarContact { get; private set; }
-    internal int BodyCount => balls.Length + bricks.Length + walls.Length;
+    internal int BodyCount => world.GetCounters().BodyCount;
 
     internal NativeShmupArena(PhysicsSettings physics, ShmupSettings settings, ExecutionSettings execution)
     {
@@ -177,9 +177,25 @@ internal sealed class NativeShmupArena : IDisposable
         };
         world.CastShape(in proxy, Native(v * dt), BrickFilter(), callback, nint.Zero); GC.KeepAlive(callback);
     }
-    internal unsafe void Step(double descentSpeed, double2 avatar)
+    internal unsafe void Step(double descentSpeed, double2 previousAvatar, double2 avatar)
     {
         Guard(); Array.Clear(BrickHits); Array.Clear(WallHits);
+        AvatarContact = false;
+        var previousPlayer = Circle(previousAvatar, settings.Avatar.Radius);
+        B2OverlapResultFcn playerOverlap = (shape, context) =>
+        {
+            if (brickIds.TryGetValue(shape, out int brick) && bricks[brick].IsEnabled()) AvatarContact = true;
+            return true;
+        };
+        B2CastResultFcn playerSweep = (shape, point, normal, fraction, context) =>
+        {
+            if (brickIds.TryGetValue(shape, out int brick) && bricks[brick].IsEnabled()) AvatarContact = true;
+            return 1;
+        };
+        world.OverlapShape(in previousPlayer, BrickFilter(), playerOverlap, nint.Zero);
+        world.CastShape(in previousPlayer, Native(avatar - previousAvatar - new double2(0, descentSpeed * physics.StepSeconds)),
+            BrickFilter(), playerSweep, nint.Zero);
+        GC.KeepAlive(playerSweep);
         for (int j = 0; j < bricks.Length; j++) if (bricks[j].IsEnabled()) bricks[j].SetLinearVelocity(Native(new(0, descentSpeed)));
         // Small native intervals keep post-wall piercing paths within a circle overlap. Native sweeps
         // still detect arbitrarily thin crossed bricks, including relative kinematic movement.
@@ -207,14 +223,8 @@ internal sealed class NativeShmupArena : IDisposable
             }
         }
         // Exact native overlap each tick, rather than begin-only damage, supports recurrent contact.
-        AvatarContact = false;
         var player = Circle(avatar, settings.Avatar.Radius);
-        B2OverlapResultFcn playerCallback = (shape, context) =>
-        {
-            if (brickIds.TryGetValue(shape, out int brick) && bricks[brick].IsEnabled()) AvatarContact = true;
-            return true;
-        };
-        world.OverlapShape(in player, BrickFilter(), playerCallback, nint.Zero); GC.KeepAlive(playerCallback);
+        world.OverlapShape(in player, BrickFilter(), playerOverlap, nint.Zero); GC.KeepAlive(playerOverlap);
         // Restore constant configured ball speed after moving-brick restitution transfers energy.
         for (int i = 0; i < balls.Length; i++) if (balls[i].IsEnabled())
         {

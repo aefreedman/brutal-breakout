@@ -22,7 +22,7 @@ public sealed class ShmupSettings
             brick.Size > arena.InitialPlayAreaWidth || brick.ColumnPitch < brick.Size)
             throw new ArgumentException("Actors must fit the initial area and brick pitch must accommodate brick size.");
         if (Math.Ceiling(arena.Width / brick.ColumnPitch) > 16384 ||
-            !double.IsFinite(arena.Width * noise.ColumnScale) || !double.IsFinite(arena.Height * noise.RowScale))
+            !double.IsFinite(16384 * noise.ColumnScale) || !double.IsFinite(65536 * noise.RowScale))
             throw new ArgumentException("Row geometry/noise exceeds supported bounds.");
         // Check native float geometry, circle mass/inertia and float positions before creating a world.
         foreach (double size in new[] { avatar.Radius, ball.Radius, brick.Size / 2 })
