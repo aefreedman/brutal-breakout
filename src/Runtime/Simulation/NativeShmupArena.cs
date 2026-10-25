@@ -298,9 +298,13 @@ internal sealed class NativeShmupArena : IDisposable
             for (int i = 0; i < events.BeginCount; i++) { var e = events.BeginEvents[i]; Contact(e.ShapeIdA, e.ShapeIdB, false); }
             for (int i = 0; i < events.HitCount; i++) { var e = events.HitEvents[i]; Contact(e.ShapeIdA, e.ShapeIdB, false); }
             Array.Clear(overlaps);
-            for (int i = 0; i < balls.Length; i++) if (balls[i].IsEnabled()) OverlapBall(i, true);
-            for (int i = 0; i < balls.Length; i++) for (int j = 0; j < bricks.Length; j++)
-                touching[i, j] = overlaps[i, j] || (settings.Ball.BounceOnBricks && contactFixtures[i, j] != 0);
+            for (int i = 0; i < balls.Length; i++)
+            {
+                if (!balls[i].IsEnabled()) continue; // Inactive rows are cleared before each new life.
+                OverlapBall(i, true);
+                for (int j = 0; j < bricks.Length; j++)
+                    touching[i, j] = overlaps[i, j] || (settings.Ball.BounceOnBricks && contactFixtures[i, j] != 0);
+            }
             // Deduplicate overlap/sweep/begin/hit within this interval, not the entire tick.
             // Touch state survives intervals, so a later exit/reentry is a distinct damage event.
             // Buffer traversal is complete before any disable. Expiry prevents later intervals
