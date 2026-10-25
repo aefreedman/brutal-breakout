@@ -118,7 +118,7 @@ internal sealed class NativeShmupArena : IDisposable
     internal void ActivateBrick(int id, double2 position, ShmupBrickShape shape = ShmupBrickShape.Square, int quarterTurns = 0)
     {
         Guard(); ClearBrick(id);
-        var rects = ShmupBrickGeometry.Rectangles(shape, quarterTurns);
+        var rects = settings.Brick.Geometry.Rectangles(shape, quarterTurns);
         for (int slot = 0; slot < ShmupBrickGeometry.MaximumRectangles; slot++)
         {
             var filter = B2Filter.Default;
@@ -127,8 +127,8 @@ internal sealed class NativeShmupArena : IDisposable
             brickFixtures[id, slot].SetFilter(filter);
             if (slot >= rects.Length) continue;
             var rect = rects[slot];
-            var polygon = Box2D.MakeOffsetBox(Geometry.Meters(rect.HalfExtents.X * settings.Brick.Size),
-                Geometry.Meters(rect.HalfExtents.Y * settings.Brick.Size), Native(rect.Center * settings.Brick.Size), B2Rot.Identity);
+            var polygon = Box2D.MakeOffsetBox(Geometry.Meters(rect.HalfExtents.X),
+                Geometry.Meters(rect.HalfExtents.Y), Native(rect.Center), B2Rot.Identity);
             brickFixtures[id, slot].SetPolygon(in polygon);
         }
         bricks[id].SetTransform(Native(position), B2Rot.Identity); bricks[id].SetLinearVelocity(default); bricks[id].Enable();

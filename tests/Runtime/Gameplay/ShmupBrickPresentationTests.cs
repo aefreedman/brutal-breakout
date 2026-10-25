@@ -36,14 +36,14 @@ public sealed class ShmupBrickPresentationTests
     {
         var settings = ShmupConfiguration.Load(Path.Combine(AppContext.BaseDirectory, "Config", "shmup.json")).Settings;
         var colors = Colors();
-        var rectangles = ShmupBrickGeometry.Rectangles(shape, turn).ToArray();
-        var bounds = ShmupBrickGeometry.BoundsSize(shape, turn);
+        var rectangles = settings.Brick.Geometry.Rectangles(shape, turn).ToArray();
+        var bounds = settings.Brick.Geometry.BoundsSize(shape, turn);
         int height = width * 9 / 16;
         float scale = width / 1280f;
         foreach (double unit in new[] { 18d, 28.8d })
         foreach (int health in new[] { settings.Brick.Health / 2, settings.Brick.Health / 2 + 1 })
         {
-            // Intentionally different from settings.Brick.Size: each publication supplies its own unit scale.
+            // Legacy Size is metadata: authoritative settings supply the shared physical geometry.
             var brick = new ShmupBrickState(7, 11, new(640, 200), unit, health, shape, turn);
             var snapshot = Snapshot(brick);
             var retained = snapshot.Bricks[0];
@@ -62,34 +62,34 @@ public sealed class ShmupBrickPresentationTests
             expected.SetTransform(new float3x2(scale, 0, 0, scale, 0, 0));
             foreach (var rectangle in rectangles)
             {
-                var minimum = brick.Position + (rectangle.Center - rectangle.HalfExtents) * unit;
-                var maximum = brick.Position + (rectangle.Center + rectangle.HalfExtents) * unit;
+                var minimum = brick.Position + (rectangle.Center - rectangle.HalfExtents);
+                var maximum = brick.Position + (rectangle.Center + rectangle.HalfExtents);
                 var start = new float2((float)minimum.X, (float)minimum.Y);
                 var end = new float2((float)maximum.X, (float)maximum.Y);
                 expected.FillRect(start, end - start, color);
             }
             var reference = expected.Finish();
             Assert.Equal(reference.Indices.ToArray().Select(i => reference.Vertices.Span[(int)i]).ToArray(), actual);
-            Assert.Equal((brick.Position.X - bounds.X * unit / 2) * scale, actual.Min(v => (double)v.Position.X), 3);
-            Assert.Equal((brick.Position.X + bounds.X * unit / 2) * scale, actual.Max(v => (double)v.Position.X), 3);
-            Assert.Equal((brick.Position.Y - bounds.Y * unit / 2) * scale, actual.Min(v => (double)v.Position.Y), 3);
-            Assert.Equal((brick.Position.Y + bounds.Y * unit / 2) * scale, actual.Max(v => (double)v.Position.Y), 3);
+            Assert.Equal((brick.Position.X - bounds.X / 2) * scale, actual.Min(v => (double)v.Position.X), 3);
+            Assert.Equal((brick.Position.X + bounds.X / 2) * scale, actual.Max(v => (double)v.Position.X), 3);
+            Assert.Equal((brick.Position.Y - bounds.Y / 2) * scale, actual.Min(v => (double)v.Position.Y), 3);
+            Assert.Equal((brick.Position.Y + bounds.Y / 2) * scale, actual.Max(v => (double)v.Position.Y), 3);
 
             double area = 0;
             for (int i = 0; i < actual.Length; i += 3)
                 area += Math.Abs(Cross(actual[i].Position, actual[i + 1].Position, actual[i + 2].Position)) / 2;
-            int cells = shape == ShmupBrickShape.Square ? 1 : shape == ShmupBrickShape.TwoByOne ? 2 : 4;
-            Assert.Equal(cells * unit * unit * scale * scale, area, 1);
+            double areaExpected = shape switch { ShmupBrickShape.Square => 829.44, ShmupBrickShape.TwoByOne => 1866.24, ShmupBrickShape.TwoByTwo => 4199.04, _ => 3939.84 };
+            Assert.Equal(areaExpected * scale * scale, area, 1);
 
             int emptySamples = 0;
             // Probe interiors and open areas; no bounding-box fill or extra outline is allowed.
-            for (double x = -bounds.X / 2 + .125; x < bounds.X / 2; x += .25)
-            for (double y = -bounds.Y / 2 + .125; y < bounds.Y / 2; y += .25)
+            for (double x = -bounds.X / 2 + .125; x < bounds.X / 2; x += 3.6)
+            for (double y = -bounds.Y / 2 + .125; y < bounds.Y / 2; y += 3.6)
             {
                 bool solid = rectangles.Any(r => Math.Abs(x - r.Center.X) <= r.HalfExtents.X &&
                     Math.Abs(y - r.Center.Y) <= r.HalfExtents.Y);
-                var point = new float2((float)((brick.Position.X + x * unit) * scale),
-                    (float)((brick.Position.Y + y * unit) * scale));
+                var point = new float2((float)((brick.Position.X + x) * scale),
+                    (float)((brick.Position.Y + y) * scale));
                 Assert.Equal(solid, Covered(actual.Select(v => v.Position).ToArray(), point));
                 if (!solid) emptySamples++;
             }
@@ -102,8 +102,8 @@ public sealed class ShmupBrickPresentationTests
                 double low = Math.Max(a.Center.Y - a.HalfExtents.Y, b.Center.Y - b.HalfExtents.Y);
                 double high = Math.Min(a.Center.Y + a.HalfExtents.Y, b.Center.Y + b.HalfExtents.Y);
                 if (low >= high) continue;
-                var joint = new float2((float)(brick.Position.X + (a.Center.X + a.HalfExtents.X) * unit) * scale,
-                    (float)(brick.Position.Y + (low + high) / 2 * unit) * scale);
+                var joint = new float2((float)(brick.Position.X + (a.Center.X + a.HalfExtents.X)) * scale,
+                    (float)(brick.Position.Y + (low + high) / 2) * scale);
                 Assert.True(Covered(actual.Select(v => v.Position).ToArray(), joint));
             }
             Assert.Equal(retained, snapshot.Bricks[0]);

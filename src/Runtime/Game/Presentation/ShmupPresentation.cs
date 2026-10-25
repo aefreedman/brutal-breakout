@@ -34,10 +34,10 @@ public static class ShmupPresentation
         foreach (var brick in snapshot.Bricks)
         {
             var color = brick.Health * 2 > settings.Brick.Health ? colors.BrickPrimary : colors.BrickAccent;
-            foreach (var rectangle in ShmupBrickGeometry.Rectangles(brick.Shape, brick.QuarterTurns))
+            foreach (var rectangle in settings.Brick.Geometry.Rectangles(brick.Shape, brick.QuarterTurns))
             {
-                var minimum = brick.Position + (rectangle.Center - rectangle.HalfExtents) * brick.Size;
-                var maximum = brick.Position + (rectangle.Center + rectangle.HalfExtents) * brick.Size;
+                var minimum = brick.Position + (rectangle.Center - rectangle.HalfExtents);
+                var maximum = brick.Position + (rectangle.Center + rectangle.HalfExtents);
                 // Convert shared endpoints before subtracting so adjacent parts retain exactly coincident edges.
                 var start = new float2((float)minimum.X, (float)minimum.Y);
                 var end = new float2((float)maximum.X, (float)maximum.Y);

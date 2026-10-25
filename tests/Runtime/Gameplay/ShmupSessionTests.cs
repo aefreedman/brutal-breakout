@@ -123,10 +123,10 @@ public sealed class ShmupSessionTests
         var frame = ShmupPresentation.Build(draw, snapshot, settings, TestSettings.Colors, TestSettings.Style, 1280, 720);
         using var expected = new ShapeDrawList(); expected.BeginFrame(1280, 720);
         foreach (var brick in snapshot.Bricks)
-            foreach (var rectangle in ShmupBrickGeometry.Rectangles(brick.Shape, brick.QuarterTurns))
+            foreach (var rectangle in settings.Brick.Geometry.Rectangles(brick.Shape, brick.QuarterTurns))
             {
-                var minimum = brick.Position + (rectangle.Center - rectangle.HalfExtents) * brick.Size;
-                var maximum = brick.Position + (rectangle.Center + rectangle.HalfExtents) * brick.Size;
+                var minimum = brick.Position + (rectangle.Center - rectangle.HalfExtents);
+                var maximum = brick.Position + (rectangle.Center + rectangle.HalfExtents);
                 var start = new float2((float)minimum.X, (float)minimum.Y);
                 var end = new float2((float)maximum.X, (float)maximum.Y);
                 expected.FillRect(start, end - start, TestSettings.Colors.BrickPrimary);

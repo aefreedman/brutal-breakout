@@ -30,18 +30,18 @@ public sealed class ShmupSettings
             throw new ArgumentException("Fixture capacity exceeds the bounded native budget.");
         foreach (var shape in Enum.GetValues<ShmupBrickShape>()) for (int q = 0; q < 4; q++)
         {
-            var bounds = ShmupBrickGeometry.BoundsSize(shape, q) * brick.Size;
+            var bounds = brick.Geometry.BoundsSize(shape, q);
             Geometry.NativePositive(bounds.X); Geometry.NativePositive(bounds.Y);
-            foreach (var rect in ShmupBrickGeometry.Rectangles(shape, q))
+            foreach (var rect in brick.Geometry.Rectangles(shape, q))
             {
-                float hx = Geometry.NativePositive(rect.HalfExtents.X * brick.Size);
-                float hy = Geometry.NativePositive(rect.HalfExtents.Y * brick.Size);
+                float hx = Geometry.NativePositive(rect.HalfExtents.X);
+                float hy = Geometry.NativePositive(rect.HalfExtents.Y);
                 Geometry.SafeSquare(hx); Geometry.SafeSquare(hy);
-                float cx = Geometry.Meters(rect.Center.X * brick.Size);
-                float cy = Geometry.Meters(rect.Center.Y * brick.Size);
+                float cx = Geometry.Meters(rect.Center.X);
+                float cy = Geometry.Meters(rect.Center.Y);
                 if (!(cx - hx < cx && cx + hx > cx && cy - hy < cy && cy + hy > cy))
                     throw new ArgumentException("Native fixture geometry collapses.");
-                foreach (double location in new[] { arena.Width + bounds.X, arena.Height + bounds.Y })
+                foreach (double location in new[] { arena.Width + bounds.X, arena.Height + bounds.Y + brick.ColumnPitch })
                 {
                     float p = Geometry.Meters(location);
                     if (!(p - hx < p && p + hx > p && p - hy < p && p + hy > p))
@@ -79,6 +79,9 @@ public sealed class ShmupSettings
         if (!double.IsFinite(intervals) || intervals > 4096 || intervalStep <= 0 || intervalSubstep <= 0 ||
             !float.IsFinite(1f / intervalStep) || !float.IsFinite(1f / intervalSubstep))
             throw new ArgumentException("Collision chronology requires at most 4096 representable native intervals per tick.");
+        double gridTravel = Difficulty.MaximumDescentSpeed * physics.StepSeconds / Brick.ColumnPitch;
+        if (!double.IsFinite(gridTravel) || gridTravel >= 65536)
+            throw new ArgumentException("Descent travel exceeds the bounded grid phase budget.");
         // At most one firing/row deadline per tick. Reject undersampling rather than silently drop time.
         if (Ball.FireRate > physics.UpdateHz || Difficulty.MinimumRowInterval < physics.StepSeconds)
             throw new ArgumentException("Firing and row intervals must be at least one physics tick.");
@@ -122,6 +125,7 @@ public sealed class ShmupBallSettings
 }
 public sealed class ShmupBrickSettings
 {
+    public ShmupBrickGeometry Geometry { get; }
     public double Size { get; } public double ColumnPitch { get; } public int Health { get; } public int EscapeDamage { get; }
     private readonly ShmupBrickShape[] shapes;
     private readonly int[] quarterTurns;
@@ -142,6 +146,7 @@ public sealed class ShmupBrickSettings
         ShmupValidation.Positive(size, nameof(size)); ShmupValidation.Positive(columnPitch, nameof(columnPitch));
         ShmupValidation.Positive(health, nameof(health)); ShmupValidation.Positive(escapeDamage, nameof(escapeDamage));
         (Size, ColumnPitch, Health, EscapeDamage) = (size, columnPitch, health, escapeDamage);
+        Geometry = new(size, columnPitch);
     }
 }
 public sealed class ShmupDifficultySettings

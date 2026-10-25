@@ -5,49 +5,59 @@ namespace BrutalBreakout.Simulation;
 public enum ShmupBrickShape { Square, TwoByOne, TwoByTwo, L, T }
 public readonly record struct ShmupBrickRect(double2 Center, double2 HalfExtents);
 
-/// <summary>Immutable unit-cell geometry, centered on its rotated bounding box. Joined cells have no pitch padding.</summary>
-public static class ShmupBrickGeometry
+/// <summary>Immutable logical geometry: grid squares joined by solid bridges, with concave cutouts preserved.</summary>
+public sealed class ShmupBrickGeometry
 {
     public const int MaximumRectangles = 4;
-    private static readonly ShmupBrickRect[][] geometry = Build();
-    public static ReadOnlySpan<ShmupBrickRect> Rectangles(ShmupBrickShape shape, int quarterTurns)
+    private readonly ShmupBrickRect[][] geometry = new ShmupBrickRect[20][];
+    private readonly double size, pitch;
+    public ShmupBrickGeometry(double size, double pitch)
+    {
+        ShmupValidation.Positive(size, nameof(size)); ShmupValidation.Positive(pitch, nameof(pitch));
+        if (pitch < size || !double.IsFinite(2 * pitch + size)) throw new ArgumentOutOfRangeException(nameof(pitch));
+        (this.size, this.pitch) = (size, pitch);
+        for (int s = 0; s < 5; s++) for (int q = 0; q < 4; q++)
+        {
+            var shape = (ShmupBrickShape)s;
+            ShmupBrickRect[] parts = shape switch
+            {
+                ShmupBrickShape.L => [new(new(-pitch / 2, 0), new(size / 2, (2 * pitch + size) / 2)),
+                    new(new(size / 2, pitch), new(pitch / 2, size / 2))],
+                ShmupBrickShape.T => [new(new(0, -pitch / 2), new((2 * pitch + size) / 2, size / 2)),
+                    new(new(0, size / 2), new(size / 2, pitch / 2))],
+                _ => [new(default, BoundsSize(shape, 0) / 2)]
+            };
+            for (int i = 0; i < parts.Length; i++)
+            {
+                var p = parts[i];
+                for (int turn = 0; turn < q; turn++) p = new(new(-p.Center.Y, p.Center.X), new(p.HalfExtents.Y, p.HalfExtents.X));
+                parts[i] = p;
+            }
+            geometry[s * 4 + q] = parts;
+        }
+    }
+    public ReadOnlySpan<ShmupBrickRect> Rectangles(ShmupBrickShape shape, int quarterTurns)
     {
         Validate(shape, quarterTurns);
         return geometry[(int)shape * 4 + quarterTurns];
     }
-    public static double2 BoundsSize(ShmupBrickShape shape, int quarterTurns)
+    public double2 BoundsSize(ShmupBrickShape shape, int quarterTurns)
+    {
+        var cells = CellDimensions(shape, quarterTurns);
+        return new((cells.Columns - 1) * pitch + size, (cells.Rows - 1) * pitch + size);
+    }
+    public static (int Columns, int Rows) CellDimensions(ShmupBrickShape shape, int quarterTurns)
     {
         Validate(shape, quarterTurns);
-        double2 size = shape switch
+        (int columns, int rows) = shape switch
         {
-            ShmupBrickShape.Square => new(1, 1), ShmupBrickShape.TwoByOne => new(2, 1),
-            ShmupBrickShape.TwoByTwo => new(2, 2), ShmupBrickShape.L => new(2, 3), _ => new(3, 2)
+            ShmupBrickShape.Square => (1, 1), ShmupBrickShape.TwoByOne => (2, 1),
+            ShmupBrickShape.TwoByTwo => (2, 2), ShmupBrickShape.L => (2, 3), _ => (3, 2)
         };
-        return quarterTurns % 2 == 0 ? size : new(size.Y, size.X);
+        return quarterTurns % 2 == 0 ? (columns, rows) : (rows, columns);
     }
     private static void Validate(ShmupBrickShape shape, int turns)
     {
         if ((uint)shape > (uint)ShmupBrickShape.T || (uint)turns > 3) throw new ArgumentOutOfRangeException(nameof(shape));
-    }
-    private static ShmupBrickRect[][] Build()
-    {
-        var result = new ShmupBrickRect[20][];
-        for (int s = 0; s < 5; s++) for (int q = 0; q < 4; q++)
-        {
-            var shape = (ShmupBrickShape)s;
-            if (s < 3) { result[s * 4 + q] = [new(default, BoundsSize(shape, q) / 2)]; continue; }
-            double2[] cells = shape == ShmupBrickShape.L
-                ? [new(-.5, -1), new(-.5, 0), new(-.5, 1), new(.5, 1)]
-                : [new(-1, -.5), new(0, -.5), new(1, -.5), new(0, .5)];
-            var rects = new ShmupBrickRect[cells.Length];
-            for (int i = 0; i < cells.Length; i++)
-            {
-                double2 p = cells[i];
-                for (int turn = 0; turn < q; turn++) p = new(-p.Y, p.X);
-                rects[i] = new(p, new(.5, .5));
-            }
-            result[s * 4 + q] = rects;
-        }
-        return result;
     }
 }
