@@ -72,6 +72,24 @@ public sealed class AimGeometryTests
         Assert.True(aimIndices.Last().offset < frame.Indices.Length - 6);
     }
     [Fact]
+    public void LiveNativeSnapshotDrawsFullOpenAimAndThenSideImpactIndicator()
+    {
+        var settings = ShmupConfiguration.Load(Path.Combine(AppContext.BaseDirectory, "Config", "shmup.json")).Settings;
+        using var session = new ShmupSession(TestSettings.Baseline, settings, TestSettings.Input, new(2, 64, 2));
+        using var draw = new ShapeDrawList();
+        var snapshot = session.Simulation.Snapshot;
+        Assert.False(snapshot.AimPreview.Hit.HasHit); Assert.True(snapshot.AimPreview.Hit.Distance > 0);
+        var frame = ShmupPresentation.Build(draw, snapshot, settings, TestSettings.Colors, TestSettings.Style, 1280, 720, out var open);
+        Assert.Equal(6, open.AimIndices);
+        var color = TestSettings.Colors.Aim; var target = new float4(color.R, color.G, color.B, color.A);
+        Assert.Contains(frame.Vertices.ToArray(), v => v.Color == target && v.Position.Y <= .01f);
+        session.Simulation.Step(new(AimDirection: new double2(1, 0)));
+        snapshot = session.Simulation.Snapshot;
+        Assert.True(snapshot.AimPreview.Hit.HasHit);
+        ShmupPresentation.Build(draw, snapshot, settings, TestSettings.Colors, TestSettings.Style, 1280, 720, out var impact);
+        Assert.True(impact.AimIndices > open.AimIndices);
+    }
+    [Fact]
     public void BallSandboxStillUsesItsOriginalPreviewAndSecondNativeQuery()
     {
         using var simulation = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay, new(2, 64, 2));

@@ -135,9 +135,21 @@ public sealed class BallTrailTests
         session.Advance(default, 100, view); session.Advance(Input(), 100, view);
         Assert.Same(snapshot, session.Simulation.Snapshot); Assert.Equal(4, session.Trails.PointCount);
         using var draw = new ShapeDrawList();
-        ShmupPresentation.Build(draw, snapshot, settings, TestSettings.Colors, TestSettings.Style, 1280, 720, out var first, session.Trails);
+        var original = ShmupPresentation.Build(draw, snapshot, settings, TestSettings.Colors, TestSettings.Style, 1280, 720, out var first, session.Trails);
+        // ShapeFrame is a draw-list view: own the evidence before the next BeginFrame reuses storage.
+        var originalTrail = original.Vertices.ToArray().Where(v => v.Color.W < 1).Select(v => v.Position).ToArray();
         var frame = ShmupPresentation.Build(draw, snapshot, settings, TestSettings.Colors, TestSettings.Style, 1280, 960, out var second, session.Trails);
         Assert.Equal(first.TrailIndices, second.TrailIndices); Assert.True(second.TrailIndices > 0);
+        var letterboxTrail = frame.Vertices.ToArray().Where(v => v.Color.W < 1).Select(v => v.Position).ToArray();
+        Assert.Equal(originalTrail.Select(p => new float2(p.X, p.Y + 120)).ToArray(), letterboxTrail);
+        var resized = ShmupPresentation.Build(draw, snapshot, settings, TestSettings.Colors, TestSettings.Style, 960, 540, session.Trails);
+        var resizedTrail = resized.Vertices.ToArray().Where(v => v.Color.W < 1).Select(v => v.Position).ToArray();
+        Assert.Equal(originalTrail.Length, resizedTrail.Length);
+        for (int i = 0; i < originalTrail.Length; i++)
+        {
+            Assert.InRange(Math.Abs(originalTrail[i].X * .75f - resizedTrail[i].X), 0, .001f);
+            Assert.InRange(Math.Abs(originalTrail[i].Y * .75f - resizedTrail[i].Y), 0, .001f);
+        }
         Assert.All(frame.Vertices.ToArray(), v => Assert.True(float.IsFinite(v.Position.X) && float.IsFinite(v.Position.Y)));
         session.Simulation.Widen(settings.Arena.Width); session.Advance(Input(false), 0, view);
         Assert.Equal(4, session.Trails.PointCount);
