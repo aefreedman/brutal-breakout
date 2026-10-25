@@ -306,10 +306,11 @@ try
                             Cursor = new(double.NaN, double.NaN) };
                         elapsedSeconds = physics!.Settings.StepSeconds * physics.Settings.MaxCatchUpSteps;
                     }
-                    audio!.SetSuppressed(muteAudio || shmupSession is not null, filtered.Focused && !filtered.Minimized);
+                    audio!.SetSuppressed(muteAudio, filtered.Focused && !filtered.Minimized);
                     if (shmupSession is not null)
                     {
                         shmupSession.Advance(filtered, elapsedSeconds, new(size.X, size.Y, pixels.X, pixels.Y, shmupSession.Settings.Arena));
+                        audio.ConsumeShmup(shmupSession.DrainEvents());
                         window.Title = $"Brutal Breakout | Shmup | HP: {shmupSession.Simulation.Snapshot.PlayerHealth}";
                         lastGameTitle = null;
                     }
