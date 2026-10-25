@@ -6,7 +6,8 @@ param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug',
       [string] $InputConfig,
       [string] $ColorsConfig,
       [string] $StyleConfig,
-      [string] $WindowConfig)
+      [string] $WindowConfig,
+      [switch] $Overlays)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Requires Windows/PowerShell 7.' }
@@ -77,6 +78,7 @@ $process = $null
 try {
     $start = [Diagnostics.ProcessStartInfo]::new($exe)
     $start.ArgumentList.Add($(if ($Mode -eq 'Gameplay') { '--gameplay-smoke-test' } else { '--smoke-test' }))
+    if ($Overlays) { $start.ArgumentList.Add('--overlay-smoke-test') }
     $start.ArgumentList.Add('--window-config')
     $start.ArgumentList.Add($windowPath)
     if ($Mode -eq 'Gameplay') {
@@ -277,6 +279,14 @@ try {
             throw 'Missing gameplay transitions/resize/validation evidence.'
         }
     }
+    if ($Overlays) {
+        foreach ($size in @('1280x720', '960x540')) {
+            if (-not $output.Contains("HUD-only viewport: $size; inspectorActive=False; capture=False; directQuadIndices=True.") -or
+                -not $output.Contains("Overlay viewport: $size;")) { throw "Missing actual HUD-only/inspector/image receipts at $size." }
+        }
+        if (-not $output.Contains('Overlay smoke PASS: text, Stb image and readonly inspector presented at both extents; generation advanced; audio device disabled.')) { throw 'Missing completed overlay lifecycle evidence.' }
+    }
+    if (-not $output.Contains('Audio host: nativeRequested=False; muted=True.')) { throw 'Hidden mode did not confirm disabled audio device creation.' }
     if ($errors -match 'VkResultError|\[Vulkan Error') { throw 'Unexpected Vulkan error.' }
     Write-Output "PASS hidden GPU smoke ($Configuration/$Mode): foreground unchanged; no visible test windows observed (10ms sampling)."
 }

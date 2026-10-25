@@ -107,7 +107,7 @@ public sealed class OverlayTextureTests
         Assert.Equal(new float2(.5f, 1), batch.Vertices[2].Uv);
         Assert.Equal(new float2(10, 5), batch.Vertices[3].Position);
         Assert.Equal(new float2(1, 1), batch.Vertices[3].Uv);
-        Assert.Equal(new float4(.2f, .1f, .05f, .5f), batch.Vertices[0].Color); // No unpremultiply/byte tint quantization.
+        Assert.Equal(new float4(.1f, .05f, .025f, .5f), batch.Vertices[0].Color); // Straight LinearColor is premultiplied once, without byte quantization.
         float area = 0;
         for (int i = 0; i < 6; i += 3)
         {

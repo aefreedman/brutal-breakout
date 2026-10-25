@@ -19,6 +19,7 @@
     <Compile Remove="Audio/**/*.cs;Rendering/Shapes/**/*.cs;Simulation/**/*.cs;Platform/**/*.cs;tests/**/*.cs" />
     <ProjectReference Include="Rendering/Shapes/BrutalBreakout.Shapes.csproj" />
     <ProjectReference Include="Simulation/BrutalBreakout.Simulation.csproj" />
+    <ProjectReference Include="Audio/BrutalBreakout.Audio.csproj" />
     <ProjectReference Include="Platform/Input/BrutalBreakout.Input.csproj" />
   </ItemGroup>
 

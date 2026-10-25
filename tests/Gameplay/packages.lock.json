@@ -80,12 +80,82 @@
         "resolved": "2026.10.5",
         "contentHash": "rK/ZnsFI2CVdJwCXz1rzjyOZz0xlbMocAQk1DYZ2sB9U090mwlhLRyCtcrspBYhdQXg0V9J/Kzhvhhnu52yy5A=="
       },
+      "Ahwoo.BRUTAL.Gli": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "QXEtKrNl0I7PpmLZy0cgGohezh9SmQUlGgrrqt7mYdsZKNFoXpELdV00t8ZZYQsJ0a+HwRcShrOT7I01QBgtSQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Gli.Native": "2026.10.2",
+          "Ahwoo.BRUTAL.Numerics": "2026.10.2"
+        }
+      },
+      "Ahwoo.BRUTAL.Gli.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "Wqx84lnwuq2njBXjdV3QgcADfsC/ma/XFc03vc1FQUO6Lf+8/bMu0+AjotLQhOboi38O+VRJPmHdoa1LCR+r7g=="
+      },
+      "Ahwoo.BRUTAL.ImGui": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "USCy09GwYrVpfHZFiLftdCnzFiSzeNg618OV2MIADBlf72oNJ3I3M7XEPXCfqXHWx+QR8hn3jXoGkc13knmbFw==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.ImGui.Native": "2026.10.3",
+          "Ahwoo.BRUTAL.Localization": "2026.10.3",
+          "Ahwoo.BRUTAL.Memory": "2026.10.2",
+          "Ahwoo.BRUTAL.Numerics": "2026.10.2",
+          "Ahwoo.BRUTAL.Strings": "2026.10.2",
+          "CommunityToolkit.HighPerformance": "8.4.2"
+        }
+      },
+      "Ahwoo.BRUTAL.ImGui.Backends": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "Do4OQA5WQeNxt2VYsYS2RCrdhjuky5Vea59MaGzsoGkMIcCtxWW+ZSGorOi7Tl5iuCriWxTXOShLYhCHt7gzrw==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Glfw": "2026.10.5",
+          "Ahwoo.BRUTAL.ImGui": "2026.10.3",
+          "Ahwoo.BRUTAL.OpenGl": "2026.10.2",
+          "Ahwoo.BRUTAL.Vulkan.Abstractions": "2026.10.3",
+          "CommunityToolkit.HighPerformance": "8.4.2"
+        }
+      },
+      "Ahwoo.BRUTAL.ImGui.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "O2Zyy6T7Rg1Qa53zLIQ8n/IkpBeyb+fAAnUQZ8EeZhmwiIU4ssdSAPOCQJogZiMqLvF3NB6BcjpJERwS4H8b/w=="
+      },
       "Ahwoo.BRUTAL.Interop": {
         "type": "Transitive",
         "resolved": "2026.10.2",
         "contentHash": "zkw974UmzSw35DpsPcqttmE4JsvqFrMfweQ0TiKDchtjAFSK1W1BDUrSJm6Xd73gz7YiqSBW533D5S4EOLH4Hw==",
         "dependencies": {
           "Ahwoo.BRUTAL.Core": "2026.10.4"
+        }
+      },
+      "Ahwoo.BRUTAL.Ktx": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "xUXO3XcdJOhfvjWM5gbgR9EzE3mYsPZTIke7wdBjoOcmB6db5uzfPMRDOqdF6y1paq0BzLYX7AS2ictweb12cw==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Ktx.Native": "2026.10.2",
+          "Ahwoo.BRUTAL.Numerics": "2026.10.2"
+        }
+      },
+      "Ahwoo.BRUTAL.Ktx.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "/QXqaaVhV2hXZQPvWIFhSY4ICwPEtNWSfe2ooPyrlCg23a7oZepNFO5/ccqTgzMlw2U95C0odV88lddjbBTQCg=="
+      },
+      "Ahwoo.BRUTAL.Localization": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "sK6FmyAXwSxrvvHfYTe10TnKoJBMl72EdzqjmKJteiQ2XTUrclZ1nkiVolk/JvBltlaQH4HhiP7b3L3zvWbqkw==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Logging": "2026.10.3"
         }
       },
       "Ahwoo.BRUTAL.Logging": {
@@ -120,6 +190,21 @@
           "Microsoft.Extensions.Logging.Console": "10.0.0"
         }
       },
+      "Ahwoo.BRUTAL.OpenGl": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "mqSW1Ay9iir7DZcmdIXK3TGaBF9qVNOf2O/DkG8fv458ope+fiLutV71kO8vP4PMmoAPOa6nH8CnZYfUcxIqwg==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Numerics": "2026.10.2",
+          "Ahwoo.BRUTAL.OpenGl.Native": "2026.10.2"
+        }
+      },
+      "Ahwoo.BRUTAL.OpenGl.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "I0t9h8J2DRKyOhy008uT7z5+EwDJ/18nk1DcMAm0xGVR1GUl5iWRuV0cPRLP6hEjuiUk27chElX0B+wSr90gPg=="
+      },
       "Ahwoo.BRUTAL.Render.Common": {
         "type": "Transitive",
         "resolved": "2026.10.2",
@@ -139,6 +224,62 @@
           "Ahwoo.BRUTAL.Render.Common": "2026.10.2"
         }
       },
+      "Ahwoo.BRUTAL.Sdl": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "GVNfXjwE8rMakreNxpUqfT9MiZPIOqc1XWj5PtlZa4DbO7jiKy9xBcUfnxFkFbItCoELbEod3PYnJubXNCyc0g==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Interop": "2026.10.2",
+          "Ahwoo.BRUTAL.Logging": "2026.10.3",
+          "Ahwoo.BRUTAL.Sdl.Native": "2026.10.3"
+        }
+      },
+      "Ahwoo.BRUTAL.Sdl.Mixer": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "AAymGgjXb3hZlHJb0pnu108qLO8qD3QkzxBxUR8LhRnJREvzstLrKaccNK6n4RtV1wi2iQICV1HHnJ32FDju+g==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Interop": "2026.10.2",
+          "Ahwoo.BRUTAL.Logging": "2026.10.3",
+          "Ahwoo.BRUTAL.Sdl": "2026.10.3",
+          "Ahwoo.BRUTAL.Sdl.Mixer.Native": "2026.10.3"
+        }
+      },
+      "Ahwoo.BRUTAL.Sdl.Mixer.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "2w4Q6oRqjdjVzTc6CqFO4LsML9SrokoogNtlqJPe9UfajM53qewCTk5kH0lriNCp3artTiKUQKzNi6pMq7HhKQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Sdl.Native": "2026.10.3"
+        }
+      },
+      "Ahwoo.BRUTAL.Sdl.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "jdznWQL6CTKd30scd9IEB7CLsCtT4AuFWWhpjfYPqj2woUe5QnNarMKnziY95zpTtmgYCX0vIxLXiY+zOXNziQ=="
+      },
+      "Ahwoo.BRUTAL.Sdl.Ttf": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "FQI1860/3Kkr9+AwBhPcVga6mrLKOMKLJ+/Uw/1Mu1pqMb59Fde4CsIYU37EMGutbW0199bYTHlFqI+YR2Z80g==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Interop": "2026.10.2",
+          "Ahwoo.BRUTAL.Logging": "2026.10.3",
+          "Ahwoo.BRUTAL.Sdl": "2026.10.3",
+          "Ahwoo.BRUTAL.Sdl.Ttf.Native": "2026.10.3"
+        }
+      },
+      "Ahwoo.BRUTAL.Sdl.Ttf.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "ynjrDA7GNq1f+whuFZSif2Bp983PYv1PaII1Cxso7UyBQs3G+DnkrNWqcwuR+Z0PVm4n/IzkR2JOwDkbI9o3bQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Sdl.Native": "2026.10.3"
+        }
+      },
       "Ahwoo.BRUTAL.ShaderC": {
         "type": "Transitive",
         "resolved": "2026.10.3",
@@ -155,6 +296,22 @@
         "resolved": "2026.10.3",
         "contentHash": "mJgkbVx+Jodj9VCGzEn8FyuUkCTfrR7BwxDONB3V3ORO5NjOld6qqlplOx59xaE4cc3q3JM/wQY+7i+u1xRi/g=="
       },
+      "Ahwoo.BRUTAL.Stb": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "+yI/jhThN7g5rKXDBN6wqhg2NCYvd28QxjLMbnSRsqxXR7Pt6vNMrkjKra/vpBawfFPvxkWQullMgpC/Q51sOw==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Numerics": "2026.10.2",
+          "Ahwoo.BRUTAL.Stb.Native": "2026.10.3",
+          "Ahwoo.BRUTAL.Strings": "2026.10.2"
+        }
+      },
+      "Ahwoo.BRUTAL.Stb.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "YVmNOHa8pnQqfI7HBHuBWTIrIafK2Ctllnkssi2ZinAX3L/JDyZHYBiur4sPDM+cW+A2LTbOseGC6rQ63E6Jmw=="
+      },
       "Ahwoo.BRUTAL.Strings": {
         "type": "Transitive",
         "resolved": "2026.10.2",
@@ -167,6 +324,27 @@
           "Microsoft.Extensions.Logging": "10.0.0",
           "Microsoft.Extensions.Logging.Console": "10.0.0",
           "Microsoft.Extensions.ObjectPool": "11.0.0-preview.5.26302.115"
+        }
+      },
+      "Ahwoo.BRUTAL.Texture": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "q5ug4aXubCbJ6ygNsKG08IUmMmmWqxMeTLRp3m7P/O6Ifl5NpzCA1wRpMLtN/c5zvzwVYMP+7BzyJwWBjBfxEw==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Gli": "2026.10.2",
+          "Ahwoo.BRUTAL.Interop": "2026.10.2",
+          "Ahwoo.BRUTAL.Ktx": "2026.10.2",
+          "Ahwoo.BRUTAL.Numerics": "2026.10.2",
+          "Ahwoo.BRUTAL.Stb": "2026.10.3"
+        }
+      },
+      "Ahwoo.BRUTAL.Texture.Abstractions": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "f2RetsPmVnfYUVjJe6qFbo8yFsLf2ooQ6R+epPuUHMdo1MgyNEvevDRqzdZK/cPQDH61cN45IP011RbmshkUaQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Texture": "2026.10.3"
         }
       },
       "Ahwoo.BRUTAL.Vulkan": {
@@ -404,12 +582,25 @@
         "dependencies": {
           "Ahwoo.BRUTAL.Core": "[2026.10.4, )",
           "Ahwoo.BRUTAL.Glfw": "[2026.10.5, )",
+          "Ahwoo.BRUTAL.ImGui": "[2026.10.3, )",
+          "Ahwoo.BRUTAL.ImGui.Backends": "[2026.10.3, )",
+          "Ahwoo.BRUTAL.Sdl.Ttf": "[2026.10.3, )",
           "Ahwoo.BRUTAL.ShaderC": "[2026.10.3, )",
+          "Ahwoo.BRUTAL.Texture": "[2026.10.3, )",
+          "Ahwoo.BRUTAL.Texture.Abstractions": "[2026.10.3, )",
           "Ahwoo.BRUTAL.Vulkan": "[2026.10.3, )",
           "Ahwoo.BRUTAL.Vulkan.Abstractions": "[2026.10.3, )",
           "Ahwoo.BRUTAL.Vulkan.Vma": "[2026.10.3, )",
+          "BrutalBreakout.Audio": "[1.0.0, )",
           "BrutalBreakout.Input": "[1.0.0, )",
           "BrutalBreakout.Shapes": "[1.0.0, )",
+          "BrutalBreakout.Simulation": "[1.0.0, )"
+        }
+      },
+      "brutalbreakout.audio": {
+        "type": "Project",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Sdl.Mixer": "[2026.10.3, 2026.10.3]",
           "BrutalBreakout.Simulation": "[1.0.0, )"
         }
       },

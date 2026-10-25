@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using BrutalBreakout.Audio;
+using BrutalBreakout.Presentation.Overlay;
 using BrutalBreakout.Configuration;
 using Brutal.GlfwApi;
 using Brutal.Numerics;
@@ -9,6 +11,9 @@ using BrutalBreakout.Platform.Input;
 
 var gameplaySmokeTest = args.Contains("--gameplay-smoke-test");
 var showcase = args.Contains("--showcase");
+var debugUi = args.Contains("--debug-ui");
+var overlaySmokeTest = args.Contains("--overlay-smoke-test");
+var muteAudio = args.Contains("--mute");
 var hiddenSmokeTest = args.Contains("--smoke-test");
 var lifecycleSmokeTest = args.Contains("--lifecycle-smoke-test");
 var resizeStressTest = args.Contains("--visible-resize-stress");
@@ -17,6 +22,8 @@ if (new[] { hiddenSmokeTest, gameplaySmokeTest, lifecycleSmokeTest, resizeStress
 var smokeTest = hiddenSmokeTest || lifecycleSmokeTest;
 var gpuTest = smokeTest || resizeStressTest || gameplaySmokeTest;
 var gallery = showcase || smokeTest || resizeStressTest;
+if (overlaySmokeTest && !hiddenSmokeTest && !gameplaySmokeTest)
+    throw new ArgumentException("--overlay-smoke-test requires a hidden GPU test mode.");
 var cleanupSelfTest = args.Contains("--cleanup-self-test");
 if (smokeTest || cleanupSelfTest) VerifyCleanupFailureHandling();
 if (cleanupSelfTest) return;
@@ -26,6 +33,8 @@ LoadedGameplayConfiguration? gameplay;
 LoadedInputConfiguration? input;
 LoadedColorSchemeConfiguration? colors;
 LoadedPresentationStyleConfiguration? style;
+LoadedAudioConfiguration? audioConfiguration;
+LoadedOverlayConfiguration? overlays;
 try
 {
     windowConfiguration = WindowConfiguration.LoadForMode(args, AppContext.BaseDirectory, Environment.CurrentDirectory);
@@ -34,6 +43,11 @@ try
     input = InputConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     colors = ColorSchemeConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     style = PresentationStyleConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    audioConfiguration = AudioConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    overlays = OverlayConfiguration.LoadForMode(args, !gallery || gpuTest || debugUi, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    if (overlays is not null) OverlayHost.Validate(overlays.Settings, gameplay?.Settings);
+    if (overlaySmokeTest && overlays?.Settings.Enabled != true)
+        throw new ArgumentException("Overlay smoke requires enabled overlays.");
     if (style is not null && gameplay is not null) style.Settings.Validate(gameplay.Settings);
     if (physics is not null && gameplay is not null) GameplayConfiguration.ValidatePhysics(gameplay, physics);
     Console.WriteLine(windowConfiguration.Describe());
@@ -42,6 +56,8 @@ try
     if (input is not null) Console.WriteLine(input.Describe());
     if (colors is not null) Console.WriteLine(colors.Describe());
     if (style is not null) Console.WriteLine(style.Describe());
+    if (audioConfiguration is not null) Console.WriteLine(FormattableString.Invariant($"Audio configuration: enabled={audioConfiguration.Settings.Enabled}; masterGain={audioConfiguration.Settings.MasterGain}; maxVoices={audioConfiguration.Settings.MaxVoices}; path={audioConfiguration.Path}"));
+    if (overlays is not null) Console.WriteLine(FormattableString.Invariant($"Overlay configuration: enabled={overlays.Settings.Enabled}; fontSize={overlays.Settings.FontSize}; debugVisible={overlays.Settings.DebugVisible}; path={overlays.Path}"));
 }
 catch (Exception error) when (error is InvalidDataException or ArgumentException)
 {
@@ -83,11 +99,18 @@ try
     var renderer = VulkanRenderer.Create(window, validation);
     ResourceLifetime.Run(() =>
     {
+        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings);
         using var shapes = new ShapeDrawList();
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
             "Breakout: leave the lower zone, hit something, return below the line to catch; release/repress to relaunch. R restarts. See README.");
         using var session = !gallery && !gameplaySmokeTest ? new BallSandboxSession(physics!.Settings, gameplay!.Settings, input!.Settings) : null;
+        // Hidden/showcase paths never create an audio device, even with enabled audio.json.
+        string? audioDiagnostic = null;
+        using var audio = session is null ? null : new GameAudio(audioConfiguration!.Settings,
+            muteAudio ? new NullAudioOutput() : SdlMixerOutput.Create(audioConfiguration.Settings, out audioDiagnostic));
+        if (audioDiagnostic is not null) Console.Error.WriteLine(audioDiagnostic);
+        Console.WriteLine($"Audio host: nativeRequested={session is not null && !muteAudio && audioConfiguration!.Settings.Enabled}; muted={muteAudio || session is null}.");
         var poller = new GlfwInputPoller(window);
         using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings, gameplay!.Settings, input!.Settings) : null;
         string? lastGameTitle = null;
@@ -98,6 +121,8 @@ try
         var lastElapsed = TimeSpan.Zero;
         var shapeFrames = 0;
         var shapeViewports = new HashSet<(int Width, int Height)>();
+        var overlayViewports = new Dictionary<(int Width, int Height), OverlayPresentationEvidence>();
+        var hudOnlyViewports = new HashSet<(int Width, int Height)>();
         if (smokeTest) Console.WriteLine($"Smoke showcase: expectedShapes={ShapeShowcase.ShapeCount}; " +
             "filled=5; outlines=14; patterned=8; transforms=4; clipped=5; blend=6; panels=12; markers=2; decorativeAngled=4; decorativeChevron=4.");
         var timer = Stopwatch.StartNew();
@@ -111,6 +136,12 @@ try
             // need an explicit main-thread scheduler, not an await Task.Delay frame loop.
             Glfw.PollEvents();
             if (window.ShouldClose) break;
+            // Hidden acceptance opens/closes the inspector without desktop input, including after resize.
+            bool? inspectorOverride = overlaySmokeTest ? renderer.PresentedFrames % 6 is >= 2 and <= 4 : debugUi ? true : null;
+            var capture = overlays is null ? default : renderer.BeginOverlayFrame(inspectorOverride);
+            if (overlaySmokeTest && inspectorOverride == false &&
+                (renderer.InspectorActive || capture.Mouse || capture.Keyboard))
+                throw new InvalidOperationException("Closed inspector retained native UI state or captured input.");
             var now = timer.Elapsed;
             var elapsedSeconds = (now - lastElapsed).TotalSeconds;
             lastElapsed = now;
@@ -133,7 +164,16 @@ try
                 }
                 else
                 {
-                    session!.Advance(poller.Poll(), elapsedSeconds, viewport);
+                    var raw = poller.Poll();
+                    if (capture.ResetBaselines)
+                    {
+                        audio!.SetSuppressed(muteAudio, hasFocus: false);
+                        session!.Advance(raw with { Focused = false }, 0, viewport);
+                    }
+                    var filtered = OverlayInputRouting.Filter(raw, capture);
+                    audio!.SetSuppressed(muteAudio, filtered.Focused && !filtered.Minimized);
+                    session!.Advance(filtered, elapsedSeconds, viewport);
+                    audio.Consume(session.DrainEvents());
                     var game = session.Simulation;
                     string title = $"Brutal Breakout | Balls: {game.BallsRemaining} | Bricks: {game.RemainingBricks} | " +
                         (game.RoundPhase == BrutalBreakout.Simulation.RoundPhase.Won ? "CLEARED - R to restart" :
@@ -215,7 +255,29 @@ try
             }
             // Consumes borrowed CPU buffers before the next BeginFrame; only a true receipt
             // proves this frame's indexed geometry survived extent validation and presentation.
+            if (overlays is not null)
+                renderer.SetOverlayFrame(OverlayHost.Build((gameplayScript?.Session ?? session)?.Simulation,
+                    colors?.Settings.Hud ?? LinearColor.FromSrgb(1, 1, 1), elapsedSeconds * 1000,
+                    gameplayFrames + shapeFrames, frame?.Vertices.Length ?? 0, frame?.Indices.Length ?? 0));
+            var previousOverlay = renderer.OverlayEvidence;
             var geometryPresented = renderer.Draw(frame, colors?.Settings.Background ?? ShapeShowcase.Background);
+            var overlayReceipt = renderer.OverlayEvidence;
+            if (overlaySmokeTest && inspectorOverride == false && overlayReceipt.TextFrames > previousOverlay.TextFrames)
+            {
+                if (overlayReceipt.ImageFrames != previousOverlay.ImageFrames || overlayReceipt.InspectorFrames != previousOverlay.InspectorFrames ||
+                    overlayReceipt.DrawIndices - previousOverlay.DrawIndices != 6 * (overlayReceipt.LabelQuads - previousOverlay.LabelQuads))
+                    throw new InvalidOperationException("HUD-only frame used inspector geometry or lost direct textured quads.");
+                if (hudOnlyViewports.Add((overlayReceipt.Width, overlayReceipt.Height)))
+                    Console.WriteLine($"HUD-only viewport: {overlayReceipt.Width}x{overlayReceipt.Height}; inspectorActive=False; capture=False; directQuadIndices=True.");
+            }
+            if (overlaySmokeTest && overlayReceipt.TextFrames > previousOverlay.TextFrames &&
+                overlayReceipt.ImageFrames > previousOverlay.ImageFrames && overlayReceipt.InspectorFrames > previousOverlay.InspectorFrames)
+            {
+                var key = (overlayReceipt.Width, overlayReceipt.Height);
+                if (!overlayViewports.ContainsKey(key))
+                    Console.WriteLine($"Overlay viewport: {key.Item1}x{key.Item2}; textFrames={overlayReceipt.TextFrames}; imageFrames={overlayReceipt.ImageFrames}; inspectorFrames={overlayReceipt.InspectorFrames}; labelQuads={overlayReceipt.LabelQuads}; drawIndices={overlayReceipt.DrawIndices}; generation={overlayReceipt.SwapchainGeneration}.");
+                overlayViewports[key] = overlayReceipt;
+            }
             if (smokeTest && geometryPresented && frame.HasValue)
             {
                 shapeFrames++;
@@ -249,6 +311,16 @@ try
             if (!staleFrameRegressionPassed || !gameplayScript.Completed || gameplayViewports.Count < 2 || gameplayFrames < 9)
                 throw new InvalidOperationException("Gameplay smoke interrupted or missing resized geometry.");
             Console.WriteLine($"Gameplay: launch wall catch hold release relaunch reset passed; ticks={gameplayScript.Session.TotalTicks}; nonemptyPresentedFrames={gameplayFrames}; hidden resize and resumed presentation passed.");
+        }
+        if (overlaySmokeTest)
+        {
+            if (!hudOnlyViewports.Contains((1280, 720)) || !hudOnlyViewports.Contains((960, 540)) ||
+                !overlayViewports.TryGetValue((1280, 720), out var initialOverlay) ||
+                !overlayViewports.TryGetValue((960, 540), out var resizedOverlay) ||
+                resizedOverlay.SwapchainGeneration <= initialOverlay.SwapchainGeneration ||
+                resizedOverlay.DrawIndices <= initialOverlay.DrawIndices || resizedOverlay.LabelQuads <= initialOverlay.LabelQuads)
+                throw new InvalidOperationException("Overlay smoke missing actual text/image/inspector presentation across resize.");
+            Console.WriteLine("Overlay smoke PASS: text, Stb image and readonly inspector presented at both extents; generation advanced; audio device disabled.");
         }
         Console.WriteLine($"Presented frames: {renderer.PresentedFrames}.");
         if (smokeTest && !completed)

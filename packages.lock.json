@@ -299,6 +299,26 @@
           "Ahwoo.BRUTAL.Sdl.Native": "2026.10.3"
         }
       },
+      "Ahwoo.BRUTAL.Sdl.Mixer": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "AAymGgjXb3hZlHJb0pnu108qLO8qD3QkzxBxUR8LhRnJREvzstLrKaccNK6n4RtV1wi2iQICV1HHnJ32FDju+g==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Interop": "2026.10.2",
+          "Ahwoo.BRUTAL.Logging": "2026.10.3",
+          "Ahwoo.BRUTAL.Sdl": "2026.10.3",
+          "Ahwoo.BRUTAL.Sdl.Mixer.Native": "2026.10.3"
+        }
+      },
+      "Ahwoo.BRUTAL.Sdl.Mixer.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "2w4Q6oRqjdjVzTc6CqFO4LsML9SrokoogNtlqJPe9UfajM53qewCTk5kH0lriNCp3artTiKUQKzNi6pMq7HhKQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Sdl.Native": "2026.10.3"
+        }
+      },
       "Ahwoo.BRUTAL.Sdl.Native": {
         "type": "Transitive",
         "resolved": "2026.10.3",
@@ -476,6 +496,13 @@
         "type": "Transitive",
         "resolved": "10.0.0",
         "contentHash": "inRnbpCS0nwO/RuoZIAqxQUuyjaknOOnCEZB55KSMMjRhl0RQDttSmLSGsUJN3RQ3ocf5NDLFd2mOQViHqMK5w=="
+      },
+      "brutalbreakout.audio": {
+        "type": "Project",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Sdl.Mixer": "[2026.10.3, 2026.10.3]",
+          "BrutalBreakout.Simulation": "[1.0.0, )"
+        }
       },
       "brutalbreakout.input": {
         "type": "Project",

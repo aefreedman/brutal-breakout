@@ -235,6 +235,26 @@
           "Ahwoo.BRUTAL.Sdl.Native": "2026.10.3"
         }
       },
+      "Ahwoo.BRUTAL.Sdl.Mixer": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "AAymGgjXb3hZlHJb0pnu108qLO8qD3QkzxBxUR8LhRnJREvzstLrKaccNK6n4RtV1wi2iQICV1HHnJ32FDju+g==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Interop": "2026.10.2",
+          "Ahwoo.BRUTAL.Logging": "2026.10.3",
+          "Ahwoo.BRUTAL.Sdl": "2026.10.3",
+          "Ahwoo.BRUTAL.Sdl.Mixer.Native": "2026.10.3"
+        }
+      },
+      "Ahwoo.BRUTAL.Sdl.Mixer.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "2w4Q6oRqjdjVzTc6CqFO4LsML9SrokoogNtlqJPe9UfajM53qewCTk5kH0lriNCp3artTiKUQKzNi6pMq7HhKQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Sdl.Native": "2026.10.3"
+        }
+      },
       "Ahwoo.BRUTAL.Sdl.Native": {
         "type": "Transitive",
         "resolved": "2026.10.3",
@@ -564,7 +584,6 @@
           "Ahwoo.BRUTAL.Glfw": "[2026.10.5, )",
           "Ahwoo.BRUTAL.ImGui": "[2026.10.3, )",
           "Ahwoo.BRUTAL.ImGui.Backends": "[2026.10.3, )",
-          "Ahwoo.BRUTAL.Render.Mesh": "[2026.10.2, )",
           "Ahwoo.BRUTAL.Sdl.Ttf": "[2026.10.3, )",
           "Ahwoo.BRUTAL.ShaderC": "[2026.10.3, )",
           "Ahwoo.BRUTAL.Texture": "[2026.10.3, )",
@@ -572,8 +591,16 @@
           "Ahwoo.BRUTAL.Vulkan": "[2026.10.3, )",
           "Ahwoo.BRUTAL.Vulkan.Abstractions": "[2026.10.3, )",
           "Ahwoo.BRUTAL.Vulkan.Vma": "[2026.10.3, )",
+          "BrutalBreakout.Audio": "[1.0.0, )",
           "BrutalBreakout.Input": "[1.0.0, )",
           "BrutalBreakout.Shapes": "[1.0.0, )",
+          "BrutalBreakout.Simulation": "[1.0.0, )"
+        }
+      },
+      "brutalbreakout.audio": {
+        "type": "Project",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Sdl.Mixer": "[2026.10.3, 2026.10.3]",
           "BrutalBreakout.Simulation": "[1.0.0, )"
         }
       },

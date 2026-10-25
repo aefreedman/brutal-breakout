@@ -34,12 +34,13 @@ public sealed class OverlayQuadBatch : IDisposable
         if (!float.IsFinite(left) || !float.IsFinite(top) || width <= 0 || height <= 0 || framebufferWidth <= 0 || framebufferHeight <= 0)
             throw new ArgumentException("Quad dimensions/coordinates must be finite and positive.");
         if (!float.IsFinite(tint.R) || !float.IsFinite(tint.G) || !float.IsFinite(tint.B) || !float.IsFinite(tint.A) || tint.A < 0 || tint.A > 1 ||
-            tint.R < 0 || tint.G < 0 || tint.B < 0 || tint.R > tint.A || tint.G > tint.A || tint.B > tint.A) throw new ArgumentException("Expected premultiplied-linear tint.");
+            tint.R < 0 || tint.G < 0 || tint.B < 0 || tint.R > 1 || tint.G > 1 || tint.B > 1) throw new ArgumentException("Expected straight-linear tint.");
         float right = left + width, bottom = top + height;
         float x0 = Math.Clamp(left, 0, framebufferWidth), y0 = Math.Clamp(top, 0, framebufferHeight);
         float x1 = Math.Clamp(right, 0, framebufferWidth), y1 = Math.Clamp(bottom, 0, framebufferHeight);
         if (x1 <= x0 || y1 <= y0 || tint.A <= 0) return false;
-        var color = new float4(tint.R, tint.G, tint.B, tint.A);
+        // LinearColor's public contract is straight RGBA, like the shape producer; premultiply once at the vertex boundary.
+        var color = new float4(tint.R * tint.A, tint.G * tint.A, tint.B * tint.A, tint.A);
         OverlayVertex Vertex(float x, float y) => new(new(x, y), new((x - left) / width, (y - top) / height), color);
         // Render.Mesh2026.10.2 AddQuad<T> emits a 24-index 2x2-cell grid for four vertices (verified defect).
         // This narrow six-index emission is intentional, not a fallback/repair of the library's output.

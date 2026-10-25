@@ -76,6 +76,41 @@ public sealed class OverlayTests
         Assert.NotNull(OverlayConfiguration.LoadForMode(["--overlay-config", "overlay.json"], false, "unused", AppContext.BaseDirectory));
     }
 
+    [Theory]
+    [InlineData("maxLabels", 2)]
+    [InlineData("maxLabelCharacters", 1)]
+    public void HostLabelLimitsAreValidatedBeforeNativeStartup(string property, int value)
+    {
+        WithConfig(n => n[property] = value, path =>
+            Assert.Throws<ArgumentException>(() => OverlayHost.Validate(OverlayConfiguration.Load(path).Settings, null)));
+    }
+
+    [Fact]
+    public void HostUsesCurrentGameAndGalleryFactsWithoutNativeUi()
+    {
+        var settings = Settings();
+        OverlayHost.Validate(settings, null);
+        var tint = new BrutalBreakout.Rendering.Shapes.LinearColor(.9f, .8f, .7f, .5f);
+        var frame = OverlayHost.Build(null, tint, 2.5, 7, 8, 9);
+        Assert.Equal(3, frame.Labels.Count);
+        Assert.Equal(OverlayHost.Controls, frame.Labels[2].Text);
+        Assert.All(frame.Labels, l => Assert.Equal(tint, l.Color));
+        Assert.Equal("Showcase", frame.Diagnostics.State);
+        Assert.Equal(2.5, frame.Diagnostics.FrameMilliseconds);
+        Assert.Equal(7, frame.Diagnostics.PresentedShapeFrames);
+        Assert.Equal(8, frame.Diagnostics.ShapeVertices);
+        Assert.Equal(9, frame.Diagnostics.ShapeIndices);
+    }
+
+    [Fact]
+    public void StraightLinearTintIsPremultipliedExactlyOnceInTheUvVertex()
+    {
+        using var batch = new OverlayQuadBatch();
+        Assert.True(batch.TryAdd(0, 0, 10, 10, 100, 100, new(.8f, .6f, .4f, .5f)));
+        Assert.Equal(new Brutal.Numerics.float4(.4f, .3f, .2f, .5f), batch.Vertices[0].Color);
+        Assert.Throws<ArgumentException>(() => batch.TryAdd(0, 0, 10, 10, 100, 100, new(1.1f, 0, 0, .5f)));
+    }
+
     [Fact]
     public void CaptureNeverLeaksWhenClosedAndSignalsBothTransitions()
     {

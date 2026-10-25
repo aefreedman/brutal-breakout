@@ -31,6 +31,7 @@ internal sealed unsafe partial class VulkanRenderer
     private int _swapchainGeneration, _recordedLabels, _recordedLabelIndices, _recordedUiIndices;
     private bool _recordedImage, _recordedInspector;
     public OverlayPresentationEvidence OverlayEvidence { get; private set; }
+    public bool InspectorActive => _hasUiContext;
 
     public void ConfigureOverlay(OverlaySettings settings)
     {
@@ -88,7 +89,7 @@ internal sealed unsafe partial class VulkanRenderer
                 throw new ArgumentException("Invalid overlay label.");
             var c = label.Color;
             if (!float.IsFinite(c.R) || !float.IsFinite(c.G) || !float.IsFinite(c.B) || !float.IsFinite(c.A) || c.A < 0 || c.A > 1 ||
-                c.R < 0 || c.G < 0 || c.B < 0 || c.R > c.A || c.G > c.A || c.B > c.A) throw new ArgumentException("Expected premultiplied-linear palette tint.");
+                c.R < 0 || c.G < 0 || c.B < 0 || c.R > 1 || c.G > 1 || c.B > 1) throw new ArgumentException("Expected straight-linear palette tint.");
         }
         var d = frame.Diagnostics;
         if (d.State == null || d.State.Length > settings.MaxLabelCharacters || d.State.Any(char.IsControl) ||
@@ -116,7 +117,7 @@ internal sealed unsafe partial class VulkanRenderer
         {
             Device = (DeviceEx)_device!, GraphicsQueue = _queue, RenderPass = _renderPass, SubPass = 0,
             MinImageCount = Math.Max(2, _images.Length), ImageCount = _images.Length, SampleCount = Samples,
-            DescriptorPoolSize = 2, // One diagnostic image plus the backend font atlas; not a tunable cache.
+            DescriptorPoolSize = 8, // Published backend enforces this minimum, even for one preview plus its font atlas.
         });
     }
 
