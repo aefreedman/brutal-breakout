@@ -1,0 +1,145 @@
+{
+  "sdk": "10.0.201",
+  "policy": "Managed PE metadata/IL inspection and compile-only backend probe; no candidate assemblies loaded by inspector, no native/GPU code executed by probe. Native offscreen font/image behavior exercised separately by tests/Media; no windows/audio devices.",
+  "packages": [
+    {
+      "id": "Ahwoo.BRUTAL.ImGui",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.imgui/2026.10.3/ahwoo.brutal.imgui.2026.10.3.nupkg",
+      "archiveSha256": "0d965ca81dd104acb5c24639a25bbf3b9c4d233be9029bf0056fc23b1df83036",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.ImGui.Backends",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.imgui.backends/2026.10.3/ahwoo.brutal.imgui.backends.2026.10.3.nupkg",
+      "archiveSha256": "cb6caf4942b81c0e0798b581327267fe005c64ff3018df79013a9e22b09ce0a5",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.ImGui.Native",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.imgui.native/2026.10.3/ahwoo.brutal.imgui.native.2026.10.3.nupkg",
+      "archiveSha256": "963c6661455bbb03216bb5f3ed484f3f04b5a4e5b738ac94922016415a58fca3",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.Localization",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.localization/2026.10.3/ahwoo.brutal.localization.2026.10.3.nupkg",
+      "archiveSha256": "77f9ca095fa8460de67bf9324a1e9d506af2894a9d5b06650c9943618a1c3fab",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.OpenGl",
+      "version": "2026.10.2",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.opengl/2026.10.2/ahwoo.brutal.opengl.2026.10.2.nupkg",
+      "archiveSha256": "94b854c5695d5fa63bae5dde59101c18d4c9cdf0b06b39eff52d05c3922a12d7",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.OpenGl.Native",
+      "version": "2026.10.2",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.opengl.native/2026.10.2/ahwoo.brutal.opengl.native.2026.10.2.nupkg",
+      "archiveSha256": "31ffca2faab733c600d7695ddc3f1a79ad8156975e10b76191477ff9e6650925",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.Sdl",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.sdl/2026.10.3/ahwoo.brutal.sdl.2026.10.3.nupkg",
+      "archiveSha256": "e19ed47ff8a27eb583272148e9240210066a8c07c9718ef9aa3694e6840c9c77",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.Sdl.Native",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.sdl.native/2026.10.3/ahwoo.brutal.sdl.native.2026.10.3.nupkg",
+      "archiveSha256": "9c24ff58919be39c69103f6918af578d288c3961874db7a5b5f0e9f5bc67375e",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.Sdl.Ttf",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.sdl.ttf/2026.10.3/ahwoo.brutal.sdl.ttf.2026.10.3.nupkg",
+      "archiveSha256": "2302f5ca81a5b1b8c855dbaf5b1ac902ff234e00595ad7d63e1fc593e949a49a",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.Sdl.Ttf.Native",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.sdl.ttf.native/2026.10.3/ahwoo.brutal.sdl.ttf.native.2026.10.3.nupkg",
+      "archiveSha256": "3c28300df9301d45ef67bf9fd045b2fab41d26b5e8f589aa3fb3cd7cff50b860",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.Stb",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.stb/2026.10.3/ahwoo.brutal.stb.2026.10.3.nupkg",
+      "archiveSha256": "939812f1ba41df38b8961c66f0e6bc786d6ff9236eb64f1bba0ef962a821b7b7",
+      "framework": "net10.0"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.Stb.Native",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.stb.native/2026.10.3/ahwoo.brutal.stb.native.2026.10.3.nupkg",
+      "archiveSha256": "de44152b09fdf9db2cbd59ff9e0bbb55fb85436906bc983d46f25d2ac429b12a",
+      "framework": "net10.0"
+    }
+  ],
+  "dependencies": "Exact resolved closure: root packages.lock.json; ImGui.Backends adds OpenGl 2026.10.2 transitively (not used to render); ImGui adds Localization; Ttf adds SDL and native dependencies. Existing dependency versions retained.",
+  "probe": {
+    "directory": "C:\\Users\\aaron\\AppData\\Local\\Temp\\overlay-api-91tau6c6\\probe",
+    "project": "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup><ItemGroup><PackageReference Include=\"Ahwoo.BRUTAL.ImGui\" Version=\"2026.10.3\" /><PackageReference Include=\"Ahwoo.BRUTAL.ImGui.Backends\" Version=\"2026.10.3\" /><PackageReference Include=\"Ahwoo.BRUTAL.Sdl.Ttf\" Version=\"2026.10.3\" /><PackageReference Include=\"Ahwoo.BRUTAL.Stb\" Version=\"2026.10.3\" /></ItemGroup></Project>",
+    "source": "using Brutal.ImGuiApi;\nusing Brutal.ImGuiApi.Backends;\nusing Brutal.GlfwApi;\nusing Brutal.VulkanApi;\nusing Brutal.VulkanApi.Abstractions;\nusing Brutal.Numerics;\npublic static class Probe {\n public static void Check(GlfwWindow window, DeviceEx device, Queue queue, VkRenderPass pass, CommandBuffer command, VkSampler sampler, VkImageView view) {\n var context=ImGui.CreateContext(); var glfw=new GlfwBackend(window,GlfwBackend.ClientApi.Vulkan);\n var backend=new VulkanBackend(new VulkanBackend.CreateInfo {Device=device,GraphicsQueue=queue,RenderPass=pass,SubPass=0,MinImageCount=2,ImageCount=3,SampleCount=VkSampleCountFlags._4Bit,DescriptorPoolSize=32});\n var tex=backend.AddTexture(sampler,view,VkImageLayout.ShaderReadOnlyOptimal);\n backend.NewFrame();glfw.NewFrame();ImGui.NewFrame();\n ImGui.GetBackgroundDrawList().AddImage(tex,new float2(0,0),new float2(10,10));\n if(ImGui.Begin(\"Diagnostic\"u8)) {ImGui.Text(\"Read only\"u8); ImGui.Image(tex,new float2(10,10));} ImGui.End();\n bool capture=ImGui.GetIO().WantCaptureMouse || ImGui.GetIO().WantCaptureKeyboard;\n ImGui.Render();backend.RenderDrawData(ImGui.GetDrawData(),command);\n backend.RemoveTexture(tex);backend.Dispose();glfw.Dispose();ImGui.DestroyContext(context);\n }\n}\n",
+    "commands": [
+      {
+        "command": "dotnet restore \"C:\\Users\\aaron\\AppData\\Local\\Temp\\overlay-api-91tau6c6/probe/p.csproj\" --nologo",
+        "exitCode": 0
+      },
+      {
+        "command": "dotnet build \"C:\\Users\\aaron\\AppData\\Local\\Temp\\overlay-api-91tau6c6/probe/p.csproj\" --no-restore --nologo",
+        "exitCode": 0,
+        "diagnostics": "Final zero warnings/errors; initial same probe with managed strings emitted two BRUTALCORE0011 warnings, corrected to UTF8 literals."
+      }
+    ],
+    "runtime": "not executed"
+  },
+  "inspectors": [
+    {
+      "project": "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>",
+      "source": "using System.Reflection;using System.Reflection.Emit;using System.Reflection.Metadata;using System.Reflection.Metadata.Ecma335;using System.Reflection.PortableExecutable;\nusing var fs=File.OpenRead(args[0]);using var pe=new PEReader(fs);var r=pe.GetMetadataReader();var ops=typeof(OpCodes).GetFields().Where(f=>f.FieldType==typeof(OpCode)).Select(f=>(OpCode)f.GetValue(null)!).ToDictionary(o=>(ushort)o.Value);\nstring Token(int token){try{var h=MetadataTokens.EntityHandle(token);return h.Kind switch {HandleKind.FieldDefinition=>r.GetString(r.GetFieldDefinition((FieldDefinitionHandle)h).Name),HandleKind.MethodDefinition=>r.GetString(r.GetMethodDefinition((MethodDefinitionHandle)h).Name),HandleKind.MemberReference=>r.GetString(r.GetMemberReference((MemberReferenceHandle)h).Name),_=>token.ToString(\"X8\")};}catch{return token.ToString(\"X8\");}}\nforeach(var th in r.TypeDefinitions){var t=r.GetTypeDefinition(th);if(args[1]==\"LIST\"){Console.WriteLine(r.GetString(t.Name));continue;}if(!r.GetString(t.Name).Contains(args[1]))continue;foreach(var mh in t.GetMethods()){var m=r.GetMethodDefinition(mh);if(m.RelativeVirtualAddress==0)continue;Console.WriteLine(\"METHOD \"+r.GetString(t.Name)+\".\"+r.GetString(m.Name));var b=pe.GetMethodBody(m.RelativeVirtualAddress).GetILBytes()!;for(int i=0;i<b.Length;){int off=i;ushort code=b[i++];if(code==254)code=(ushort)(0xfe00|b[i++]);var op=ops[code];int n=op.OperandType switch{OperandType.InlineNone=>0,OperandType.ShortInlineBrTarget or OperandType.ShortInlineI or OperandType.ShortInlineVar=>1,OperandType.InlineVar=>2,OperandType.InlineI8 or OperandType.InlineR=>8,OperandType.InlineSwitch=>4+4*BitConverter.ToInt32(b,i),_=>4};string val=n==4?BitConverter.ToInt32(b,i).ToString():Convert.ToHexString(b.AsSpan(i,n));if(op.OperandType is OperandType.InlineField or OperandType.InlineMethod or OperandType.InlineTok or OperandType.InlineType)val=Token(BitConverter.ToInt32(b,i));if(op.OperandType==OperandType.InlineString)val=r.GetUserString(MetadataTokens.UserStringHandle(BitConverter.ToInt32(b,i)&0xffffff));Console.WriteLine($\"{off:X4} {op.Name} {val}\");i+=n;}}}\n",
+      "exitCode": 0,
+      "commands": [
+        "dotnet run --project \"C:/Users/aaron/AppData/Local/Temp/overlay-api-91tau6c6/il/p.csproj\" -- C:/Users/aaron/.nuget/packages/ahwoo.brutal.imgui.backends/2026.10.3/lib/net10.0/Brutal.ImGui.Backends.dll VulkanBackend",
+        "dotnet run --no-build --project \"C:/Users/aaron/AppData/Local/Temp/overlay-api-91tau6c6/il/p.csproj\" -- C:/Users/aaron/.nuget/packages/ahwoo.brutal.imgui.backends/2026.10.3/lib/net10.0/Brutal.ImGui.Backends.dll GlfwBackend",
+        "dotnet run --no-build --project \"C:/Users/aaron/AppData/Local/Temp/overlay-api-91tau6c6/il/p.csproj\" -- C:/Users/aaron/.nuget/packages/ahwoo.brutal.imgui.backends/2026.10.3/lib/net10.0/Brutal.ImGui.Backends.dll Shader"
+      ]
+    },
+    {
+      "project": "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>",
+      "source": "using System.Reflection.Metadata;using System.Reflection.PortableExecutable;using System.Buffers.Binary;\nusing var fs=File.OpenRead(args[0]);using var pe=new PEReader(fs);var r=pe.GetMetadataReader();foreach(var fh in r.FieldDefinitions){var f=r.GetFieldDefinition(fh);if(r.GetString(f.Name)!=\"30178482DEDF9823563BAD15CB7A2B7B23EB8C4488A801A90079BEDC4CC40322\")continue;var data=pe.GetSectionData(f.GetRelativeVirtualAddress()).GetContent(0,772).ToArray();File.WriteAllBytes(args[1],data);var w=new uint[data.Length/4];for(int i=0;i<w.Length;i++)w[i]=BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(i*4));Console.WriteLine(\"Fragment SPIR-V words \"+w.Length);for(int i=5;i<w.Length;){int count=(int)(w[i]>>16),op=(int)(w[i]&65535);Console.WriteLine($\"op {op}: {string.Join(\",\",w.AsSpan(i+1,count-1).ToArray())}\");i+=count;}}\n",
+      "command": "dotnet run --project \"C:/Users/aaron/AppData/Local/Temp/overlay-api-91tau6c6/spirv/p.csproj\" -- C:/Users/aaron/.nuget/packages/ahwoo.brutal.imgui.backends/2026.10.3/lib/net10.0/Brutal.ImGui.Backends.dll \"C:/Users/aaron/AppData/Local/Temp/overlay-api-91tau6c6/frag.spv\"",
+      "exitCode": 0
+    },
+    {
+      "project": "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>",
+      "source": "using System.Reflection.Metadata;using System.Reflection.PortableExecutable;using System.Buffers.Binary;\nusing var fs=File.OpenRead(args[0]);using var pe=new PEReader(fs);var r=pe.GetMetadataReader();foreach(var fh in r.FieldDefinitions){var f=r.GetFieldDefinition(fh);if(r.GetString(f.Name)!=\"C107A801C256486B8CEAF2547DD0A941DFD55EEB0CF694F0FECE4032BB0A32DA\")continue;var data=pe.GetSectionData(f.GetRelativeVirtualAddress()).GetContent(0,1296).ToArray();File.WriteAllBytes(args[1],data);var w=new uint[data.Length/4];for(int i=0;i<w.Length;i++)w[i]=BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(i*4));Console.WriteLine(\"Fragment SPIR-V words \"+w.Length);for(int i=5;i<w.Length;){int count=(int)(w[i]>>16),op=(int)(w[i]&65535);Console.WriteLine($\"op {op}: {string.Join(\",\",w.AsSpan(i+1,count-1).ToArray())}\");i+=count;}}\n",
+      "command": "dotnet run --project \"C:\\Users\\aaron\\AppData\\Local\\Temp\\overlay-api-91tau6c6/spirv/p.csproj\" -- C:/Users/aaron/.nuget/packages/ahwoo.brutal.imgui.backends/2026.10.3/lib/net10.0/Brutal.ImGui.Backends.dll \"C:\\Users\\aaron\\AppData\\Local\\Temp\\overlay-api-91tau6c6/vert.spv\"",
+      "exitCode": 0
+    }
+  ],
+  "symbols": "ASSEMBLY C:/Users/aaron/.nuget/packages/ahwoo.brutal.imgui.backends/2026.10.3/lib/net10.0/Brutal.ImGui.Backends.dll\nTYPE Brutal.ImGuiApi.Backends.IPlatformBackend\n  Void NewFrame()\nTYPE Brutal.ImGuiApi.Backends.IRendererBackend\n  Void NewFrame()\nTYPE Brutal.ImGuiApi.Backends.GlfwBackend\n  Void .ctor(Brutal.GlfwApi.GlfwWindow, .ClientApi)\n  Void NewFrame()\n  Void Dispose()\n  static Int32 CreateVkSurface(Brutal.ImGuiApi.ImGuiViewportPtr, IntPtr, IntPtr, IntPtr*)\nTYPE Brutal.ImGuiApi.Backends.OpenGlBackend\n  Void .ctor()\n  Void NewFrame()\n  Void RenderDrawData(Brutal.ImGuiApi.ImDrawDataPtr)\n  Void Dispose()\nTYPE Brutal.ImGuiApi.Backends.VulkanBackend\n  Void .ctor(.CreateInfo&)\n  Void NewFrame()\n  Void RenderDrawData(Brutal.ImGuiApi.ImDrawDataPtr, Brutal.VulkanApi.CommandBuffer)\n  Brutal.ImGuiApi.ImTextureRef AddTexture(Brutal.VulkanApi.VkSampler, Brutal.VulkanApi.VkImageView, Brutal.VulkanApi.VkImageLayout)\n  Void RemoveTexture(Brutal.ImGuiApi.ImTextureRef)\n  Void Dispose()\nTYPE Brutal.ImGuiApi.Backends.GlfwBackend+ClientApi\n  FIELD Int32 value__\n  FIELD .ClientApi Unknown\n  FIELD .ClientApi OpenGL\n  FIELD .ClientApi Vulkan\nTYPE Brutal.ImGuiApi.Backends.VulkanBackend+CreateInfo\n  FIELD Brutal.VulkanApi.Abstractions.DeviceEx Device\n  FIELD Brutal.VulkanApi.Queue GraphicsQueue\n  FIELD Brutal.VulkanApi.VkRenderPass RenderPass\n  FIELD Int32 SubPass\n  FIELD Int32 MinImageCount\n  FIELD Int32 ImageCount\n  FIELD Brutal.VulkanApi.VkSampleCountFlags SampleCount\n  FIELD Int32 DescriptorPoolSize\n  FIELD Brutal.ByteSize MinAllocationSize\nTYPE Brutal.ImGuiApi.Backends.GlfwBackend+WindowsNative+Constants\n  FIELD Int32 GWL_EXSTYLE\n  FIELD Int32 GWLP_WNDPROC\n  FIELD Int32 WS_EX_APPWINDOW\n  FIELD Int32 WS_EX_TOOLWINDOW\n  FIELD Int32 WM_MOUSEMOVE\n  FIELD Int32 WM_NCMOUSEMOVE\n  FIELD Int32 WM_LBUTTONDOWN\n  FIELD Int32 WM_LBUTTONDBLCLK\n  FIELD Int32 WM_LBUTTONUP\n  FIELD Int32 WM_RBUTTONDOWN\n  FIELD Int32 WM_RBUTTONDBLCLK\n  FIELD Int32 WM_RBUTTONUP\n  FIELD Int32 WM_MBUTTONDOWN\n  FIELD Int32 WM_MBUTTONDBLCLK\n  FIELD Int32 WM_MBUTTONUP\n  FIELD Int32 WM_XBUTTONDOWN\n  FIELD Int32 WM_XBUTTONDBLCLK\n  FIELD Int32 WM_XBUTTONUP\nTYPE Brutal.ImGuiApi.Backends.OpenGlBackend+GlStateBackup+<_lastPolygonMode>e__FixedBuffer\n  FIELD Int32 FixedElementField\nTYPE Brutal.ImGuiApi.Backends.OpenGlBackend+GlStateBackup+<_lastScissorBox>e__FixedBuffer\n  FIELD Int32 FixedElementField\nTYPE Brutal.ImGuiApi.Backends.OpenGlBackend+GlStateBackup+<_lastViewport>e__FixedBuffer\n  FIELD Int32 FixedElementField\nTYPE Brutal.ImGuiApi.Backends.OpenGlBackend+Shader+AttributeLocations\n  FIELD Int32 Tex\n  FIELD Int32 Projection\n  FIELD Int32 Position\n  FIELD Int32 Uv\n  FIELD Int32 Color\nEXPORTED_PUBLIC_TYPE_COUNT 12\nEXPORTED_TYPE_TABLE_ROWS 0\n",
+  "pipelineEvidence": "0243 ldloca.s 1B\n0245 call .ctor\n024A ldloca.s 1B\n024C ldc.i4.1 \n024D call op_Implicit\n0252 stfld BlendEnable\n0257 ldloca.s 1B\n0259 ldc.i4.6 \n025A stfld SrcColorBlendFactor\n025F ldloca.s 1B\n0261 ldc.i4.7 \n0262 stfld DstColorBlendFactor\n0267 ldloca.s 1B\n0269 ldc.i4.0 \n026A stfld ColorBlendOp\n026F ldloca.s 1B\n0271 ldc.i4.1 \n0272 stfld SrcAlphaBlendFactor\n0277 ldloca.s 1B\n0279 ldc.i4.7 \n027A stfld DstAlphaBlendFactor\n027F ldloca.s 1B\n0281 ldc.i4.0 \n0282 stfld AlphaBlendOp\n0287 ldloca.s 1B\n0289 ldc.i4.s 0F\n028B stfld ColorWriteMask\n",
+  "shaderEvidence": "Fragment SPIR-V words 193\nop 17: 1\nop 11: 1,1280527431,1685353262,808793134,0\nop 14: 0,1\nop 15: 4,4,1852399981,0,9,13\nop 16: 4,7\nop 3: 2,450\nop 5: 4,1852399981,0\nop 5: 9,1819231078,29295\nop 5: 11,0\nop 6: 11,0,1869377347,114\nop 6: 11,1,22101\nop 5: 13,28233\nop 5: 22,2019906675,1701999988,0\nop 71: 9,30,0\nop 71: 13,30,0\nop 71: 22,34,0\nop 71: 22,33,0\nop 19: 2\nop 33: 3,2\nop 22: 6,32\nop 23: 7,6,4\nop 32: 8,3,7\nop 59: 8,9,3\nop 23: 10,6,2\nop 30: 11,7,10\nop 32: 12,1,11\nop 59: 12,13,1\nop 21: 14,32,1\nop 43: 14,15,0\nop 32: 16,1,7\nop 25: 19,6,1,0,0,0,1,0\nop 27: 20,19\nop 32: 21,0,20\nop 59: 21,22,0\nop 43: 14,24,1\nop 32: 25,1,10\nop 54: 2,4,0,3\nop 248: 5\nop 65: 16,17,13,15\nop 61: 7,18,17\nop 61: 20,23,22\nop 65: 25,26,13,24\nop 61: 10,27,26\nop 87: 7,28,23,27\nop 133: 7,29,18,28\nop 62: 9,29\nop 253: \nop 56: \n",
+  "shaderInterpretation": "Published fragment SPIR-V: load input color (id18), sample texture (OpImageSampleImplicitLod 87 id28), OpFMul 133 (id29 = id18 * id28), store to output id9. No sRGB/gamma or premultiply instruction. Pipeline SrcColorBlendFactor=6 (SRC_ALPHA), DstColorBlendFactor=7 (ONE_MINUS_SRC_ALPHA), SrcAlphaBlendFactor=1 (ONE), DstAlphaBlendFactor=7. Therefore upload straight-linear UNORM pixels and straight-linear palette tint. sRGB swapchain encodes only after blending. SDL white mask normalizes RGB=255 including zero-alpha texels to avoid dark filtering fringes.",
+  "callbackEvidence": "Published GlfwBackend constructor subscribes managed GlfwWindow add_OnMouseButton/OnScroll/OnCursorPos/OnCursorEnter/OnKey/OnChar/OnFocus; Dispose unsubscribes remove_On... delegates. Existing GlfwInputPoller polls GetKey/GetMouseButton and does not own callbacks. NoMouseCursorChange disables cursor override. ViewportsEnable never set, so no extra platform windows requested.",
+  "callbackIl": "021D ldarg.0 \n021E ldfld _window\n0223 ldarg.0 \n0224 ldfld _mouseButtonCallback\n0229 callvirt add_OnMouseButton\n022E ldarg.0 \n022F ldfld _window\n0234 ldarg.0 \n0235 ldfld _scrollCallback\n023A callvirt add_OnScroll\n023F ldarg.0 \n0240 ldfld _window\n0245 ldarg.0 \n0246 ldfld _cursorPosCallback\n024B callvirt add_OnCursorPos\n0250 ldarg.0 \n0251 ldfld _window\n0256 ldarg.0 \n0257 ldfld _cursorEnterCallback\n025C callvirt add_OnCursorEnter\n0261 ldarg.0 \n0262 ldfld _window\n0267 ldarg.0 \n0268 ldfld _keyCallback\n026D callvirt add_OnKey\n0272 ldarg.0 \n0273 ldfld _window\n0278 ldarg.0 \n0279 ldfld _charCallback\n027E callvirt add_OnChar\n0283 ldarg.0 \n0284 ldfld _window\n0289 ldarg.0 \n028A ldfld _focusCallback\n028F callvirt add_OnFocus\n0294 call UpdateMonitors\n0299 call GetMainViewport\n029E stloc.3 \n029F ldloca.s 03\n02A1 call get_PlatformHandle\n02A6 ldarg.1 \n02A7 call Alloc\n02AC call op_Explicit\n02B1 stind.i \n02B2 ldarg.0 \n02B3 ldfld _windowData\n02B8 ldarg.1 \n02B9 newobj .ctor\n02BE dup \n02BF ldloca.s 03\n02C1 call get_PlatformHandle\n02C6 ldind.i \n02C7 stfld PlatformHandle\n02CC callvirt Add\n02D1 call IsWindows\n02D6 brfalse.s 1A\n02D8 ldloca.s 03\n02DA call get_PlatformHandleRaw\n02DF ldarg.0 \n02E0 ldfld _window\n02E5 callvirt get_NativeHandle\n02EA call GetWin32Window\n02EF stind.i \n02F0 br.s 1F\n02F2 call IsMacOS\n02F7 brfalse.s 18\n02F9 ldloca.s 03\n02FB call get_PlatformHandleRaw\n0300 ldarg.0 \n0301 ldfld _window\n0306 callvirt get_NativeHandle\n030B call GetCocoaWindow\n0310 stind.i \n0311 ldarg.0 \n0312 call InitMultiViewportSupport\n0317 call IsWindows\n031C brfalse.s 66\n031E ldarg.0 \n031F call Alloc\n0324 stloc.s 07\n0326 ldloca.s 03\n0328 call get_PlatformHandleRaw\n032D ldind.i \n032E ldsflda 8D1BED926F1BADF7D74CA2C5D37F27FC6AE400B82C9CF2C692BDADD34692F3E7\n0333 ldc.i4.s 12\n0335 newobj .ctor\n033A ldloc.s 07\n033C call op_Explicit\n0341 call SetPropA\n0346 pop \n0347 ldarg.0 \n0348 ldloca.s 03\n034A call get_PlatformHandleRaw\n034F ldind.i \n0350 ldc.i4.s FC\n0352 call GetWindowLongPtrW\n0357 stfld _prevWndProc\n035C ldarg.0 \n035D ldfld _prevWndProc\n0362 brtrue.s 0B\n0364 ldstr Failed to get previous WndProc\n0369 newobj .ctor\n036E throw \n036F ldloca.s 03\n0371 call get_PlatformHandleRaw\n0376 ldind.i \n0377 ldc.i4.s FC\n0379 ldsfld WndProcDelegate\n037E call SetWindowLongPtrW\n0383 pop \n0384 ldarg.0 \n0385 ldarg.2 \n0386 stfld _clientApi\n038B ret \n",
+  "limitations": [
+    "No GPU/native backend execution in this lane. Parent must validate Vulkan layers, rendering and resize.",
+    "Shader/IL behavior is published binary evidence, not proof of runtime correctness.",
+    "BRUTAL License v1.0 attribution/logo/distribution review remains parent-owned; font OFL and authored PNG license/provenance ship with assets."
+  ],
+  "vertexShaderEvidence": "Fragment SPIR-V words 324\nop 17: 1\nop 11: 1,1280527431,1685353262,808793134,0\nop 14: 0,1\nop 15: 0,4,1852399981,0,11,15,21,27,28\nop 3: 2,450\nop 5: 4,1852399981,0\nop 5: 9,0\nop 6: 9,0,1869377347,114\nop 6: 9,1,22101\nop 5: 11,7632207\nop 5: 15,1819231073,29295\nop 5: 21,5657953\nop 5: 25,1348430951,1700164197,2019914866,0\nop 6: 25,0,1348430951,1953067887,7237481\nop 5: 27,0\nop 5: 28,1936674913,0\nop 5: 30,1937068149,1852785512,1851880563,116\nop 6: 30,0,1633899381,25964\nop 6: 30,1,1634882677,1634497390,25972\nop 5: 32,25456\nop 71: 11,30,0\nop 71: 15,30,2\nop 71: 21,30,1\nop 72: 25,0,11,0\nop 71: 25,2\nop 71: 28,30,0\nop 72: 30,0,35,0\nop 72: 30,1,35,8\nop 71: 30,2\nop 19: 2\nop 33: 3,2\nop 22: 6,32\nop 23: 7,6,4\nop 23: 8,6,2\nop 30: 9,7,8\nop 32: 10,3,9\nop 59: 10,11,3\nop 21: 12,32,1\nop 43: 12,13,0\nop 32: 14,1,7\nop 59: 14,15,1\nop 32: 17,3,7\nop 43: 12,19,1\nop 32: 20,1,8\nop 59: 20,21,1\nop 32: 23,3,8\nop 30: 25,7\nop 32: 26,3,25\nop 59: 26,27,3\nop 59: 20,28,1\nop 30: 30,8,8\nop 32: 31,9,30\nop 59: 31,32,9\nop 32: 33,9,8\nop 43: 6,40,0\nop 43: 6,41,1065353216\nop 54: 2,4,0,3\nop 248: 5\nop 61: 7,16,15\nop 65: 17,18,11,13\nop 62: 18,16\nop 61: 8,22,21\nop 65: 23,24,11,19\nop 62: 24,22\nop 61: 8,29,28\nop 65: 33,34,32,13\nop 61: 8,35,34\nop 133: 8,36,29,35\nop 65: 33,37,32,19\nop 61: 8,38,37\nop 129: 8,39,36,38\nop 81: 6,42,39,0\nop 81: 6,43,39,1\nop 80: 7,44,42,43,40,41\nop 65: 17,45,27,13\nop 62: 45,44\nop 253: \nop 56: \n",
+  "vertexShaderInterpretation": "Vertex SPIR-V copies input vertex color (OpLoad id16 to output member via OpStore id18) without gamma or alpha conversion; UV copied, position multiplied/translated only."
+}
