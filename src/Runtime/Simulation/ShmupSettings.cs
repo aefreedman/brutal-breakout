@@ -48,12 +48,12 @@ public sealed class ShmupSettings
             Geometry.SafeSquare(v);
             if (!float.IsFinite(travel * travel)) throw new ArgumentException("Native displacement overflows.");
         }
-        if (!Ball.BounceOnBricks)
-        {
-            double intervals = Math.Ceiling((Ball.Speed + Difficulty.MaximumDescentSpeed) * physics.StepSeconds / (Ball.Radius / 2));
-            if (!double.IsFinite(intervals) || intervals > 4096 || (float)(physics.StepSeconds / Math.Max(1, intervals)) <= 0)
-                throw new ArgumentException("Piercing requires at most 4096 representable native sweep intervals per tick.");
-        }
+        double intervals = Math.Ceiling((Ball.Speed + Difficulty.MaximumDescentSpeed) * physics.StepSeconds / (Ball.Radius / 2));
+        float intervalStep = (float)(physics.StepSeconds / Math.Max(1, intervals));
+        float intervalSubstep = intervalStep / physics.Substeps;
+        if (!double.IsFinite(intervals) || intervals > 4096 || intervalStep <= 0 || intervalSubstep <= 0 ||
+            !float.IsFinite(1f / intervalStep) || !float.IsFinite(1f / intervalSubstep))
+            throw new ArgumentException("Collision chronology requires at most 4096 representable native intervals per tick.");
         // At most one firing/row deadline per tick. Reject undersampling rather than silently drop time.
         if (Ball.FireRate > physics.UpdateHz || Difficulty.MinimumRowInterval < physics.StepSeconds)
             throw new ArgumentException("Firing and row intervals must be at least one physics tick.");

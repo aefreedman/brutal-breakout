@@ -18,10 +18,15 @@ internal sealed class NativeShmupArena : IDisposable
     private readonly bool[,] touching;
     private readonly bool[,] wallTouching;
     private readonly bool[,] overlaps;
+    private readonly bool[,] intervalBrickHits;
+    private readonly int[] intervalWallHits;
     private bool disposed;
-    internal bool[,] BrickHits { get; }
+    internal int[,] BrickHits { get; }
     internal int[] WallHits { get; }
+    internal int[] WallStreak { get; }
+    internal bool[] Expired { get; }
     internal bool AvatarContact { get; private set; }
+    internal int LastIntervalCount { get; private set; }
     internal int BodyCount => world.GetCounters().BodyCount;
 
     internal NativeShmupArena(PhysicsSettings physics, ShmupSettings settings, ExecutionSettings execution)
@@ -30,7 +35,9 @@ internal sealed class NativeShmupArena : IDisposable
         this.physics = physics; this.settings = settings;
         balls = new B2Body[settings.Capacity.MaxBalls]; bricks = new B2Body[settings.Capacity.MaxBricks];
         touching = new bool[balls.Length, bricks.Length]; overlaps = new bool[balls.Length, bricks.Length];
-        wallTouching = new bool[balls.Length, 2]; BrickHits = new bool[balls.Length, bricks.Length]; WallHits = new int[balls.Length];
+        wallTouching = new bool[balls.Length, 2]; BrickHits = new int[balls.Length, bricks.Length]; WallHits = new int[balls.Length];
+        intervalBrickHits = new bool[balls.Length, bricks.Length]; intervalWallHits = new int[balls.Length];
+        WallStreak = new int[balls.Length]; Expired = new bool[balls.Length];
         tasks = new(execution.PhysicsWorkerCount);
         var wd = B2WorldDef.Default;
         wd.Gravity = default; wd.EnableSleep = false; wd.EnableContinuous = true;
@@ -106,21 +113,29 @@ internal sealed class NativeShmupArena : IDisposable
     internal void ClearBall(int id)
     {
         balls[id].Disable(); balls[id].SetLinearVelocity(default);
-        for (int j = 0; j < bricks.Length; j++) touching[id, j] = overlaps[id, j] = BrickHits[id, j] = false;
+        for (int j = 0; j < bricks.Length; j++)
+        {
+            touching[id, j] = overlaps[id, j] = intervalBrickHits[id, j] = false;
+            BrickHits[id, j] = 0;
+        }
         for (int j = 0; j < 2; j++) wallTouching[id, j] = false;
-        WallHits[id] = 0;
+        WallHits[id] = intervalWallHits[id] = WallStreak[id] = 0; Expired[id] = false;
     }
     internal void ClearBrick(int id)
     {
         bricks[id].Disable(); bricks[id].SetLinearVelocity(default);
-        for (int i = 0; i < balls.Length; i++) touching[i, id] = overlaps[i, id] = BrickHits[i, id] = false;
+        for (int i = 0; i < balls.Length; i++)
+        {
+            touching[i, id] = overlaps[i, id] = intervalBrickHits[i, id] = false;
+            BrickHits[i, id] = 0;
+        }
     }
     internal void Reset()
     {
         Guard();
         for (int i = 0; i < balls.Length; i++) ClearBall(i);
         for (int i = 0; i < bricks.Length; i++) ClearBrick(i);
-        AvatarContact = false;
+        AvatarContact = false; LastIntervalCount = 0;
     }
     private void Contact(B2Shape a, B2Shape b, bool end)
     {
@@ -133,12 +148,12 @@ internal sealed class NativeShmupArena : IDisposable
         if (wallIds.TryGetValue(b, out int wall))
         {
             if (end) wallTouching[ball, wall] = false;
-            else if (!wallTouching[ball, wall]) { WallHits[ball]++; wallTouching[ball, wall] = true; }
+            else if (!wallTouching[ball, wall]) { WallHits[ball]++; intervalWallHits[ball]++; wallTouching[ball, wall] = true; }
         }
         else if (settings.Ball.BounceOnBricks && brickIds.TryGetValue(b, out int brick) && bricks[brick].IsEnabled())
         {
             if (end) touching[ball, brick] = false;
-            else if (!touching[ball, brick]) { BrickHits[ball, brick] = true; touching[ball, brick] = true; }
+            else if (!touching[ball, brick]) { intervalBrickHits[ball, brick] = true; touching[ball, brick] = true; }
         }
     }
     private static B2ShapeProxy Circle(double2 p, double radius)
@@ -158,7 +173,7 @@ internal sealed class NativeShmupArena : IDisposable
             if (brickIds.TryGetValue(shape, out int brick) && bricks[brick].IsEnabled())
             {
                 overlaps[ball, brick] = true;
-                if (recordHits && !touching[ball, brick]) BrickHits[ball, brick] = true;
+                if (recordHits && !touching[ball, brick]) intervalBrickHits[ball, brick] = true;
             }
             return true;
         };
@@ -172,7 +187,7 @@ internal sealed class NativeShmupArena : IDisposable
         B2CastResultFcn callback = (shape, point, normal, fraction, context) =>
         {
             if (brickIds.TryGetValue(shape, out int brick) && bricks[brick].IsEnabled() && !touching[ball, brick])
-                BrickHits[ball, brick] = true;
+                intervalBrickHits[ball, brick] = true;
             return 1;
         };
         world.CastShape(in proxy, Native(v * dt), BrickFilter(), callback, nint.Zero); GC.KeepAlive(callback);
@@ -199,11 +214,13 @@ internal sealed class NativeShmupArena : IDisposable
         for (int j = 0; j < bricks.Length; j++) if (bricks[j].IsEnabled()) bricks[j].SetLinearVelocity(Native(new(0, descentSpeed)));
         // Small native intervals keep post-wall piercing paths within a circle overlap. Native sweeps
         // still detect arbitrarily thin crossed bricks, including relative kinematic movement.
-        int intervals = settings.Ball.BounceOnBricks ? 1 : (int)Math.Ceiling(
+        int intervals = (int)Math.Ceiling(
             (settings.Ball.Speed + descentSpeed) * physics.StepSeconds / (settings.Ball.Radius / 2));
-        double dt = physics.StepSeconds / Math.Max(1, intervals);
+        LastIntervalCount = Math.Max(1, intervals);
+        double dt = physics.StepSeconds / LastIntervalCount;
         for (int step = 0; step < Math.Max(1, intervals); step++)
         {
+            Array.Clear(intervalBrickHits); Array.Clear(intervalWallHits);
             if (!settings.Ball.BounceOnBricks)
             {
                 Array.Clear(overlaps);
@@ -221,16 +238,34 @@ internal sealed class NativeShmupArena : IDisposable
                 for (int i = 0; i < balls.Length; i++) if (balls[i].IsEnabled()) OverlapBall(i, true);
                 Array.Copy(overlaps, touching, overlaps.Length);
             }
+            // Deduplicate overlap/sweep/begin/hit within this interval, not the entire tick.
+            // Touch state survives intervals, so a later exit/reentry is a distinct damage event.
+            // Buffer traversal is complete before any disable. Expiry prevents later intervals
+            // from producing brick damage or resetting an already-expired wall streak.
+            for (int i = 0; i < balls.Length; i++) if (balls[i].IsEnabled())
+            {
+                bool brickInteraction = false;
+                for (int j = 0; j < bricks.Length; j++) if (intervalBrickHits[i, j])
+                {
+                    BrickHits[i, j]++; brickInteraction = true;
+                }
+                WallStreak[i] = brickInteraction ? 0 : (int)Math.Min(int.MaxValue, (long)WallStreak[i] + intervalWallHits[i]);
+                if (WallStreak[i] >= settings.Ball.MaxWallHits)
+                {
+                    Expired[i] = true; balls[i].Disable(); balls[i].SetLinearVelocity(default);
+                }
+                else
+                {
+                    // Moving-brick restitution transfers energy. Restore configured speed at
+                    // each interval boundary, rather than letting it accumulate within a tick.
+                    var v = BallVelocity(i);
+                    if (Arena.Finite(v) && (v.X != 0 || v.Y != 0)) balls[i].SetLinearVelocity(Native(Arena.Normalize(v) * settings.Ball.Speed));
+                }
+            }
         }
         // Exact native overlap each tick, rather than begin-only damage, supports recurrent contact.
         var player = Circle(avatar, settings.Avatar.Radius);
         world.OverlapShape(in player, BrickFilter(), playerOverlap, nint.Zero); GC.KeepAlive(playerOverlap);
-        // Restore constant configured ball speed after moving-brick restitution transfers energy.
-        for (int i = 0; i < balls.Length; i++) if (balls[i].IsEnabled())
-        {
-            var v = BallVelocity(i);
-            if (Arena.Finite(v) && (v.X != 0 || v.Y != 0)) balls[i].SetLinearVelocity(Native(Arena.Normalize(v) * settings.Ball.Speed));
-        }
     }
     public void Dispose()
     {

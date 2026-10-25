@@ -45,6 +45,14 @@ public class ShmupSettingsTests
         Assert.ThrowsAny<ArgumentException>(() => Settings().ValidatePhysics(new(10, 1, 1, 120, 1)));
         Assert.ThrowsAny<ArgumentException>(() => Settings(rowInterval: .001).ValidatePhysics(TestSettings.Baseline));
     }
+    [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public void BothModesRejectExcessiveNativeIntervalBudgetBeforeAllocation(bool bounce)
+    {
+        var settings = Settings(bounce: bounce, speed: 2_000_000);
+        Assert.Throws<ArgumentException>(() => settings.ValidatePhysics(TestSettings.Baseline));
+        Assert.Throws<ArgumentException>(() => new ShmupSimulation(TestSettings.Baseline, settings, new(1, 64, 1)));
+    }
     [Fact]
     public void PerlinNoiseIsSeededContinuousBoundedAndReproducible()
     {

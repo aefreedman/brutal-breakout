@@ -58,6 +58,49 @@ public class ShmupSimulationTests
         Assert.All(sim.Snapshot.Bricks.ToArray(), b => Assert.Equal(80, b.Health));
     }
     [Fact]
+    public void MultipleEntriesOfSamePiercingPairWithinOneTickEachDealDamage()
+    {
+        using var sim = Create(ShmupSettingsTests.Settings(bounce: false, threshold: 1, width: 100, speed: 60000, descent: 1, wallHits: 100));
+        sim.SpawnBrick(new(640, 200)); sim.SpawnBall(new(640, 200), new(1, 0));
+        sim.Step();
+        Assert.Equal(40, sim.Snapshot.Bricks[0].Health);
+    }
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void WallExpiryStopsLaterBrickInteractionsWithinTheSameTick(bool bounce)
+    {
+        using var sim = Create(ShmupSettingsTests.Settings(bounce: bounce, threshold: 1, width: 100, speed: 60000, descent: 1, wallHits: 1));
+        sim.SpawnBrick(new(640, 200)); sim.SpawnBall(new(670, 200), new(1, 0));
+        sim.Step();
+        Assert.Equal(100, sim.Snapshot.Bricks[0].Health);
+        Assert.Empty(sim.Snapshot.Balls.ToArray());
+    }
+    [Fact]
+    public void InitialPiercingEntryDoesNotRescueBallFromALaterExpiryWithinTheTick()
+    {
+        using var sim = Create(ShmupSettingsTests.Settings(bounce: false, threshold: 1, width: 100, speed: 60000, descent: 1, wallHits: 1));
+        sim.SpawnBrick(new(640, 200)); sim.SpawnBall(new(640, 200), new(1, 0)); sim.Step();
+        Assert.Equal(90, sim.Snapshot.Bricks[0].Health); Assert.Empty(sim.Snapshot.Balls.ToArray());
+    }
+    [Fact]
+    public void MultipleBouncingContactsWithSameBrickWithinOneTickEachDealDamage()
+    {
+        using var sim = Create(ShmupSettingsTests.Settings(threshold: 1, width: 200, speed: 60000, descent: 1, wallHits: 100));
+        sim.SpawnBrick(new(640, 200)); sim.SpawnBall(new(670, 200), new(1, 0)); sim.Step();
+        Assert.InRange(sim.Snapshot.Bricks[0].Health, 50, 70);
+    }
+    [Fact]
+    public void MultipleEntryDamageMultiplicationCannotOverflow()
+    {
+        var basis = ShmupSettingsTests.Settings(bounce: false, threshold: 1, width: 100, speed: 60000, descent: 1, wallHits: 100, brickHealth: int.MaxValue);
+        var settings = new ShmupSettings(basis.Arena, basis.Avatar,
+            new(basis.Ball.Radius, basis.Ball.Speed, basis.Ball.FireRate, int.MaxValue, false, basis.Ball.MaxWallHits),
+            basis.Brick, basis.Difficulty, basis.Noise, basis.Capacity);
+        using var sim = Create(settings);
+        sim.SpawnBrick(new(640, 200)); sim.SpawnBall(new(640, 200), new(1, 0)); sim.Step();
+        Assert.Empty(sim.Snapshot.Bricks.ToArray());
+    }
+    [Fact]
     public void PersistentPiercingOverlapIsDamagedOnlyOnEntry()
     {
         using var sim = Create(ShmupSettingsTests.Settings(bounce: false, threshold: 1, speed: 1, descent: 1));
@@ -217,7 +260,7 @@ public class ShmupSimulationTests
         using var native = new NativeShmupArena(TestSettings.Baseline, settings, new(1, 64, 1));
         native.ActivateBrick(0, new(674, 200)); native.ActivateBall(0, new(687, 180), Arena.Normalize(new(1, 1)));
         native.Step(30, new(640, 696), new(640, 696));
-        Assert.True(native.WallHits[0] > 0); Assert.True(native.BrickHits[0, 0]);
+        Assert.True(native.WallHits[0] > 0); Assert.Equal(1, native.BrickHits[0, 0]);
         using var sim = Create(settings);
         sim.SpawnBrick(new(674, 200)); sim.SpawnBall(new(687, 180), new(1, 1)); sim.Step();
         Assert.Equal(0, Assert.Single(sim.Snapshot.Balls.ToArray()).WallHits);
@@ -250,6 +293,21 @@ public class ShmupSimulationTests
         sim.Restart(); sim.SpawnBrick(new(640, 300)); sim.Step();
         Assert.Equal(100, sim.Snapshot.Bricks[0].Health);
         Assert.True(sim.Snapshot.Bricks[0].Generation > prior.Generation);
+    }
+    [Fact]
+    public void DefaultCapacitySteadyNativeTicksUseFourBoundedIntervals()
+    {
+        var settings = ShmupSettingsTests.Settings(maxBalls: 512, maxBricks: 2048, threshold: 1);
+        using var native = new NativeShmupArena(TestSettings.Baseline, settings, new(1, 64, 1));
+        for (int i = 0; i < 64; i++) native.ActivateBall(i, new(640, 100 + i * 7), new(1, 0));
+        for (int i = 0; i < 32; i++) native.ActivateBrick(i, new(400 + i % 8 * 40, -40 - i / 8 * 40));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; i < 120; i++)
+        {
+            native.Step(30, new(640, 696), new(640, 696));
+            Assert.Equal(4, native.LastIntervalCount); Assert.Equal(2562, native.BodyCount);
+        }
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(30), $"120 default-capacity ticks took {clock.Elapsed}.");
     }
     [Fact]
     public void DefaultCapacityNativeStartupAndEightyThousandActorLivesRemainBounded()

@@ -138,14 +138,15 @@ public sealed class ShmupSimulation : IDisposable
         for (int i = 0; i < balls.Length; i++)
         {
             ref var ball = ref Ball(i); if (!ball.Active) continue;
-            bool brickInteraction = false;
             for (int j = 0; j < bricks.Length; j++)
             {
                 ref var brick = ref Brick(j);
-                if (!brick.Active || !native.BrickHits[i, j]) continue;
-                brickInteraction = true; brick.Health = Math.Max(0, brick.Health - Settings.Ball.Damage);
+                int hits = native.BrickHits[i, j];
+                if (!brick.Active || hits == 0) continue;
+                brick.Health = (int)Math.Max(0L, (long)brick.Health - (long)Settings.Ball.Damage * hits);
             }
-            ball.WallHits = brickInteraction ? 0 : (int)Math.Min(int.MaxValue, (long)ball.WallHits + native.WallHits[i]);
+            // Native interval chronology owns the streak; ECS mirrors the final owned fact.
+            ball.WallHits = native.WallStreak[i];
         }
         avatar.Contact(native.AvatarContact, StepSeconds);
         for (int j = 0; j < bricks.Length; j++)
@@ -163,7 +164,7 @@ public sealed class ShmupSimulation : IDisposable
         {
             ref var ball = ref Ball(i); if (!ball.Active) continue;
             double y = native.BallPosition(i).Y, r = Settings.Ball.Radius;
-            if (y + r < 0 || y - r > Settings.Arena.Height || ball.WallHits >= Settings.Ball.MaxWallHits)
+            if (y + r < 0 || y - r > Settings.Arena.Height || native.Expired[i])
             { native.ClearBall(i); ball.Active = false; }
         }
     }
