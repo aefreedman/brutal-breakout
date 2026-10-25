@@ -425,16 +425,16 @@
       },
       "CrushKit.Brutal.Audio": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.4",
-        "contentHash": "cpUCICTRzcD63DzUWeqvlNiUbjV1uARgHYyq1Lm/KjrvDBBuCzvGiMoHcK2zGT42GF6T/CCvR/6NMVkXqZ5JaQ==",
+        "resolved": "0.1.0-preview.5",
+        "contentHash": "e3DQUZPtwOPHCBbCv1Uq49xjOOpldSMn/VZCkwpbhOM050boaVWNS9ThBdh32Bn0gAJUoPL4ID292gCfOMx50A==",
         "dependencies": {
           "Ahwoo.BRUTAL.Sdl.Mixer": "[2026.10.3]"
         }
       },
       "CrushKit.Brutal.Draw2D": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.4",
-        "contentHash": "46iAQjuXR/Ov6+eYXLv4d3Ksnbnh9cpGXhROzFNxP7DHk4S6ZihiQEqb4ohObfLgvlvCfZlWcqJpMylLIqHowg==",
+        "resolved": "0.1.0-preview.5",
+        "contentHash": "8GAayPsHfP+t3NJDyuxIJoA2zLujBfnwB5pN3li0LhPfman2fFS9l/CraU23alTEtbNibvXyn0KEkjQSIy661A==",
         "dependencies": {
           "Ahwoo.BRUTAL.Numerics": "2026.10.2",
           "Ahwoo.BRUTAL.Render.Mesh": "2026.10.2"
@@ -442,8 +442,8 @@
       },
       "CrushKit.Brutal.Ecs": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.4",
-        "contentHash": "6kZ9KMf8h3FNTo/qLUMURq3Mps+3qnVxZ/D10anq3V1qXcCSkIRuLldpZCvVwdb0hwt0XYslRqmfrAUorT3elA==",
+        "resolved": "0.1.0-preview.5",
+        "contentHash": "CQaK+lpp6XY1nDP71kS67f0bFU6o2qpMDAr2RpFUnXAkUV6Lq29gKul2Oz0Es3RE+e0zalnqnYlsD0MhB3CHaw==",
         "dependencies": {
           "Arch": "[2.1.0]",
           "ZeroAllocJobScheduler": "[1.1.2]"
@@ -451,18 +451,18 @@
       },
       "CrushKit.Brutal.ImGui": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.4",
-        "contentHash": "8I9cGDQ5fl3CUBYLY/1bDRiFG9FeS5eowJfYuatU/xpw7hHss3itE8pdVwbQbi2TYSOm455aOntDKJOY7aNV8A==",
+        "resolved": "0.1.0-preview.5",
+        "contentHash": "MUiJHZruESLho6j6lgVvEZahKqHIUKyS4KaBi5V8vwSoxc7my2WU1DWPAuCN+zXcbyyOXmmBKB3wmETdejsavg==",
         "dependencies": {
           "Ahwoo.BRUTAL.ImGui": "2026.10.3",
           "Ahwoo.BRUTAL.ImGui.Backends": "2026.10.3",
-          "CrushKit.Brutal.Vulkan": "0.1.0-preview.4"
+          "CrushKit.Brutal.Vulkan": "0.1.0-preview.5"
         }
       },
       "CrushKit.Brutal.Input": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.4",
-        "contentHash": "UYCJC/mInuI56hfxkMD8Y8dAMKyoBLqi1deBE+5lLAx/+urqpctOMU5tt8utTkf/hylhJkeIm3axdmH1RLsSwA==",
+        "resolved": "0.1.0-preview.5",
+        "contentHash": "qNNVucPz75NTYBRCXlxJZnMi0cCIIg/ESicYuEAShWZuOaVSayjRtIcGsjPG4EstHMKcydEQtVqx87YvjhrQ9Q==",
         "dependencies": {
           "Ahwoo.BRUTAL.Glfw": "[2026.10.5]",
           "Ahwoo.BRUTAL.Numerics": "[2026.10.2]"
@@ -470,8 +470,8 @@
       },
       "CrushKit.Brutal.Physics": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.4",
-        "contentHash": "asNCy+aZrdj1rYSUjk8JpWwQdlqh8onAjMEJ7s3zsV2Ce+PJXTc7FGqDtuxmevRU5y2EGUP3+MvXfAm15FPdug==",
+        "resolved": "0.1.0-preview.5",
+        "contentHash": "MooDG+V/8OmZt4pnQ6aAVYjfaLwFRmgKfB5p9F/OzLZQUaElKfYEthVZqAqRW5FoM7Hu03RQSRbaIgy3NOJSgA==",
         "dependencies": {
           "Ahwoo.BRUTAL.Box2D": "[2026.10.2]",
           "ZeroAllocJobScheduler": "[1.1.2]"
@@ -479,8 +479,8 @@
       },
       "CrushKit.Brutal.Vulkan": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.4",
-        "contentHash": "ZY2c0Zeb+aTUFZXgXVm2foCC6nlyevAHMEtmEfLT7V2e8YAkrJOaWsQZg5jCw79qcHSfS7A5vYLwtYZA3r7VQw==",
+        "resolved": "0.1.0-preview.5",
+        "contentHash": "2OmqqgBmgx3kxj/J+8f89PJ4lxwdPDrbyA0j8zlB+g2gf+BuTO5Cj0xBdiHS+GwZIGiDBwao1lXzIDhsTCUbvQ==",
         "dependencies": {
           "Ahwoo.BRUTAL.Core": "2026.10.4",
           "Ahwoo.BRUTAL.Glfw": "2026.10.5",
@@ -491,7 +491,7 @@
           "Ahwoo.BRUTAL.Vulkan": "2026.10.3",
           "Ahwoo.BRUTAL.Vulkan.Abstractions": "2026.10.3",
           "Ahwoo.BRUTAL.Vulkan.Vma": "2026.10.3",
-          "CrushKit.Brutal.Draw2D": "0.1.0-preview.4"
+          "CrushKit.Brutal.Draw2D": "0.1.0-preview.5"
         }
       },
       "Microsoft.CodeCoverage": {
@@ -691,20 +691,20 @@
         "type": "Project",
         "dependencies": {
           "BrutalBreakout.Simulation": "[1.0.0, )",
-          "CrushKit.Brutal.Audio": "[0.1.0-preview.4, )"
+          "CrushKit.Brutal.Audio": "[0.1.0-preview.5, )"
         }
       },
       "brutalbreakout.editor": {
         "type": "Project",
         "dependencies": {
           "BrutalBreakout.Runtime": "[1.0.0, )",
-          "CrushKit.Brutal.ImGui": "[0.1.0-preview.4, )"
+          "CrushKit.Brutal.ImGui": "[0.1.0-preview.5, )"
         }
       },
       "brutalbreakout.input": {
         "type": "Project",
         "dependencies": {
-          "CrushKit.Brutal.Input": "[0.1.0-preview.4, )"
+          "CrushKit.Brutal.Input": "[0.1.0-preview.5, )"
         }
       },
       "brutalbreakout.rendering": {
@@ -719,8 +719,8 @@
           "BrutalBreakout.Audio": "[1.0.0, )",
           "BrutalBreakout.Input": "[1.0.0, )",
           "BrutalBreakout.Simulation": "[1.0.0, )",
-          "CrushKit.Brutal.Draw2D": "[0.1.0-preview.4, )",
-          "CrushKit.Brutal.Vulkan": "[0.1.0-preview.4, )"
+          "CrushKit.Brutal.Draw2D": "[0.1.0-preview.5, )",
+          "CrushKit.Brutal.Vulkan": "[0.1.0-preview.5, )"
         }
       },
       "brutalbreakout.showcase": {
@@ -732,8 +732,8 @@
       "brutalbreakout.simulation": {
         "type": "Project",
         "dependencies": {
-          "CrushKit.Brutal.Ecs": "[0.1.0-preview.4, )",
-          "CrushKit.Brutal.Physics": "[0.1.0-preview.4, )"
+          "CrushKit.Brutal.Ecs": "[0.1.0-preview.5, )",
+          "CrushKit.Brutal.Physics": "[0.1.0-preview.5, )"
         }
       }
     }
