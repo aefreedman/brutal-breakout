@@ -1,0 +1,150 @@
+{
+  "scope": "Actual published API shape plus authorized native offscreen font tests; no GPU/windows/audio/input injection.",
+  "sdk": "10.0.201",
+  "packages": [
+    {
+      "id": "Ahwoo.BRUTAL.ImGui",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.imgui/2026.10.3/ahwoo.brutal.imgui.2026.10.3.nupkg",
+      "sha256": "0d965ca81dd104acb5c24639a25bbf3b9c4d233be9029bf0056fc23b1df83036"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.ImGui.Backends",
+      "version": "2026.10.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.imgui.backends/2026.10.3/ahwoo.brutal.imgui.backends.2026.10.3.nupkg",
+      "sha256": "cb6caf4942b81c0e0798b581327267fe005c64ff3018df79013a9e22b09ce0a5"
+    },
+    {
+      "id": "Ahwoo.BRUTAL.Glfw",
+      "version": "2026.10.5",
+      "source": "https://api.nuget.org/v3-flatcontainer/ahwoo.brutal.glfw/2026.10.5/ahwoo.brutal.glfw.2026.10.5.nupkg",
+      "sha256": "1fcf7c00429da8f60067efae61a5aeaf35075aa804fb5db6854a45d601f75bd5"
+    }
+  ],
+  "inspectorProject": "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup></Project>",
+  "inspectorSource": "using System.Collections.Immutable;\nusing System.Reflection;\nusing System.Reflection.Metadata;\nusing System.Reflection.Metadata.Ecma335;\nusing System.Reflection.PortableExecutable;\nusing System.Reflection.Emit;\nusing var f=File.OpenRead(args[0]);using var pe=new PEReader(f);var r=pe.GetMetadataReader();var provider=new Types();\nConsole.WriteLine($\"META definedTypes={r.TypeDefinitions.Count} exportedTypes={r.ExportedTypes.Count}\");\nforeach(var eh in r.ExportedTypes){var e=r.GetExportedType(eh);Console.WriteLine(\"EXPORTED \"+r.GetString(e.Namespace)+\".\"+r.GetString(e.Name));}\nstring Name(TypeDefinitionHandle h)=>provider.GetTypeFromDefinition(r,h,0);\nforeach(var ah in r.AssemblyReferences) Console.WriteLine(\"REF \"+r.GetString(r.GetAssemblyReference(ah).Name));\nforeach(var th in r.TypeDefinitions){\n var t=r.GetTypeDefinition(th);\n if((t.Attributes & TypeAttributes.VisibilityMask) is not (TypeAttributes.Public or TypeAttributes.NestedPublic))continue;\n var name=Name(th);if(args.Length>1&&!name.Contains(args[1]))continue;\n Console.WriteLine(\"TYPE \"+name+\" base=\"+(t.BaseType.IsNil?\"\":provider.Handle(r,t.BaseType)));\n foreach(var ih in t.GetInterfaceImplementations())Console.WriteLine(\"  implements \"+provider.Handle(r,r.GetInterfaceImplementation(ih).Interface));\n foreach(var fh in t.GetFields()){var v=r.GetFieldDefinition(fh);if((v.Attributes&FieldAttributes.FieldAccessMask)!=FieldAttributes.Public)continue;Console.WriteLine(\"  FIELD \"+v.DecodeSignature(provider,(object?)null)+\" \"+r.GetString(v.Name));}\n foreach(var mh in t.GetMethods()){var m=r.GetMethodDefinition(mh);if((m.Attributes & MethodAttributes.MemberAccessMask)!=MethodAttributes.Public)continue;var s=m.DecodeSignature(provider,(object?)null);Console.WriteLine(\"  \"+((m.Attributes&MethodAttributes.Static)!=0?\"static \":\"\")+s.ReturnType+\" \"+r.GetString(m.Name)+\"(\"+string.Join(\", \",s.ParameterTypes)+\")\");}\n}\nif(args.Length>2 && args[2]==\"IL\"){\n var ops=typeof(OpCodes).GetFields().Where(x=>x.FieldType==typeof(OpCode)).Select(x=>(OpCode)x.GetValue(null)!).ToDictionary(x=>(ushort)x.Value);\n string Token(int n){try{var h=MetadataTokens.EntityHandle(n);return h.Kind switch{\n HandleKind.MemberReference=>Member((MemberReferenceHandle)h),HandleKind.MethodDefinition=>r.GetString(r.GetMethodDefinition((MethodDefinitionHandle)h).Name),\n HandleKind.MethodSpecification=>Spec((MethodSpecificationHandle)h),HandleKind.FieldDefinition=>r.GetString(r.GetFieldDefinition((FieldDefinitionHandle)h).Name),\n HandleKind.TypeReference=>provider.GetTypeFromReference(r,(TypeReferenceHandle)h,0),HandleKind.TypeDefinition=>Name((TypeDefinitionHandle)h),_=>h.Kind+\":\"+n.ToString(\"X8\")};}catch{return n.ToString(\"X8\");}}\n string Spec(MethodSpecificationHandle h){var s=r.GetMethodSpecification(h);return Token(MetadataTokens.GetToken(s.Method))+\"<\"+string.Join(\",\",s.DecodeSignature(provider,(object?)null))+\">\";}\n string Member(MemberReferenceHandle h){var v=r.GetMemberReference(h);return provider.Handle(r,v.Parent)+\".\"+r.GetString(v.Name);}\n foreach(var th in r.TypeDefinitions){var t=r.GetTypeDefinition(th);if(!Name(th).Contains(args[1]))continue;\n foreach(var mh in t.GetMethods()){var m=r.GetMethodDefinition(mh);if(m.RelativeVirtualAddress==0)continue;\n Console.WriteLine(\"IL \"+Name(th)+\".\"+r.GetString(m.Name));var b=pe.GetMethodBody(m.RelativeVirtualAddress).GetILBytes()!;\n for(int i=0;i<b.Length;){int off=i;ushort c=b[i++];if(c==254)c=(ushort)(0xfe00|b[i++]);var op=ops[c];int n=op.OperandType switch{OperandType.InlineNone=>0,OperandType.ShortInlineBrTarget or OperandType.ShortInlineI or OperandType.ShortInlineVar=>1,OperandType.InlineVar=>2,OperandType.InlineI8 or OperandType.InlineR=>8,OperandType.InlineSwitch=>4+4*BitConverter.ToInt32(b,i),_=>4};\n string v=n==4?BitConverter.ToInt32(b,i).ToString():Convert.ToHexString(b.AsSpan(i,n));\n if(op.OperandType is OperandType.InlineMethod or OperandType.InlineType or OperandType.InlineTok or OperandType.InlineField)v=Token(BitConverter.ToInt32(b,i));\n if(op.OperandType==OperandType.InlineString)v=r.GetUserString(MetadataTokens.UserStringHandle(BitConverter.ToInt32(b,i)&0xffffff));\n Console.WriteLine($\" {off:X4} {op.Name} {v}\");i+=n;}}}\n}\nclass Types:ISignatureTypeProvider<string,object?>{\n public string Handle(MetadataReader r,EntityHandle h)=>h.Kind switch{HandleKind.TypeDefinition=>GetTypeFromDefinition(r,(TypeDefinitionHandle)h,0),HandleKind.TypeReference=>GetTypeFromReference(r,(TypeReferenceHandle)h,0),HandleKind.TypeSpecification=>GetTypeFromSpecification(r,null,(TypeSpecificationHandle)h,0),_=>h.Kind.ToString()};\n public string GetTypeFromDefinition(MetadataReader r,TypeDefinitionHandle h,byte k){var t=r.GetTypeDefinition(h);return t.GetDeclaringType().IsNil?r.GetString(t.Namespace)+\".\"+r.GetString(t.Name):GetTypeFromDefinition(r,t.GetDeclaringType(),0)+\"+\"+r.GetString(t.Name);}\n public string GetTypeFromReference(MetadataReader r,TypeReferenceHandle h,byte k){var t=r.GetTypeReference(h);return r.GetString(t.Namespace)+\".\"+r.GetString(t.Name);}\n public string GetTypeFromSpecification(MetadataReader r,object? c,TypeSpecificationHandle h,byte k)=>r.GetTypeSpecification(h).DecodeSignature(this,c);\n public string GetArrayType(string e,ArrayShape s)=>e+\"[\"+new string(',',s.Rank-1)+\"]\";\n public string GetByReferenceType(string e)=>e+\"&\";\n public string GetFunctionPointerType(MethodSignature<string> s)=>\"fnptr(\"+string.Join(\",\",s.ParameterTypes)+\")->\"+s.ReturnType;\n public string GetGenericInstantiation(string g,ImmutableArray<string>a)=>g+\"<\"+string.Join(\",\",a)+\">\";\n public string GetGenericMethodParameter(object?c,int i)=>\"!!\"+i;\n public string GetGenericTypeParameter(object?c,int i)=>\"!\"+i;\n public string GetModifiedType(string m,string u,bool req)=>u;\n public string GetPinnedType(string e)=>e;\n public string GetPointerType(string e)=>e+\"*\";\n public string GetPrimitiveType(PrimitiveTypeCode c)=>c.ToString();\n public string GetSZArrayType(string e)=>e+\"[]\";\n}\n",
+  "selectedSignatures": [
+    "  static Brutal.ImGuiApi.ImString GetDebugName(Brutal.ImGuiApi.ImFontPtr)\r",
+    "  static Brutal.ImGuiApi.ImFontBakedPtr GetFontBaked(Brutal.ImGuiApi.ImFontPtr, Single, Single)\r",
+    "  static Brutal.ImGuiApi.ImFontPtr AddFontFromFileTTF(Brutal.ImGuiApi.ImFontAtlasPtr, Brutal.ImGuiApi.ImString, Single, Brutal.ImGuiApi.ImFontConfigPtr, System.ReadOnlySpan`1<UInt32>)\r",
+    "  FIELD Single CurrentRasterizerDensity\r",
+    "  Single& get_CurrentRasterizerDensity()\r",
+    "  FIELD Single RasterizerDensity\r",
+    "  Single& get_RasterizerDensity()\r",
+    "  FIELD Int32 FontDataSize\r",
+    "  FIELD Brutal.Bool8 PixelSnapH\r",
+    "  FIELD Brutal.Bool8 PixelSnapV\r",
+    "  FIELD SByte OversampleH\r",
+    "  FIELD SByte OversampleV\r",
+    "  FIELD Single SizePixels\r",
+    "  FIELD Single RasterizerDensity\r",
+    "  Int32& get_FontDataSize()\r",
+    "  Boolean& get_PixelSnapH()\r",
+    "  Boolean& get_PixelSnapV()\r",
+    "  SByte& get_OversampleH()\r",
+    "  SByte& get_OversampleV()\r",
+    "  Single& get_SizePixels()\r",
+    "  Single& get_RasterizerDensity()\r"
+  ],
+  "backendFramebufferIl": " 0386 stfld _clientApi\r\n 038B ret \r\nIL Brutal.ImGuiApi.Backends.GlfwBackend.NewFrame\r\n 0000 ldarg.0 \r\n 0001 ldfld _context\r\n 0006 call GetIO\r\n 000B stloc.0 \r\n 000C ldloca.s 00\r\n 000E call Brutal.ImGuiApi.ImGuiIOPtr.get_DisplaySize\r\n 0013 ldarg.0 \r\n 0014 ldfld _window\r\n 0019 callvirt Brutal.GlfwApi.GlfwWindow.get_Size\r\n 001E stloc.2 \r\n 001F ldloca.s 02\r\n 0021 ldc.i4.0 \r\n 0022 call Brutal.Numerics.float2.Unpack\r\n 0027 stobj Brutal.Numerics.float2\r\n 002C ldloca.s 00\r\n 002E call Brutal.ImGuiApi.ImGuiIOPtr.get_DisplayFramebufferScale\r\n 0033 ldarg.0 \r\n 0034 ldfld _window\r\n 0039 call GetFramebufferScale\r\n 003E stobj Brutal.Numerics.float2\r\n 0043 call UpdateMonitors\r\n 0048 call Brutal.GlfwApi.Glfw.get_Time\r\n 004D stloc.1 \r\n 004E ldloc.1 \r\n 004F ldarg.0 \r\n 0050 ldfld _lastTime\r\n 0055 bgt.un.s 11\r\n\n[2429 more lines in file. Use offset=364 to continue.]",
+  "backendScaleIl": "IL Brutal.ImGuiApi.Backends.GlfwBackend.GetFramebufferScale\r\n 0000 ldarg.0 \r\n 0001 callvirt Brutal.GlfwApi.GlfwWindow.get_Size\r\n 0006 stloc.0 \r\n 0007 ldloc.0 \r\n 0008 ldfld Brutal.Numerics.int2.X\r\n 000D brfalse.s 08\r\n 000F ldloc.0 \r\n 0010 ldfld Brutal.Numerics.int2.Y\r\n 0015 brtrue.s 06\r\n 0017 call Brutal.Numerics.float2.get_One\r\n 001C ret \r\n 001D ldarg.0 \r\n 001E callvirt Brutal.GlfwApi.GlfwWindow.get_FramebufferSize\r\n 0023 stloc.1 \r\n 0024 ldloca.s 01\r\n 0026 ldc.i4.0 \r\n 0027 call Brutal.Numerics.float2.Unpack\r\n 002C ldarg.0 \r\n 002D callvirt Brutal.GlfwApi.GlfwWindow.get_Size\r\n 0032 stloc.2 \r\n 0033 ldloca.s 02\r\n 0035 ldc.i4.0 \r\n 0036 call Brutal.Numerics.float2.Unpack\r\n 003B call Brutal.Numerics.float2.op_Division\r\n 0040 ret \r\nIL Brutal.ImGuiApi.Backends.GlfwBackend.GetContentScaleForMonitor\r\n 0000 call System.OperatingSystem.IsMacOS\r\n 0005 brfalse.s 06\r\n 0007 ldc.r4 1065353216\r\n 000C ret \r\n\n[1394 more lines in file. Use offset=1399 to continue.]",
+  "backendViewportScaleIl": "IL Brutal.ImGuiApi.Backends.GlfwBackend.GetWindowFramebufferScale\r\n 0000 ldarga.s 00\r\n 0002 call Brutal.ImGuiApi.ImGuiViewportPtr.get_PlatformUserData\r\n 0007 ldind.i \r\n 0008 stloc.0 \r\n 0009 ldloc.0 \r\n 000A call GetWindow\r\n 000F stloc.1 \r\n 0010 ldloc.1 \r\n 0011 call GetFramebufferScale\r\n 0016 ret \r\nIL Brutal.ImGuiApi.Backends.GlfwBackend.SetWindowTitle\r\n\n[325 more lines in file. Use offset=2468 to continue.]",
+  "probeProject": "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><AllowUnsafeBlocks>true</AllowUnsafeBlocks><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup><ItemGroup><PackageReference Include=\"Ahwoo.BRUTAL.ImGui\" Version=\"[2026.10.3]\" /><PackageReference Include=\"Ahwoo.BRUTAL.ImGui.Backends\" Version=\"[2026.10.3]\" /><PackageReference Include=\"Ahwoo.BRUTAL.Glfw\" Version=\"[2026.10.5]\" /></ItemGroup></Project>",
+  "probeSource": "using System.Text;\nusing Brutal.GlfwApi;\nusing Brutal.ImGuiApi;\npublic static class FontProbe {\n public static ImFontPtr Load(ImGuiIOPtr io, string path, float pixels) {\n   var font=io.Fonts.AddFontFromFileTTF(Encoding.UTF8.GetBytes(path), pixels);\n   io.FontDefault=font;\n   var source=font.Sources[0];\n   _=source.FontDataSize; _=source.RasterizerDensity; _=source.PixelSnapH;\n   io.ConfigDpiScaleFonts=false;\n   ImGui.GetStyle().FontScaleMain=1; ImGui.GetStyle().FontScaleDpi=1;\n   var baked=font.GetFontBaked(pixels, 2);\n   _=baked.RasterizerDensity; _=baked.Size;\n   return font;\n }\n public static bool Key(GlfwWindow window) => window.GetKey(GlfwKey.F1)==GlfwKeyAction.Press;\n}\n",
+  "probeCommand": "dotnet build C:/Users/aaron/AppData/Local/Temp/inspector-font-vl2lpcq2/probe/p.csproj --nologo",
+  "probeExit": 0,
+  "probeBuildOutput": "  Determining projects to restore...\r\n  Restored C:\\Users\\aaron\\AppData\\Local\\Temp\\inspector-font-vl2lpcq2\\probe\\p.csproj (in 488 ms).\r\n  p -> C:\\Users\\aaron\\AppData\\Local\\Temp\\inspector-font-vl2lpcq2\\probe\\bin\\Debug\\net10.0\\p.dll\r\n\r\nBuild succeeded.\r\n    0 Warning(s)\r\n    0 Error(s)\r\n\r\nTime Elapsed 00:00:01.87\r\n",
+  "nativeEvidence": [
+    "InspectorFontTests uses actual packaged native ImGui with RendererHasTextures set but no graphics backend/device/window. Loads official Iosevka-Regular TTF, asserts source file byte count/name, non-pixel-snapped source and dynamic glyph availability/monospaced advance.",
+    "At framebuffer scales1,1.25,1.5,2,1, native GetFontBaked.RasterizerDensity follows scale. Size rounding is bounded by0.5logical pixels; native minimum is1logical pixel. These are native contract facts, not additional tunable defaults.",
+    "The former implicit default is ProggyClean.ttf, source13px, PixelSnapH true, OversampleH/V1. With style22px, actual native bake is22px, disproving the fixed13px-upscaled-bitmap explanation. Default font style/oversampling differs from configured regular TTF; no proven framebuffer down-resolution fault.",
+    "Tests and helpers keep requested physical font size distinct from rounded native actual size. Inspector diagnostics report actual logical/physical font size, framebuffer scale and rasterizer density."
+  ],
+  "supplementalUpstream": [
+    "https://raw.githubusercontent.com/ocornut/imgui/v1.92.2b/imgui.cpp",
+    "https://raw.githubusercontent.com/ocornut/imgui/v1.92.2b/imgui_draw.cpp"
+  ],
+  "upstreamLimit": "Upstream comments guide interpretation only. Actual DLL metadata, compile probe and packaged-native CPU tests are proof; one early source assumption that PixelSnapV was true failed and was corrected to observed native behavior.",
+  "initialDiagnostics": [
+    "Initial test compilation warned xUnit2013 about asserting native ImVector count; corrected without suppressing warning.",
+    "One test iteration used unsupported ImVector.AsSpan; corrected to native Count assertion.",
+    "Initial exact physical22px assertion failed22.5px at fractional scale. Native ImGui rounds font size; corrected assertion derives0.5logical-pixel tolerance rather than claiming exact fractional raster size."
+  ],
+  "tests": {
+    "command": "dotnet test tests/Media/BrutalBreakout.Media.Tests.csproj --no-restore --nologo",
+    "output": "  BrutalBreakout.Input -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\Platform\\Input\\bin\\Debug\\net10.0\\BrutalBreakout.Input.dll\r\n  BrutalBreakout.Simulation -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\Simulation\\bin\\Debug\\net10.0\\BrutalBreakout.Simulation.dll\r\n  BrutalBreakout.Shapes -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\Rendering\\Shapes\\bin\\Debug\\net10.0\\BrutalBreakout.Shapes.dll\r\n  BrutalBreakout.Audio -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\Audio\\bin\\Debug\\net10.0\\BrutalBreakout.Audio.dll\r\n  brutal-breakout -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\bin\\Debug\\net10.0\\brutal-breakout.dll\r\n  BrutalBreakout.Media.Tests -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\tests\\Media\\bin\\Debug\\net10.0\\BrutalBreakout.Media.Tests.dll\r\nTest run for C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\tests\\Media\\bin\\Debug\\net10.0\\BrutalBreakout.Media.Tests.dll (.NETCoreApp,Version=v10.0)\r\nA total of 1 test files matched the specified pattern.\r\n\r\nPassed!  - Failed:     0, Passed:    48, Skipped:     0, Total:    48, Duration: 622 ms - BrutalBreakout.Media.Tests.dll (net10.0)\r\n",
+    "inputCommand": "dotnet test tests/Input/BrutalBreakout.Input.Tests.csproj --nologo",
+    "inputOutput": "  Determining projects to restore...\r\n  Restored C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\tests\\Input\\BrutalBreakout.Input.Tests.csproj (in 253 ms).\r\n  1 of 2 projects are up-to-date for restore.\r\n  BrutalBreakout.Input -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\Platform\\Input\\bin\\Debug\\net10.0\\BrutalBreakout.Input.dll\r\n  BrutalBreakout.Input.Tests -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\tests\\Input\\bin\\Debug\\net10.0\\BrutalBreakout.Input.Tests.dll\r\nTest run for C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\tests\\Input\\bin\\Debug\\net10.0\\BrutalBreakout.Input.Tests.dll (.NETCoreApp,Version=v10.0)\r\nA total of 1 test files matched the specified pattern.\r\n\r\nPassed!  - Failed:     0, Passed:    48, Skipped:     0, Total:    48, Duration: 237 ms - BrutalBreakout.Input.Tests.dll (net10.0)\r\n"
+  },
+  "assets": {
+    "version": "v34.9.1",
+    "license": "Assets/Fonts/OFL.txt",
+    "provenance": "Assets/Fonts/PROVENANCE.txt",
+    "totalFontBytes": 23492208,
+    "files": [
+      {
+        "file": "IosevkaAile-Regular.ttf",
+        "family": "Iosevka Aile",
+        "style": "Regular",
+        "role": "SDL.Ttf game font",
+        "bytes": 11878496,
+        "sha256": "be7e1730d23b0ec9d68966402222ec810c8d6d2a708c1ec3b10e5bab74c5186b",
+        "archive": "https://github.com/be5invis/Iosevka/releases/download/v34.9.1/PkgTTF-IosevkaAile-34.9.1.zip",
+        "archiveSha256": "ae0385776a422115496e2f831656e2d0721f363aad0147b0a9180fb01d0bcd6f",
+        "tables": {
+          "fvar": false,
+          "hintingTables": [
+            "fpgm",
+            "prep",
+            "cvt "
+          ],
+          "postIsFixedPitch": 0
+        }
+      },
+      {
+        "file": "Iosevka-Regular.ttf",
+        "family": "Iosevka",
+        "style": "Regular",
+        "role": "monospaced ImGui inspector",
+        "bytes": 11613712,
+        "sha256": "1ba24b81d82df65a68c9d0bb44bda306fdcdb5d7763afe89b0dea29ea827d1a2",
+        "archive": "https://github.com/be5invis/Iosevka/releases/download/v34.9.1/PkgTTF-Iosevka-34.9.1.zip",
+        "archiveSha256": "7a77a3dfa0e2d713a8920a30624863e23df2867a1f55a5e3d6d23dad07c14c65",
+        "tables": {
+          "fvar": false,
+          "hintingTables": [
+            "fpgm",
+            "prep",
+            "cvt "
+          ],
+          "postIsFixedPitch": 1
+        }
+      }
+    ],
+    "licenseUpstream": "https://raw.githubusercontent.com/be5invis/Iosevka/v34.9.1/LICENSE.md",
+    "licenseSourceSha256": "4ba53c7c1cb39279aae5f8d7d22054c485c71169920e5a36ed098b115e2e3c5d",
+    "licenseStorage": "All wording retained; one whitespace-only line normalized for git diff --check.",
+    "approval": "Supervisor explicitly approved11.33MiB Aile after threshold escalation; user's second requested standard Iosevka Regular similarly sized. No subsetting/OS install/extra variants."
+  },
+  "residuals": [
+    "No GPU/fonttexture upload or visible/different-monitor DPI acceptance run in this component.",
+    "Original held-ring bug is owned and fixed in a separate lane, not included here.",
+    "New required debugFontPath requires existing custom overlay JSON files to supply it; startup validation is strict."
+  ],
+  "validationBuild": "  BrutalBreakout.Shapes -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\Rendering\\Shapes\\bin\\Debug\\net10.0\\BrutalBreakout.Shapes.dll\r\n  BrutalBreakout.Input -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\Platform\\Input\\bin\\Debug\\net10.0\\BrutalBreakout.Input.dll\r\n  BrutalBreakout.Simulation -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\Simulation\\bin\\Debug\\net10.0\\BrutalBreakout.Simulation.dll\r\n  BrutalBreakout.Audio -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\Audio\\bin\\Debug\\net10.0\\BrutalBreakout.Audio.dll\r\n  brutal-breakout -> C:\\Users\\aaron\\dev\\brutal-breakout-debug-ui\\bin\\Debug\\net10.0\\brutal-breakout.dll\r\n\r\nBuild succeeded.\r\n    0 Warning(s)\r\n    0 Error(s)\r\n\r\nTime Elapsed 00:00:01.69\r\n",
+  "inspectorCommands": [
+    "dotnet build C:/Users/aaron/AppData/Local/Temp/inspector-font-vl2lpcq2/inspect/i.csproj --nologo",
+    "dotnet C:/Users/aaron/AppData/Local/Temp/inspector-font-vl2lpcq2/inspect/bin/Debug/net10.0/i.dll C:/Users/aaron/.nuget/packages/ahwoo.brutal.imgui/2026.10.3/lib/net10.0/Brutal.ImGui.dll ImFont",
+    "dotnet C:/Users/aaron/AppData/Local/Temp/inspector-font-vl2lpcq2/inspect/bin/Debug/net10.0/i.dll C:/Users/aaron/.nuget/packages/ahwoo.brutal.imgui/2026.10.3/lib/net10.0/Brutal.ImGui.dll ImGuiIO",
+    "dotnet C:/Users/aaron/AppData/Local/Temp/inspector-font-vl2lpcq2/inspect/bin/Debug/net10.0/i.dll C:/Users/aaron/.nuget/packages/ahwoo.brutal.imgui/2026.10.3/lib/net10.0/Brutal.ImGui.dll ImGui",
+    "dotnet C:/Users/aaron/AppData/Local/Temp/inspector-font-vl2lpcq2/inspect/bin/Debug/net10.0/i.dll C:/Users/aaron/.nuget/packages/ahwoo.brutal.imgui.backends/2026.10.3/lib/net10.0/Brutal.ImGui.Backends.dll GlfwBackend IL"
+  ],
+  "inspectorExitCodes": [
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "inspectorBuildOutput": "  Determining projects to restore...\r\n  Restored C:\\Users\\aaron\\AppData\\Local\\Temp\\inspector-font-vl2lpcq2\\inspect\\i.csproj (in 73 ms).\r\n  i -> C:\\Users\\aaron\\AppData\\Local\\Temp\\inspector-font-vl2lpcq2\\inspect\\bin\\Debug\\net10.0\\i.dll\r\n\r\nBuild succeeded.\r\n    0 Warning(s)\r\n    0 Error(s)\r\n\r\nTime Elapsed 00:00:01.30\r\n"
+}
