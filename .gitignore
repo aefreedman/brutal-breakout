@@ -3,8 +3,11 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
-# dotenv files
+# dotenv files (only sanitized examples/templates may be committed)
 .env
+.env.*
+!.env.example
+!.env.template
 
 # User-specific files
 *.rsuser
