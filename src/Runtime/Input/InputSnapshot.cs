@@ -17,7 +17,11 @@ public readonly record struct InputSnapshot
     public double2 Cursor { get; init; }
     public bool PadConnected { get; init; }
     public int PadId { get; init; }
+    /// <summary>Left stick; preserved for the original mode's aiming binding.</summary>
     public float2 PadStick { get; init; }
+    public float2 PadRightStick { get; init; }
+    /// <summary>Normalized GLFW signed right trigger, 0 released to 1 pressed.</summary>
+    public float PadRightTrigger { get; init; }
     public bool PadPrimary { get; init; }
     public bool PadRestart { get; init; }
 }
