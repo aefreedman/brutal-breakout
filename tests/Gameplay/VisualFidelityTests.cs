@@ -61,8 +61,8 @@ public class VisualFidelityTests
         using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
         using var draw = new ShapeDrawList();
         var before = sim.State;
-        const double failedTime = 0.058823029411764705;
-        foreach (double time in new[] { failedTime - 1e-8, failedTime, failedTime + 1e-8, failedTime + .5, failedTime + 65536 })
+        var failedTimes = new[] { .058823029411764705, .10588065702741996, .04706206663840547 };
+        foreach (double time in failedTimes.SelectMany(t => new[] { Math.BitDecrement(t), t, Math.BitIncrement(t), t + .5, t + 65536 }))
         {
             var frame = BallSandbox.Build(draw, sim, TestSettings.Colors, TestSettings.Style, time, w, h, out var e);
             Assert.True(e.HeldRingIndices > 0);
@@ -73,6 +73,54 @@ public class VisualFidelityTests
             Assert.Equal(before.Phase, sim.State.Phase);
             Assert.Equal(before.Velocity, sim.State.Velocity);
         }
+    }
+
+    [Fact]
+    public void CaughtBallRendersCriticalAndOrdinaryPhasesWithoutMovingSimulation()
+    {
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var draw = new ShapeDrawList();
+        sim.Step(new(PrimaryPressed: true));
+        for (int i = 0; i < 2000 && !sim.State.CatchEligible; i++) sim.Step();
+        Assert.True(sim.State.CatchEligible);
+        sim.Step(new(PrimaryPressed: true));
+        Assert.Equal(BallPhase.Aiming, sim.State.Phase);
+        var held = sim.State;
+        Assert.NotEqual(sim.Gameplay.Ball.Spawn, held.Position);
+        foreach (double time in new[] { .10588065702741996, .04706206663840547, 10.1234567, 65536.10588065703 })
+        {
+            var frame = BallSandbox.Build(draw, sim, TestSettings.Colors, TestSettings.Style, time, 1280, 720, out var e);
+            Assert.True(e.HeldRingIndices > 0);
+            Assert.Equal(held.Position, sim.State.Position); Assert.Equal(held.Velocity, sim.State.Velocity);
+            Assert.Equal(held.Phase, sim.State.Phase);
+        }
+    }
+
+    [Fact]
+    public void HeldRingFailureRetainsInvariantReproductionContextAndInnerCause()
+    {
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var draw = new ShapeDrawList();
+        var s = TestSettings.Style;
+        var unsupported = new PresentationStyle(10000, s.HeldRingWidthScreenFraction, s.HeldRingDashCount,
+            s.HeldRingGapFraction, s.HeldRingCyclesPerSecond, s.AimWidthRadiusRatio, s.ImpactRingWidthRadiusRatio,
+            s.ReflectedLengthRadiusRatio, s.FallbackAimLengthRadiusRatio, s.BrickCornerFraction,
+            s.CatchLineWidthScreenFraction, s.CatchLineDashLengthMultiples, s.CatchLineGapMultiples, s.Hud);
+        var before = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
+            var error = Assert.Throws<ArgumentException>(() =>
+                BallSandbox.Build(draw, sim, TestSettings.Colors, unsupported, .10588065702741996, 1280, 720, out _));
+            Assert.Contains("renderSeconds=0.10588065702741996", error.Message);
+            Assert.Contains("phase=0.21176131405483992", error.Message);
+            Assert.Contains("framebuffer=1280x720; center=640,612; scale=1", error.Message);
+            Assert.Contains("width=14.4; dashes=16; gap=0.5; cyclesPerSecond=2", error.Message);
+            Assert.Contains("cap=Round; space=Framebuffer", error.Message);
+            Assert.IsType<ArgumentException>(error.InnerException);
+            Assert.Contains("Curve precision limit", error.InnerException!.Message);
+        }
+        finally { System.Globalization.CultureInfo.CurrentCulture = before; }
     }
 
     [Fact]

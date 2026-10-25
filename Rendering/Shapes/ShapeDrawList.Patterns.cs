@@ -33,9 +33,12 @@ public sealed partial class ShapeDrawList
         PatternPath(centerline, width, pattern, color, closed, cap, space);
     }
 
-    /// <summary>Samples the circle centerline with the existing screen-space curve tolerance.
-    /// Framebuffer spacing follows arc length on the transformed sampled ellipse. Dots are circular
-    /// in measurement space, hence may become elliptical after a Local nonuniform transform.</summary>
+    /// <summary>Measures the sampled circle/ellipse with the existing screen-space curve tolerance.
+    /// Basic round-capped dashes in circular measurement spaces use independently sampled true arcs
+    /// and caps, avoiding vanishing wedges where a dash cut meets a sampled corner. The outer stroke
+    /// and caps obey the same curve tolerance. Framebuffer ellipses and other styles keep the general
+    /// sampled-path route and its precision-rejection limits; their arc spacing is not treated as circular.
+    /// Dots are circular in measurement space, hence may become elliptical after a Local transform.</summary>
     public void StrokePatternedCircle(float2 center, float radius, float width, StrokePattern pattern,
         LinearColor color, LineCap cap = LineCap.Butt, StrokeSpace space = StrokeSpace.Local)
     {
@@ -44,7 +47,8 @@ public sealed partial class ShapeDrawList
         if (NoOutput(color) || radius == 0 || width == 0) return;
         var centerline = new List<P>();
         CircleBoundary(centerline, c, radius, RoundResolution(radius, StrokeSpace.Local));
-        PatternPath(centerline, width, pattern, color, true, cap, space);
+        PatternPath(centerline, width, pattern, color, true, cap, space,
+            cap == LineCap.Round && !pattern.IsDots && !pattern.IsDecorative ? CircularMeasure(c, radius, space) : null);
     }
 
     private void StartPattern(float width, StrokePattern pattern, LinearColor color, LineCap cap, StrokeSpace space)
@@ -121,7 +125,7 @@ public sealed partial class ShapeDrawList
     }
 
     private void PatternPath(List<P> centerline, float width, StrokePattern pattern, LinearColor color,
-        bool closed, LineCap cap, StrokeSpace space)
+        bool closed, LineCap cap, StrokeSpace space, CircleMeasure? circle = null)
     {
         CleanPatternPath(centerline, closed);
         if (centerline.Count < (closed ? 3 : 2)) return;
@@ -172,6 +176,12 @@ public sealed partial class ShapeDrawList
             else if (pattern.IsDecorative && !samples.Solid)
             {
                 EmitDecorativePattern(centerline, distances, width, pattern, samples.Intervals, closed, color, space);
+            }
+            // The annular primitive requires a positive inner radius. Other domains retain the
+            // original general stroke route and its existing support/rejection policy.
+            else if (circle is { } circular && circular.Radius > width / 2.0)
+            {
+                EmitCircularDashes(circular, width, samples.Intervals, total, color, space, fragments);
             }
             else foreach (var interval in samples.Intervals)
             {

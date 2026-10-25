@@ -515,7 +515,7 @@ public sealed partial class ShapeDrawList : IDisposable
             if (area == 0) continue;
             double sourceArea = Cross(precise[b] - precise[a], precise[c] - precise[a]);
             if (Math.Sign(area) != Math.Sign(sourceArea))
-                throw new ArgumentException("Framebuffer FLOAT32 precision inverts a geometry tile.");
+                throw new ArgumentException(FormattableString.Invariant($"Framebuffer FLOAT32 precision inverts a geometry tile. triangle={i / 3}; sourceArea={sourceArea:R}; outputArea={area:R}."));
             triangles[count++] = a;
             triangles[count++] = b;
             triangles[count++] = c;

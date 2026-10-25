@@ -87,10 +87,21 @@ public static class BallSandbox
         if (playing) draw.FillDisc(center, radius, colors.Ball);
         int ballEnd = draw.IndexCount;
         if (playing && state.Phase == BallPhase.Aiming)
-            draw.StrokePatternedCircle(center, (float)(shortExtent * style.HeldRingRadiusScreenFraction / v.Scale),
-                (float)(shortExtent * style.HeldRingWidthScreenFraction),
-                StrokePattern.FixedDashes(style.HeldRingDashCount, style.HeldRingGapFraction, offset),
-                colors.HeldRing, LineCap.Round, space: StrokeSpace.Framebuffer);
+        {
+            float ringRadius = (float)(shortExtent * style.HeldRingRadiusScreenFraction / v.Scale);
+            float ringWidth = (float)(shortExtent * style.HeldRingWidthScreenFraction);
+            try
+            {
+                draw.StrokePatternedCircle(center, ringRadius, ringWidth,
+                    StrokePattern.FixedDashes(style.HeldRingDashCount, style.HeldRingGapFraction, offset),
+                    colors.HeldRing, LineCap.Round, space: StrokeSpace.Framebuffer);
+            }
+            catch (ArgumentException error)
+            {
+                throw new ArgumentException(FormattableString.Invariant(
+                    $"Held-ring generation failed: renderSeconds={renderSeconds:R}; phase={offset:R}; framebuffer={width}x{height}; center={state.Position.X:R},{state.Position.Y:R}; scale={v.Scale:R}; radius={ringRadius:R}; width={ringWidth:R}; dashes={style.HeldRingDashCount}; gap={style.HeldRingGapFraction:R}; cyclesPerSecond={style.HeldRingCyclesPerSecond:R}; cap=Round; space=Framebuffer. {error.Message}"), error);
+            }
+        }
         int heldEnd = draw.IndexCount;
         int barOutlineEnd = heldEnd;
         if (rules is not null)
