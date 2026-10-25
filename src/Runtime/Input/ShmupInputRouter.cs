@@ -15,8 +15,10 @@ public sealed class ShmupInputRouter
     private readonly ButtonEdges restart = new();
     private readonly HashSet<string> armed = new();
     private readonly HashSet<string> known = new();
+    private double2? previousCursor;
+    private bool previousMouse;
     public ShmupInputRouter(InputSettings settings) => Settings = settings ?? throw new ArgumentNullException(nameof(settings));
-    public void Reset() { restart.Reset(); armed.Clear(); known.Clear(); }
+    public void Reset() { restart.Reset(); armed.Clear(); known.Clear(); previousCursor = null; previousMouse = false; }
     public ShmupInputIntent Route(InputSnapshot sample)
     {
         if (!sample.Focused || sample.Minimized) { Reset(); return default; }
@@ -38,10 +40,15 @@ public sealed class ShmupInputRouter
             known.Add(source);
         }
         float2 move = default;
-        if (!InputMath.TryDirection(sample.KeyboardDirection, 0, out move) && sample.PadConnected)
-            InputMath.TryDirection(sample.PadStick, Settings.StickDeadzone, out move);
+        if (!InputMath.TryDirection(sample.KeyboardDirection, 0, out move) && sample.PadConnected
+            && InputMath.TryDirection(sample.PadStick, Settings.StickDeadzone, out move))
+            move *= Math.Min(1, MathF.Sqrt(sample.PadStick.X * sample.PadStick.X + sample.PadStick.Y * sample.PadStick.Y));
         float2? aim = sample.PadConnected && InputMath.TryDirection(sample.PadRightStick, Settings.StickDeadzone, out var right) ? right : null;
-        double2? pointer = double.IsFinite(sample.Cursor.X) && double.IsFinite(sample.Cursor.Y) ? sample.Cursor : null;
+        bool valid = double.IsFinite(sample.Cursor.X) && double.IsFinite(sample.Cursor.Y);
+        bool moved = valid && previousCursor is { } old && (old.X != sample.Cursor.X || old.Y != sample.Cursor.Y);
+        double2? pointer = valid && (moved || (sample.MousePrimary && !previousMouse && known.Contains("mouse"))) ? sample.Cursor : null;
+        previousCursor = valid ? sample.Cursor : null;
+        previousMouse = sample.MousePrimary;
         return new(move, aim, pointer, fire, restart.Update(true, restarts), true);
     }
 }

@@ -32,6 +32,18 @@ public sealed class ShmupInputTests
         Assert.True(router.Route(held).FireHeld);
         Assert.False(router.Route(held with { PadId = 2 }).FireHeld);
     }
+    [Fact]
+    public void AnalogMovementAndStationaryPointerDoNotOverrideRetainedAim()
+    {
+        var router = new ShmupInputRouter(new(.2));
+        var sample = Active with { PadConnected = true, PadStick = new(.5f, 0), PadRightStick = new(0, 1), Cursor = new(10, 20) };
+        var first = router.Route(sample);
+        Assert.Equal(new float2(.5f, 0), first.Move);
+        Assert.Null(first.Pointer);
+        var neutral = router.Route(sample with { PadRightStick = default });
+        Assert.Null(neutral.Aim); Assert.Null(neutral.Pointer);
+        Assert.Equal(new double2(20, 20), router.Route(sample with { Cursor = new(20, 20) }).Pointer);
+    }
     [Theory]
     [InlineData(-1, 0)]
     [InlineData(0, .5f)]
