@@ -20,6 +20,7 @@ public sealed class AssemblyBoundaryTests
     [Theory]
     [InlineData("overlay")]
     [InlineData("inspector")]
+    [InlineData("shmup")]
     public async Task InvalidHudOrInspectorConfigurationExitsBeforeNativeStartup(string section)
     {
         var path = Path.Combine(Path.GetTempPath(), "breakout-invalid-" + Guid.NewGuid() + ".json");

@@ -14,18 +14,20 @@ using CrushKit.Brutal.Draw2D;
 using BrutalBreakout.Presentation;
 using BrutalBreakout.Platform.Input;
 
+var shmupSmokeTest = args.Contains("--shmup-smoke-test");
+var startShmup = args.Contains("--shmup") || shmupSmokeTest;
 var gameplaySmokeTest = args.Contains("--gameplay-smoke-test");
 var showcase = args.Contains("--showcase");
 var debugUi = args.Contains("--debug-ui");
 var overlaySmokeTest = args.Contains("--overlay-smoke-test");
-var muteAudio = args.Contains("--mute");
+var muteAudio = args.Contains("--mute") || shmupSmokeTest;
 var hiddenSmokeTest = args.Contains("--smoke-test");
 var lifecycleSmokeTest = args.Contains("--lifecycle-smoke-test");
 var resizeStressTest = args.Contains("--visible-resize-stress");
-if (new[] { hiddenSmokeTest, gameplaySmokeTest, lifecycleSmokeTest, resizeStressTest, showcase }.Count(enabled => enabled) > 1)
+if (new[] { hiddenSmokeTest, gameplaySmokeTest, shmupSmokeTest, lifecycleSmokeTest, resizeStressTest, showcase }.Count(enabled => enabled) > 1)
     throw new ArgumentException("Select only one GPU test mode.");
 var smokeTest = hiddenSmokeTest || lifecycleSmokeTest;
-var gpuTest = smokeTest || resizeStressTest || gameplaySmokeTest;
+var gpuTest = smokeTest || resizeStressTest || gameplaySmokeTest || shmupSmokeTest;
 var gallery = showcase || smokeTest || resizeStressTest;
 if (overlaySmokeTest && !hiddenSmokeTest && !gameplaySmokeTest)
     throw new ArgumentException("--overlay-smoke-test requires a hidden GPU test mode.");
@@ -40,6 +42,7 @@ LoadedWindowConfiguration windowConfiguration;
 LoadedPhysicsConfiguration? physics;
 LoadedExecutionConfiguration? execution;
 LoadedGameplayConfiguration? gameplay;
+LoadedShmupConfiguration? shmup;
 LoadedInputConfiguration? input;
 LoadedColorSchemeConfiguration? colors;
 LoadedPresentationStyleConfiguration? style;
@@ -54,6 +57,7 @@ try
     physics = PhysicsConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     execution = ExecutionConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     gameplay = GameplayConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    shmup = ShmupConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     input = InputConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     colors = ColorSchemeConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     style = PresentationStyleConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
@@ -71,10 +75,14 @@ try
         throw new ArgumentException("Overlay smoke requires enabled overlays.");
     if (style is not null && gameplay is not null) style.Settings.Validate(gameplay.Settings);
     if (physics is not null && gameplay is not null) GameplayConfiguration.ValidatePhysics(gameplay, physics);
+    if (physics is not null && shmup is not null) ShmupConfiguration.ValidatePhysics(shmup, physics);
+    if (overlays is not null && shmup is not null && overlays.Settings.MaxLabelCharacters < ShmupPresentation.Controls.Length)
+        throw new ArgumentException("Overlay maxLabelCharacters cannot fit shmup controls.");
     Console.WriteLine(windowConfiguration.Describe());
     if (physics is not null) Console.WriteLine(physics.Describe());
     if (execution is not null) Console.WriteLine(execution.Describe());
     if (gameplay is not null) Console.WriteLine(gameplay.Describe());
+    if (shmup is not null) Console.WriteLine(shmup.Describe());
     if (input is not null) Console.WriteLine(input.Describe());
     if (colors is not null) Console.WriteLine(colors.Describe());
     if (style is not null) Console.WriteLine(style.Describe());
@@ -109,7 +117,7 @@ try
         // Published BRUTAL GLFW hints take integer GLFW_FALSE (0).
         Glfw.WindowHint(GlfwWindowHint.Focused, 0);
         Glfw.WindowHint(GlfwWindowHint.FocusOnShow, 0);
-        Glfw.WindowHint(GlfwWindowHint.Visible, hiddenSmokeTest || gameplaySmokeTest ? 0 : 1);
+        Glfw.WindowHint(GlfwWindowHint.Visible, hiddenSmokeTest || gameplaySmokeTest || shmupSmokeTest ? 0 : 1);
     }
     var window = Glfw.CreateWindow(new GlfwWindow.CreateInfo
     {
@@ -125,7 +133,8 @@ try
     ResourceLifetime.Run(() =>
     {
 #if BREAKOUT_EDITOR
-        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, new ImGuiInspector(inspectorConfiguration!.Settings));
+        var gameplayControls = new GameplayControls();
+        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, new ImGuiInspector(inspectorConfiguration!.Settings, gameplayControls.Draw));
 #else
         if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings);
 #endif
@@ -133,22 +142,28 @@ try
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
             "Breakout: leave the lower zone, hit something, return below the line to catch; release/repress to relaunch. R restarts. See README.");
-        using var session = !gallery && !gameplaySmokeTest ? new BallSandboxSession(physics!.Settings, gameplay!.Settings, input!.Settings, execution!.Settings) : null;
+        using var modes = !gallery && !gameplaySmokeTest ? new GameplaySessionHost(physics!.Settings, gameplay!.Settings,
+            shmup!.Settings, input!.Settings, execution!.Settings, startShmup ? GameplayMode.Shmup : GameplayMode.Breakout) : null;
+        if (modes?.Mode == GameplayMode.Shmup) Console.WriteLine(ShmupPresentation.Controls);
         // Hidden/showcase paths never create an audio device, even with enabled audio.json.
         string? audioDiagnostic = null;
-        using var audio = session is null ? null : new GameAudio(audioConfiguration!.Settings,
+        using var audio = modes is null ? null : new GameAudio(audioConfiguration!.Settings,
             muteAudio ? new NullAudioOutput<AudioCue>() : SdlMixerOutput<AudioCue>.Create(audioConfiguration.Settings.Output, out audioDiagnostic));
         if (audioDiagnostic is not null) Console.Error.WriteLine(audioDiagnostic);
-        Console.WriteLine($"Audio host: nativeRequested={session is not null && !muteAudio && audioConfiguration!.Settings.Enabled}; muted={muteAudio || session is null}.");
+        Console.WriteLine($"Audio host: nativeRequested={modes is not null && !muteAudio && audioConfiguration!.Settings.Enabled}; muted={muteAudio || modes is null}.");
         var poller = new GlfwInputPoller(window);
 #if BREAKOUT_EDITOR
         var inspector = new InspectorToggle(debugUi || inspectorConfiguration!.Settings.Visible);
-        Console.WriteLine("F1: toggle the read-only diagnostics inspector.");
+        Console.WriteLine("F1: toggle diagnostics and gameplay controls.");
 #endif
         using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings, gameplay!.Settings, input!.Settings, execution!.Settings) : null;
         string? lastGameTitle = null;
         var gameplayViewports = new HashSet<(int Width, int Height)>();
         var gameplayFrames = 0;
+        var shmupFrames = 0;
+        var shmupSmokeStage = 0;
+        var shmupViewports = new HashSet<(int Width, int Height)>();
+        bool shmupSawBalls = false, shmupSawBricks = false;
         var staleFrameRegressionPassed = false;
         var resizeRequested = false;
         var lastElapsed = TimeSpan.Zero;
@@ -172,10 +187,56 @@ try
             // Hidden acceptance opens/closes the inspector without desktop input, including after resize.
             var raw = poller.Poll(); // Inspect F1 before capture filtering, including while ImGui owns keyboard input.
 #if BREAKOUT_EDITOR
-            bool? inspectorOverride = overlaySmokeTest ? renderer.PresentedFrames % 6 is >= 2 and <= 4 : inspector.Update(raw);
+            bool? inspectorOverride = shmupSmokeTest ? true : overlaySmokeTest ? renderer.PresentedFrames % 6 is >= 2 and <= 4 : inspector.Update(raw);
 #else
             bool? inspectorOverride = false;
 #endif
+#if BREAKOUT_EDITOR
+            var requests = gameplayControls.Drain();
+            if (modes is not null && requests.Mode is { } requestedMode)
+            {
+                modes.Switch(requestedMode);
+                audio!.SetSuppressed(muteAudio, hasFocus: false);
+            }
+            if (modes?.Shmup is { } widening && requests.Mode is null && requests.Width is { } requestedWidth)
+                widening.Simulation.Widen(Math.Clamp(requestedWidth, widening.Simulation.Snapshot.Width, widening.Settings.Arena.Width));
+            if (modes is not null) gameplayControls.Synchronize(modes.Mode, modes.Shmup?.Simulation.Snapshot.Width ?? 0, shmup!.Settings.Arena.Width);
+#endif
+            if (shmupSmokeTest)
+            {
+                if (timer.Elapsed.TotalSeconds > 20) throw new InvalidOperationException("Shmup smoke timed out.");
+                if (shmupFrames >= 30 && shmupSmokeStage == 0)
+                {
+                    modes!.Shmup!.Simulation.Widen(shmup!.Settings.Arena.Width);
+                    window.Size = new int2(960, 540);
+                    shmupSmokeStage = 1;
+                }
+                if (shmupFrames >= 36 && shmupSmokeStage == 1 && shmupViewports.Contains((960, 540)))
+                {
+                    modes!.Switch(GameplayMode.Breakout);
+                    shmupSmokeStage = 2;
+                }
+                if (shmupFrames >= 40 && shmupSmokeStage == 2)
+                {
+                    modes!.Switch(GameplayMode.Shmup);
+                    if (modes.Shmup!.Simulation.Snapshot.Width != shmup!.Settings.Arena.InitialPlayAreaWidth ||
+                        modes.Shmup.Simulation.Snapshot.Balls.Length != 0 || modes.Shmup.Simulation.Snapshot.Tick != 0)
+                        throw new InvalidOperationException("Shmup mode switch retained run state.");
+                    shmupSmokeStage = 3;
+                }
+                if (shmupFrames >= 70 && shmupSmokeStage == 3)
+                {
+#if BREAKOUT_EDITOR
+                    if (gameplayControls.DrawCount == 0) throw new InvalidOperationException("Shmup smoke never entered the ImGui callback.");
+#endif
+                    if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks)
+                        throw new InvalidOperationException("Shmup smoke missing resized, fired-ball or spawned-brick geometry.");
+                    Console.WriteLine("Shmup smoke PASS: hidden input, widening, resize, isolated mode switches, fresh reset and indexed presentation.");
+                    break;
+                }
+            }
+            var session = modes?.Breakout;
+            var shmupSession = modes?.Shmup;
             var capture = overlays is null ? default : renderer.BeginOverlayFrame(inspectorOverride);
             if (overlaySmokeTest && inspectorOverride == false &&
                 (renderer.InspectorActive || capture.Mouse || capture.Keyboard))
@@ -205,22 +266,40 @@ try
                     if (capture.ResetBaselines)
                     {
                         audio!.SetSuppressed(muteAudio, hasFocus: false);
-                        session!.Advance(raw with { Focused = false }, 0, viewport);
+                        if (session is not null) session.Advance(raw with { Focused = false }, 0, viewport);
+                        if (shmupSession is not null) shmupSession.Advance(raw with { Focused = false }, 0,
+                            new(size.X, size.Y, pixels.X, pixels.Y, shmupSession.Settings.Arena));
                     }
 #if BREAKOUT_EDITOR
                     var filtered = OverlayInputRouting.Filter(raw, capture);
 #else
                     var filtered = raw;
 #endif
-                    audio!.SetSuppressed(muteAudio, filtered.Focused && !filtered.Minimized);
-                    session!.Advance(filtered, elapsedSeconds, viewport);
-                    audio.Consume(session.DrainEvents());
-                    var game = session.Simulation;
-                    string title = $"Brutal Breakout | Balls: {game.BallsRemaining} | Bricks: {game.RemainingBricks} | " +
-                        (game.RoundPhase == BrutalBreakout.Simulation.RoundPhase.Won ? "CLEARED - R to restart" :
-                         game.RoundPhase == BrutalBreakout.Simulation.RoundPhase.Lost ? "GAME OVER - R to restart" :
-                         "Space/click/A: launch or catch below line | R: restart");
-                    if (title != lastGameTitle) { window.Title = title; lastGameTitle = title; }
+                    if (shmupSmokeTest)
+                    {
+                        filtered = new InputSnapshot { Focused = true, PadConnected = true, PadStick = new(.5f, 0),
+                            PadRightStick = new(0, 1), PadRightTrigger = shmupFrames % 4 == 0 ? 0 : 1,
+                            Cursor = new(double.NaN, double.NaN) };
+                        elapsedSeconds = physics!.Settings.StepSeconds * physics.Settings.MaxCatchUpSteps;
+                    }
+                    audio!.SetSuppressed(muteAudio || shmupSession is not null, filtered.Focused && !filtered.Minimized);
+                    if (shmupSession is not null)
+                    {
+                        shmupSession.Advance(filtered, elapsedSeconds, new(size.X, size.Y, pixels.X, pixels.Y, shmupSession.Settings.Arena));
+                        window.Title = $"Brutal Breakout | Shmup | HP: {shmupSession.Simulation.Snapshot.PlayerHealth}";
+                        lastGameTitle = null;
+                    }
+                    else
+                    {
+                        session!.Advance(filtered, elapsedSeconds, viewport);
+                        audio.Consume(session.DrainEvents());
+                        var game = session.Simulation;
+                        string title = $"Brutal Breakout | Balls: {game.BallsRemaining} | Bricks: {game.RemainingBricks} | " +
+                            (game.RoundPhase == BrutalBreakout.Simulation.RoundPhase.Won ? "CLEARED - R to restart" :
+                             game.RoundPhase == BrutalBreakout.Simulation.RoundPhase.Lost ? "GAME OVER - R to restart" :
+                             "Space/click/A: launch or catch below line | R: restart");
+                        if (title != lastGameTitle) { window.Title = title; lastGameTitle = title; }
+                    }
                 }
             }
             if (smokeTest)
@@ -285,6 +364,8 @@ try
             if (!wasIconified && framebuffer.X > 0 && framebuffer.Y > 0)
             {
                 frame = gallery ? ShapeShowcase.Build(shapes, framebuffer.X, framebuffer.Y, out decorative) :
+                    shmupSession is not null ? ShmupPresentation.Build(shapes, shmupSession.Simulation.Snapshot, shmupSession.Settings,
+                        colors!.Settings, style!.Settings, framebuffer.X, framebuffer.Y) :
                     BallSandbox.Build(shapes, (gameplayScript?.Session ?? session!).Simulation, colors!.Settings, style!.Settings, now.TotalSeconds,
                         framebuffer.X + (injectStaleFrame ? 1 : 0), framebuffer.Y, out gameplayGeometry);
                 if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
@@ -298,10 +379,11 @@ try
             // proves this frame's indexed geometry survived extent validation and presentation.
             if (overlays is not null)
             {
-                var overlayFrame = OverlayHost.Build((gameplayScript?.Session ?? session)?.Simulation,
+                var overlayFrame = shmupSession is not null ? ShmupPresentation.Overlay(shmupSession.Simulation.Snapshot, colors!.Settings.Hud) :
+                    OverlayHost.Build((gameplayScript?.Session ?? session)?.Simulation,
                     colors?.Settings.Hud ?? LinearColor.FromSrgb(1, 1, 1));
 #if BREAKOUT_EDITOR
-                overlayFrame = InspectorHost.Compose(overlayFrame, (gameplayScript?.Session ?? session)?.Simulation,
+                if (shmupSession is null) overlayFrame = InspectorHost.Compose(overlayFrame, (gameplayScript?.Session ?? session)?.Simulation,
                     elapsedSeconds * 1000, gameplayFrames + shapeFrames, frame?.Vertices.Length ?? 0, frame?.Indices.Length ?? 0);
 #endif
                 // Ordinary gallery keeps its original artwork; F1 can still inspect it. GPU fixtures exercise labels too.
@@ -331,6 +413,14 @@ try
                     Console.WriteLine($"Overlay viewport: {key.Item1}x{key.Item2}; textFrames={overlayReceipt.TextFrames}; imageFrames={overlayReceipt.ImageFrames}; inspectorFrames={overlayReceipt.InspectorFrames}; labelQuads={overlayReceipt.LabelQuads}; drawIndices={overlayReceipt.DrawIndices}; generation={overlayReceipt.SwapchainGeneration}.");
                 overlayViewports[key] = overlayReceipt;
             }
+            if (shmupSmokeTest && geometryPresented && frame.HasValue)
+            {
+                if (frame.Value.Indices.Length == 0) throw new InvalidOperationException("Shmup smoke presented empty geometry.");
+                shmupFrames++;
+                shmupViewports.Add((framebuffer.X, framebuffer.Y));
+                shmupSawBalls |= shmupSession?.Simulation.Snapshot.Balls.Length > 0;
+                shmupSawBricks |= shmupSession?.Simulation.Snapshot.Bricks.Length > 0;
+            }
             if (smokeTest && geometryPresented && frame.HasValue)
             {
                 shapeFrames++;
@@ -359,6 +449,7 @@ try
             if (smokeTest && wasIconified && renderer.PresentedFrames != framesBeforeDraw)
                 throw new InvalidOperationException("Smoke: Draw presented while iconified.");
         }
+        if (shmupSmokeTest && shmupFrames < 70) throw new InvalidOperationException("Shmup smoke interrupted.");
         if (gameplayScript is not null)
         {
             if (!staleFrameRegressionPassed || !gameplayScript.Completed || gameplayViewports.Count < 2 || gameplayFrames < 9)
