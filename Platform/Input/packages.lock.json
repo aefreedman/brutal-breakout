@@ -2,28 +2,14 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
-      "Ahwoo.BRUTAL.Glfw": {
+      "CrushKit.Brutal.Input": {
         "type": "Direct",
-        "requested": "[2026.10.5, 2026.10.5]",
-        "resolved": "2026.10.5",
-        "contentHash": "p3Il0ZJHU00en4EnN4xGy2lWAItgbaw4IPyVtFhINAOruochLLGcBu5L3Qmky9akqs1ldjsgkYMCRdYOTkMnIQ==",
+        "requested": "[0.1.0-preview.2, )",
+        "resolved": "0.1.0-preview.2",
+        "contentHash": "wet9yyoK1pFZ1bdrNuBUhivsTs8s03WZFcaLccIqat5+NEG74pfFV4catGiNwpX3wy9ZcNbtHcUOrsfEvQSWMw==",
         "dependencies": {
-          "Ahwoo.BRUTAL.Core": "2026.10.4",
-          "Ahwoo.BRUTAL.Glfw.Native": "2026.10.5",
-          "Ahwoo.BRUTAL.Logging": "2026.10.3",
-          "Ahwoo.BRUTAL.Numerics": "2026.10.2"
-        }
-      },
-      "Ahwoo.BRUTAL.Numerics": {
-        "type": "Direct",
-        "requested": "[2026.10.2, 2026.10.2]",
-        "resolved": "2026.10.2",
-        "contentHash": "OB2wZve4iKzjBQSDT7jbJo04kjjkYE1wwAWaN8UGsMEP4WZmstbnzvo112nDcVp3u1HXQ5XlTzsthfQQJAtlxQ==",
-        "dependencies": {
-          "Ahwoo.BRUTAL.Core": "2026.10.4",
-          "CommunityToolkit.HighPerformance": "8.4.2",
-          "Microsoft.Extensions.Logging": "10.0.0",
-          "Microsoft.Extensions.Logging.Console": "10.0.0"
+          "Ahwoo.BRUTAL.Glfw": "[2026.10.5]",
+          "Ahwoo.BRUTAL.Numerics": "[2026.10.2]"
         }
       },
       "Ahwoo.BRUTAL.Collections": {
@@ -44,6 +30,17 @@
           "CommunityToolkit.HighPerformance": "8.4.2",
           "Microsoft.Extensions.Logging": "10.0.0",
           "Microsoft.Extensions.Logging.Console": "10.0.0"
+        }
+      },
+      "Ahwoo.BRUTAL.Glfw": {
+        "type": "Transitive",
+        "resolved": "2026.10.5",
+        "contentHash": "p3Il0ZJHU00en4EnN4xGy2lWAItgbaw4IPyVtFhINAOruochLLGcBu5L3Qmky9akqs1ldjsgkYMCRdYOTkMnIQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Glfw.Native": "2026.10.5",
+          "Ahwoo.BRUTAL.Logging": "2026.10.3",
+          "Ahwoo.BRUTAL.Numerics": "2026.10.2"
         }
       },
       "Ahwoo.BRUTAL.Glfw.Native": {
@@ -68,6 +65,17 @@
         "contentHash": "kOzj5ungJ9f1SeofvKv2rGocIrqmB21hXBWS9Ekq1y+XthNrKlgkU555jYbnkqssnq+XGX11q8qK+GGbIGJQ3Q==",
         "dependencies": {
           "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Microsoft.Extensions.Logging": "10.0.0",
+          "Microsoft.Extensions.Logging.Console": "10.0.0"
+        }
+      },
+      "Ahwoo.BRUTAL.Numerics": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "OB2wZve4iKzjBQSDT7jbJo04kjjkYE1wwAWaN8UGsMEP4WZmstbnzvo112nDcVp3u1HXQ5XlTzsthfQQJAtlxQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "CommunityToolkit.HighPerformance": "8.4.2",
           "Microsoft.Extensions.Logging": "10.0.0",
           "Microsoft.Extensions.Logging.Console": "10.0.0"
         }

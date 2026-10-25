@@ -19,16 +19,16 @@ public sealed class InspectorFontTests
     [Fact]
     public void ConfiguredTtfReplacesImplicitPixelStyleFontAndBakesAtFramebufferDensity()
     {
-        var settings = OverlayConfiguration.Load(Path.Combine(AppContext.BaseDirectory, "overlay.json")).Settings;
+        var settings = OverlayConfiguration.Load(Path.Combine(AppContext.BaseDirectory, "overlay.json")).Inspector;
         var context = ImGui.CreateContext();
         try
         {
             var io = ImGui.GetIO();
             io.IniFilename = default; io.LogFilename = default;
-            var font = InspectorFont.Load(io, settings.DebugFontPath, settings.FontSize);
+            var font = InspectorFont.Load(io, settings.FontPath, settings.FontSize);
             Assert.Equal(font, io.FontDefault);
             Assert.True(io.Fonts.Fonts.Count == 1, "Native ImVector must contain only the explicitly configured font.");
-            Assert.Equal(new FileInfo(settings.DebugFontPath).Length, font.Sources[0].FontDataSize);
+            Assert.Equal(new FileInfo(settings.FontPath).Length, font.Sources[0].FontDataSize);
             Assert.Contains("Iosevka-Regular", font.GetDebugName().ToString());
             Assert.DoesNotContain("Aile", font.GetDebugName().ToString());
             Assert.False(font.Sources[0].PixelSnapH); // Default ProggyClean explicitly enables pixel snapping.

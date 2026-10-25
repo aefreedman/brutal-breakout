@@ -1,4 +1,5 @@
 using CrushKit.Brutal.Vulkan;
+using CrushKit.Brutal.Audio;
 using CrushKit.Brutal.ImGui;
 using System.Diagnostics;
 using BrutalBreakout.Audio;
@@ -59,7 +60,7 @@ try
     if (colors is not null) Console.WriteLine(colors.Describe());
     if (style is not null) Console.WriteLine(style.Describe());
     if (audioConfiguration is not null) Console.WriteLine(FormattableString.Invariant($"Audio configuration: enabled={audioConfiguration.Settings.Enabled}; masterGain={audioConfiguration.Settings.MasterGain}; maxVoices={audioConfiguration.Settings.MaxVoices}; path={audioConfiguration.Path}"));
-    if (overlays is not null) Console.WriteLine(FormattableString.Invariant($"Overlay configuration: enabled={overlays.Settings.Enabled}; fontSize={overlays.Settings.FontSize}; debugVisible={overlays.Settings.DebugVisible}; path={overlays.Path}"));
+    if (overlays is not null) Console.WriteLine(FormattableString.Invariant($"Overlay configuration: enabled={overlays.Settings.Enabled}; fontSize={overlays.Settings.FontSize}; debugVisible={overlays.Inspector.Visible}; path={overlays.Path}"));
 }
 catch (Exception error) when (error is InvalidDataException or ArgumentException)
 {
@@ -101,7 +102,7 @@ try
     var renderer = VulkanRenderer.Create(window, validation);
     ResourceLifetime.Run(() =>
     {
-        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, new ImGuiInspector());
+        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, new ImGuiInspector(overlays.Inspector));
         using var shapes = new ShapeDrawList();
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
@@ -110,11 +111,11 @@ try
         // Hidden/showcase paths never create an audio device, even with enabled audio.json.
         string? audioDiagnostic = null;
         using var audio = session is null ? null : new GameAudio(audioConfiguration!.Settings,
-            muteAudio ? new NullAudioOutput() : SdlMixerOutput.Create(audioConfiguration.Settings, out audioDiagnostic));
+            muteAudio ? new NullAudioOutput<AudioCue>() : SdlMixerOutput<AudioCue>.Create(audioConfiguration.Settings.Output, out audioDiagnostic));
         if (audioDiagnostic is not null) Console.Error.WriteLine(audioDiagnostic);
         Console.WriteLine($"Audio host: nativeRequested={session is not null && !muteAudio && audioConfiguration!.Settings.Enabled}; muted={muteAudio || session is null}.");
         var poller = new GlfwInputPoller(window);
-        var inspector = new InspectorToggle(debugUi || overlays!.Settings.DebugVisible);
+        var inspector = new InspectorToggle(debugUi || overlays!.Inspector.Visible);
         Console.WriteLine("F1: toggle the read-only diagnostics inspector.");
         using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings, gameplay!.Settings, input!.Settings) : null;
         string? lastGameTitle = null;

@@ -4,9 +4,9 @@
     "net10.0": {
       "CrushKit.Brutal.Draw2D": {
         "type": "Direct",
-        "requested": "[0.1.0-preview.1, )",
-        "resolved": "0.1.0-preview.1",
-        "contentHash": "6OxqzfO0pVQ0guPWoAVRCrDII8bLD6f+CEW1bo0D11mwbfggVvvF+kO+Kk7oeBINkwH4NGOvyR0JVOk+IhQNJw==",
+        "requested": "[0.1.0-preview.2, )",
+        "resolved": "0.1.0-preview.2",
+        "contentHash": "7TgumDF7GS57/ps4cdEKFxVa1yzY5gfU+0CwJWlyqj7pwapEWZTndsYj3BYrx/tNOn5rqZ4lCM62mUOoxTrLQA==",
         "dependencies": {
           "Ahwoo.BRUTAL.Numerics": "2026.10.2",
           "Ahwoo.BRUTAL.Render.Mesh": "2026.10.2"
@@ -159,6 +159,15 @@
         "type": "Transitive",
         "resolved": "8.4.2",
         "contentHash": "2hmtrrU18x6NL3mbuAqwy0KpnoEEJOuK6sH5RKQfD/jHijn2pqvqBUC7WGy9dgNBL9BDA7eOC0kirsNPMp2f4Q=="
+      },
+      "CrushKit.Brutal.Input": {
+        "type": "Transitive",
+        "resolved": "0.1.0-preview.2",
+        "contentHash": "wet9yyoK1pFZ1bdrNuBUhivsTs8s03WZFcaLccIqat5+NEG74pfFV4catGiNwpX3wy9ZcNbtHcUOrsfEvQSWMw==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Glfw": "[2026.10.5]",
+          "Ahwoo.BRUTAL.Numerics": "[2026.10.2]"
+        }
       },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
@@ -342,8 +351,7 @@
       "brutalbreakout.input": {
         "type": "Project",
         "dependencies": {
-          "Ahwoo.BRUTAL.Glfw": "[2026.10.5, 2026.10.5]",
-          "Ahwoo.BRUTAL.Numerics": "[2026.10.2, 2026.10.2]"
+          "CrushKit.Brutal.Input": "[0.1.0-preview.2, )"
         }
       },
       "brutalbreakout.simulation": {

@@ -1,4 +1,5 @@
 using BrutalBreakout.Audio;
+using CrushKit.Brutal.Audio;
 using BrutalBreakout.Configuration;
 using BrutalBreakout.Simulation;
 using BrutalBreakout.Presentation;
@@ -12,7 +13,7 @@ public class AudioTests
     private static string Config => Path.Combine(AppContext.BaseDirectory, "audio.json");
     private static AudioSettings Settings(int voices = 8, double gain = .5, bool enabled = true) =>
         new(enabled, gain, voices, AudioConfiguration.Load(Config).Settings.Assets);
-    private sealed class Fake : IAudioOutput
+    private sealed class Fake : IAudioOutput<AudioCue>
     {
         public readonly HashSet<int> Busy = [];
         public readonly List<(int Voice, AudioCue Cue, float Gain)> Played = [];
@@ -34,6 +35,17 @@ public class AudioTests
     {
         var fake = new Fake(); using var audio = new GameAudio(Settings(), fake);
         audio.Consume([fact]); Assert.Equal(cue, Assert.Single(fake.Played).Cue);
+    }
+    [Fact]
+    public void EmptyConsumeStillHonorsLifetimeAndThread()
+    {
+        var audio = new GameAudio(Settings(), new Fake());
+        Exception? error = null;
+        var thread = new Thread(() => error = Record.Exception(() => audio.Consume([])));
+        thread.Start(); Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
+        Assert.IsType<InvalidOperationException>(error);
+        audio.Dispose(); audio.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => audio.Consume([]));
     }
     [Fact]
     public void FirstIdleThenDropNewAndReuseCompletedVoice()
@@ -65,20 +77,8 @@ public class AudioTests
     [Fact]
     public void DisabledNativeFactoryDoesNotLoadHardware()
     {
-        using var output = SdlMixerOutput.Create(Settings(enabled: false), out var diagnostic);
-        Assert.IsType<NullAudioOutput>(output); Assert.Null(diagnostic);
-    }
-    [Fact]
-    public void UnavailableLibraryIsNonfatalWithOneBoundedDiagnostic()
-    {
-        int attempts = 0;
-        using var output = SdlMixerOutput.WithAvailabilityFallback(() =>
-        {
-            attempts++; throw new DllNotFoundException(new string('x', 1000));
-        }, out var diagnostic);
-        Assert.IsType<NullAudioOutput>(output); Assert.Equal(1, attempts);
-        Assert.NotNull(diagnostic); Assert.InRange(diagnostic.Length, 1, 280);
-        output.Play(0, AudioCue.Launch, .5f); Assert.False(output.Playing(0));
+        using var output = SdlMixerOutput<AudioCue>.Create(Settings(enabled: false).Output, out var diagnostic);
+        Assert.IsType<NullAudioOutput<AudioCue>>(output); Assert.Null(diagnostic);
     }
     [Theory]
     [InlineData(-1, 8)] [InlineData(2, 8)] [InlineData(double.NaN, 8)] [InlineData(.5, 0)] [InlineData(.5, 257)]

@@ -11,23 +11,37 @@ public sealed class OverlayTests
 {
     private static string ConfigPath => Path.Combine(AppContext.BaseDirectory, "overlay.json");
     private static OverlaySettings Settings() => OverlayConfiguration.Load(ConfigPath).Settings;
+    private static CrushKit.Brutal.ImGui.InspectorSettings Inspector() => OverlayConfiguration.Load(ConfigPath).Inspector;
 
     [Fact]
     public void ShippedConfigurationResolvesAssetsRelativeToConfig()
     {
-        var s = Settings();
+        var s = Settings(); var inspector = Inspector();
         Assert.True(Path.IsPathFullyQualified(s.FontPath));
-        Assert.True(Path.IsPathFullyQualified(s.DebugFontPath));
-        Assert.NotEqual(s.FontPath, s.DebugFontPath);
-        Assert.True(File.Exists(s.DebugFontPath));
+        Assert.True(Path.IsPathFullyQualified(inspector.FontPath));
+        Assert.NotEqual(s.FontPath, inspector.FontPath);
+        Assert.True(File.Exists(inspector.FontPath));
         Assert.Equal("IosevkaAile-Regular.ttf", Path.GetFileName(s.FontPath));
-        Assert.Equal("Iosevka-Regular.ttf", Path.GetFileName(s.DebugFontPath));
-        Assert.True(Path.IsPathFullyQualified(s.ImagePath));
+        Assert.Equal("Iosevka-Regular.ttf", Path.GetFileName(inspector.FontPath));
+        Assert.True(Path.IsPathFullyQualified(inspector.ImagePath));
         Assert.True(File.Exists(s.FontPath));
-        Assert.True(File.Exists(s.ImagePath));
+        Assert.True(File.Exists(inspector.ImagePath));
         Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(s.FontPath)!, "OFL.txt")));
         Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(s.FontPath)!, "PROVENANCE.txt")));
-        Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(s.ImagePath)!, "LICENSE.txt")));
+        Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(inspector.ImagePath)!, "LICENSE.txt")));
+    }
+
+    [Fact]
+    public void SeparateSettingsAreSharedWithTheirConsumers()
+    {
+        var loaded = OverlayConfiguration.Load(ConfigPath);
+        using var text = new OverlayText(loaded.Settings);
+        using var inspector = new CrushKit.Brutal.ImGui.ImGuiInspector(loaded.Inspector);
+        Assert.Same(loaded.Inspector, inspector.Settings);
+        Assert.NotEqual(loaded.Settings.FontPath, inspector.Settings.FontPath);
+        Assert.Equal(loaded.Settings.FontSize, inspector.Settings.FontSize);
+        // No GLFW, device or ImGui context is initialized by inspector construction/disposal.
+        Assert.False(loaded.Inspector.Visible);
     }
 
     [Fact]
@@ -165,7 +179,7 @@ public sealed class OverlayTests
     [Fact]
     public void TextureLoaderCopiesOwnedRgbaAndPremultipliesBeforeFiltering()
     {
-        var s = Settings();
+        var s = Inspector();
         var pixels = OverlayPixels.LoadPng(s.ImagePath, s.MaxTextureDimension, s.MaxEncodedImageBytes);
         try
         {
@@ -192,7 +206,7 @@ public sealed class OverlayTests
     [Fact]
     public void RejectsImageBeforeNativeDecodeForDimensionsAndEncodingBounds()
     {
-        var bytes = File.ReadAllBytes(Settings().ImagePath);
+        var bytes = File.ReadAllBytes(Inspector().ImagePath);
         Assert.Throws<InvalidDataException>(() => OverlayPixels.DecodePng(bytes, 8, bytes.Length));
         Assert.Throws<InvalidDataException>(() => OverlayPixels.DecodePng(bytes, 16, bytes.Length - 1));
         Assert.Throws<InvalidDataException>(() => OverlayPixels.DecodePng(new byte[33], 16, 33));
@@ -246,7 +260,7 @@ public sealed class OverlayTests
         try
         {
             var node = JsonNode.Parse(File.ReadAllText(ConfigPath))!.AsObject();
-            var s = Settings(); node["fontPath"] = s.FontPath; node["debugFontPath"] = s.DebugFontPath; node["imagePath"] = s.ImagePath;
+            var s = Settings(); var inspector = Inspector(); node["fontPath"] = s.FontPath; node["debugFontPath"] = inspector.FontPath; node["imagePath"] = inspector.ImagePath;
             mutate(node); File.WriteAllText(path, node.ToJsonString()); test(path);
         }
         finally { Directory.Delete(directory, true); }

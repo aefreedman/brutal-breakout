@@ -1,4 +1,5 @@
 using Brutal.Numerics;
+using CrushKit.Brutal.Input;
 
 namespace BrutalBreakout.Platform.Input;
 
@@ -16,6 +17,7 @@ public sealed class InputRouter
         Settings = settings;
     }
     private bool initialized;
+    private readonly ButtonEdges primaryEdges = new(), restartEdges = new();
     private InputSnapshot previous;
     private bool cursorValid;
     private double2 cursor;
@@ -24,6 +26,7 @@ public sealed class InputRouter
     public void Reset()
     {
         initialized = false;
+        primaryEdges.Reset(); restartEdges.Reset();
         previous = default;
         cursorValid = false;
         cursor = default;
@@ -37,13 +40,15 @@ public sealed class InputRouter
             return new(AimKind.None, default, false, false, false, null);
         }
 
-        bool samePad = initialized && sample.PadConnected && previous.PadConnected && sample.PadId == previous.PadId;
-        bool primary = initialized && Edge(sample.KeyboardPrimary, sample.MousePrimary,
-            sample.PadConnected && sample.PadPrimary, previous.KeyboardPrimary, previous.MousePrimary,
-            samePad ? previous.PadPrimary : sample.PadConnected && sample.PadPrimary);
-        bool restart = initialized && Edge(sample.KeyboardRestart, false,
-            sample.PadConnected && sample.PadRestart, previous.KeyboardRestart, false,
-            samePad ? previous.PadRestart : sample.PadConnected && sample.PadRestart);
+        Dictionary<string, bool> primarySources = new() { ["keyboard"] = sample.KeyboardPrimary, ["mouse"] = sample.MousePrimary };
+        Dictionary<string, bool> restartSources = new() { ["keyboard"] = sample.KeyboardRestart };
+        if (sample.PadConnected)
+        {
+            primarySources[$"pad:{sample.PadId}"] = sample.PadPrimary;
+            restartSources[$"pad:{sample.PadId}"] = sample.PadRestart;
+        }
+        bool primary = primaryEdges.Update(true, primarySources);
+        bool restart = restartEdges.Update(true, restartSources);
         bool mousePress = initialized && sample.MousePrimary && !previous.MousePrimary;
         bool valid = double.IsFinite(sample.Cursor.X) && double.IsFinite(sample.Cursor.Y)
             && Math.Abs(sample.Cursor.X) <= float.MaxValue && Math.Abs(sample.Cursor.Y) <= float.MaxValue;
@@ -55,8 +60,8 @@ public sealed class InputRouter
 
         AimKind kind = AimKind.None;
         float2 aim = default;
-        if (Direction(sample.KeyboardDirection, 0, out aim)
-            || (sample.PadConnected && Direction(sample.PadStick, Settings.StickDeadzone, out aim)))
+        if (InputMath.TryDirection(sample.KeyboardDirection, 0, out aim)
+            || (sample.PadConnected && InputMath.TryDirection(sample.PadStick, Settings.StickDeadzone, out aim)))
             kind = AimKind.Direction;
         else if (valid && (moved || mousePress))
         {
@@ -66,17 +71,4 @@ public sealed class InputRouter
         return new(kind, aim, primary, restart, true, sample.PadConnected ? sample.PadId : null);
     }
 
-    private static bool Edge(bool key, bool mouse, bool pad, bool oldKey, bool oldMouse, bool oldPad)
-        => (key || mouse || pad) && !(oldKey || oldMouse || oldPad);
-
-    private static bool Direction(float2 value, float deadzone, out float2 direction)
-    {
-        direction = default;
-        if (!float.IsFinite(value.X) || !float.IsFinite(value.Y)) return false;
-        // Double intermediates avoid overflow/underflow for any finite snapshot axis.
-        double length = Math.Sqrt((double)value.X * value.X + (double)value.Y * value.Y);
-        if (length <= deadzone) return false;
-        direction = new((float)(value.X / length), (float)(value.Y / length));
-        return true;
-    }
 }

@@ -9,7 +9,7 @@ A Windows-first 2D game built with C# and [BRUTAL](https://github.com/ahwootech/
 - Vulkan 1.3 GPU/driver, combined graphics/present queue, color-attachment swapchain support, B8G8R8A8_SRGB or R8G8B8A8_SRGB surface format, and 4x-MSAA support for the selected color format. There is no non-sRGB or lower-sample-count fallback; unsupported hardware fails clearly.
 - Vulkan SDK validation layers for Debug development and smoke tests. Players need the driver runtime, not the SDK.
 
-Breakout consumes the local prerelease `CrushKit.Brutal.Draw2D`, `CrushKit.Brutal.Vulkan` and optional-inspector `CrushKit.Brutal.ImGui` packages. BRUTAL packages and native libraries restore transitively from NuGet; no BRUTAL source checkout or external shader build step is required. Embedded GLSL compiles once at startup through ShaderC (no external `glslc`).
+Breakout consumes local prerelease `CrushKit.Brutal.Draw2D`, `CrushKit.Brutal.Vulkan`, optional-inspector `CrushKit.Brutal.ImGui`, `CrushKit.Brutal.Input` and `CrushKit.Brutal.Audio` packages (currently version `0.1.0-preview.2`). BRUTAL packages and native libraries restore transitively from NuGet; no BRUTAL source checkout or external shader build step is required. Embedded GLSL compiles once at startup through ShaderC (no external `glslc`).
 
 ## Build and run
 
@@ -40,7 +40,7 @@ dotnet build --no-restore -p:UseCrushKitProjects=true -p:NuGetLockFilePath=packa
 
 Set `CrushKitRoot` explicitly if the kit checkout is elsewhere. Use the same properties on test/run commands. Development lock files are ignored; switch back with normal locked restore. Do not overwrite a shared/published NuGet version: bump it and update consumer lock files. Repacking an unpublished version requires deliberately refreshing only that version's kit cache entries and reevaluating its lock hashes; the kit's `tools/verify-packages.ps1` avoids stale-cache ambiguity with an isolated consumer cache.
 
-The renderer/geometry/shaders and optional inspector now live in CrushKit, not this repository. Breakout retains gameplay, configuration loading/JSON, overlay label/diagnostic content, input, audio and licensed game assets. The renderer no longer knows about balls/bricks; `OverlayHost` supplies those details as text. The kit's Vulkan package alone has no ImGui dependency; this application explicitly configures `ImGuiInspector`.
+The renderer/geometry/shaders and optional inspector now live in CrushKit, not this repository. Breakout retains gameplay, configuration loading/JSON, overlay label/diagnostic content, input bindings/aim priorities, audio cue/event mapping and licensed game assets. CrushKit owns raw input sampling/edge/deadzone helpers and generic clip/device/bounded-voice mechanics; Input/Audio depend on neither graphics nor one another. The renderer no longer knows about balls/bricks; `OverlayHost` supplies those details as text. The kit's Vulkan package alone has no ImGui dependency; this application explicitly configures `ImGuiInspector` with its separately validated `InspectorSettings`; text `OverlaySettings` no longer require any inspector assets. The combined game JSON remains strict and both immutable objects are passed unchanged to their consumers.
 
 ### Breakout rules and controls
 
@@ -67,7 +67,7 @@ Normal gameplay now shows count/status/control labels through **SDL.Ttf -> BRUTA
 
 Exactly two pinned, unmodified **Iosevka v34.9.1 Regular** TTFs are included: **Iosevka Aile** (proportional sans) for game labels, and standard **Iosevka** (monospaced, not Term/Etoile) for the inspector. They were acquired from the official be5invis/Iosevka release, not supplied by BRUTAL or installed from the OS. Aile is 11,878,496 bytes; inspector Regular is 11,613,712 bytes: **23,492,208 bytes (22.40 MiB)** total. No other weights/italics/collections/download archives are committed, and Abel was removed. The shared SIL OFL1.1 and exact source/archive/font hashes are in `Assets/Fonts/OFL.txt` and `PROVENANCE.txt`. Fonts, authored PNG/sounds and provenance copy to build/publish output. The old inspector implicitly chose ImGui's pixel-style ProggyClean font; it now explicitly loads the configured Iosevka TTF. ImGui1.92's dynamic-font backend follows framebuffer rasterizer density rather than stretching an old fixed 13px bitmap. `fontSize` remains the shared physical-pixel target: the inspector converts it to logical size once, and native ImGui rounds to a logical pixel (up to half a logical pixel of size quantization, with a one-logical-pixel minimum). No extra UI-resolution downscale is used; game SDL.Ttf rendering remains separate. Actual visible/DPI sharpness still needs user acceptance.
 
-New media package notices are under `Licenses/Media` and `Assets/Audio/ThirdParty`. BRUTAL's bundled license also requires product credits, its pre-game logo (subject to stated permission/exception), and NOTICE distribution before end-user distribution; copying notices alone is not a complete release-compliance claim.
+Dependency notices are under `Licenses/Media`, module-qualified `Licenses/CrushKit/Input` and `Licenses/CrushKit/Audio`, plus game audio notices in `Assets/Audio/ThirdParty`. Module-qualified paths prevent shared-dependency collisions in publish output. BRUTAL's bundled license also requires product credits, its pre-game logo (subject to stated permission/exception), and NOTICE distribution before end-user distribution; copying notices alone is not a complete release-compliance claim.
 
 Hidden checks can additionally exercise HUD-only rendering, inspector open/close, texture preview and resize, without input injection:
 
@@ -269,8 +269,9 @@ Shared agent tooling and maintained usage/reference documentation live in the se
 - `Presentation/BallSandbox*.cs`: arena geometry, pure session/viewport bridge and hidden scripted scenario.
 - `physics.json`, `gameplay.json`, `input.json`, `Configuration/`: authoritative production defaults, strict nested startup-only loading, independent CLI overrides and pre-native cross-validation.
 - `Simulation/`: immutable validated physics settings, native Box2D world adapter, gameplay rules, radius-aware casts/preview and fixed-step clock.
-- `Platform/Input/`: owner-thread GLFW poller and pure input router.
-- `Audio/`: bounded SDL.Mixer cue output; `Presentation/Overlay/`: game text and runtime diagnostics inspector.
+- `Platform/Input/`: Breakout bindings, input schema and aim/action router over CrushKit device sampling/edges.
+- `Audio/`: six-cue schema and simulation-event policy over CrushKit SDL.Mixer/voice ownership; `Presentation/Overlay/`: game labels and inspector content.
+- Independent `crushkit-brutal/src/CrushKit.Brutal.Input/` and `CrushKit.Brutal.Audio/`: reusable input/audio mechanics and headless tests.
 - `tests/Gameplay/`, `tests/Simulation/`, `tests/Input/`, `tests/Audio/`, `tests/Media/`: CPU/offscreen suites; `tests/Rendering/hidden-smoke.ps1`: shared hidden GPU harness.
 - Independent `crushkit-brutal/src/CrushKit.Brutal.Draw2D/`: headless geometry/contracts/colors/clips and borrowed buffers; CPU geometry tests live with the kit.
 - Independent `crushkit-brutal/src/CrushKit.Brutal.Vulkan/`: lifecycle, embedded shaders, uploads, MSAA, text/texture support and best-effort cleanup.
