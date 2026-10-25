@@ -11,5 +11,16 @@
   "brickCornerFraction": 0.1,
   "catchLineWidthScreenFraction": 0.01,
   "catchLineDashLengthMultiples": 3,
-  "catchLineGapMultiples": 3
+  "catchLineGapMultiples": 3,
+  "hud": {
+    "barMaxWidth": 120,
+    "barMaxArenaWidthFraction": 0.25,
+    "barHeight": 6,
+    "barOutlineWidth": 1,
+    "barMinCenterY": 4,
+    "barTopMarginFraction": 0.5,
+    "terminalMaxSize": 28,
+    "terminalMaxArenaSizeFraction": 0.125,
+    "terminalMarkerWidth": 4
+  }
 }

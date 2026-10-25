@@ -8,7 +8,12 @@ namespace BrutalBreakout.Presentation;
 public static class BallSandbox
 {
     public readonly record struct GeometryEvidence(int ArenaIndices, int BallIndices, int AimIndices,
-        int BrickIndices, int CatchLineIndices, int HudIndices, int BackgroundIndices, int HeldRingIndices);
+        int BrickIndices, int CatchLineIndices, int HudIndices, int BackgroundIndices, int HeldRingIndices)
+    {
+        public float HudBarOuterWidth { get; init; }
+        public float HudBarOuterHeight { get; init; }
+        public float HudBarCenterY { get; init; }
+    }
 
     public static ShapeFrame Build(ShapeDrawList draw, BallSimulation simulation, ColorScheme colors,
         PresentationStyle style, double renderSeconds, int width, int height, out GeometryEvidence evidence)
@@ -87,31 +92,49 @@ public static class BallSandbox
                 StrokePattern.FixedDashes(style.HeldRingDashCount, style.HeldRingGapFraction, offset),
                 colors.HeldRing, LineCap.Round, space: StrokeSpace.Framebuffer);
         int heldEnd = draw.IndexCount;
+        int barOutlineEnd = heldEnd;
         if (rules is not null)
         {
             // Compact remaining-ball and brick progress bars, independent of large configured counts.
-            float bar = MathF.Min(120, (right - left) / 4), y = MathF.Max(4, (top - t) / 2);
-            draw.StrokeRect(new(left, y - 3), new(bar, 6), 1, colors.Hud);
-            draw.FillRect(new(left, y - 3), new(bar * simulation.BallsRemaining / rules.StartingBalls, 6), colors.Hud);
-            draw.StrokeRect(new(right - bar, y - 3), new(bar, 6), 1, colors.Hud);
-            draw.FillRect(new(right - bar, y - 3), new(bar * simulation.RemainingBricks / rules.Bricks.Count, 6), colors.Hud);
+            var hud = style.Hud;
+            float bar = (float)Math.Min(hud.BarMaxWidth, (right - left) * hud.BarMaxArenaWidthFraction);
+            float y = (float)Math.Max(hud.BarMinCenterY, (top - t) * hud.BarTopMarginFraction);
+            float barHeight = (float)hud.BarHeight, outline = (float)hud.BarOutlineWidth;
+            draw.StrokeRect(new(left, y - barHeight / 2), new(bar, barHeight), outline, colors.Hud);
+            barOutlineEnd = draw.IndexCount;
+            draw.FillRect(new(left, y - barHeight / 2), new(bar * simulation.BallsRemaining / rules.StartingBalls, barHeight), colors.Hud);
+            draw.StrokeRect(new(right - bar, y - barHeight / 2), new(bar, barHeight), outline, colors.Hud);
+            draw.FillRect(new(right - bar, y - barHeight / 2), new(bar * simulation.RemainingBricks / rules.Bricks.Count, barHeight), colors.Hud);
             if (!playing)
             {
                 var status = simulation.RoundPhase == RoundPhase.Won ? colors.Win : colors.Loss;
                 float x = (left + right) / 2, cy = (float)simulation.CatchLineY;
-                float size = MathF.Min(28, MathF.Min(right - left, bottom - top) / 8);
+                float size = (float)Math.Min(hud.TerminalMaxSize, Math.Min(right - left, bottom - top) * hud.TerminalMaxArenaSizeFraction);
                 if (simulation.RoundPhase == RoundPhase.Won)
-                    draw.StrokePolyline([new(x - size, cy), new(x - size / 4, cy + size / 2), new(x + size, cy - size)], 4, status);
+                    draw.StrokePolyline([new(x - size, cy), new(x - size / 4, cy + size / 2), new(x + size, cy - size)], (float)hud.TerminalMarkerWidth, status);
                 else
                 {
-                    draw.StrokePolyline([new(x - size, cy - size), new(x + size, cy + size)], 4, status);
-                    draw.StrokePolyline([new(x - size, cy + size), new(x + size, cy - size)], 4, status);
+                    draw.StrokePolyline([new(x - size, cy - size), new(x + size, cy + size)], (float)hud.TerminalMarkerWidth, status);
+                    draw.StrokePolyline([new(x - size, cy + size), new(x + size, cy - size)], (float)hud.TerminalMarkerWidth, status);
                 }
             }
         }
         int end = draw.IndexCount;
         evidence = new(arenaEnd - backgroundEnd, ballEnd - aimEnd, aimEnd - lineEnd, bricksEnd - arenaEnd,
             lineEnd - bricksEnd, end - heldEnd, backgroundEnd, heldEnd - ballEnd);
-        return draw.Finish();
+        var frame = draw.Finish();
+        if (barOutlineEnd > heldEnd)
+        {
+            float minX = float.PositiveInfinity, maxX = float.NegativeInfinity;
+            float minY = float.PositiveInfinity, maxY = float.NegativeInfinity;
+            foreach (uint index in frame.Indices.Span.Slice(heldEnd, barOutlineEnd - heldEnd))
+            {
+                var p = frame.Vertices.Span[(int)index].Position;
+                minX = Math.Min(minX, p.X); maxX = Math.Max(maxX, p.X);
+                minY = Math.Min(minY, p.Y); maxY = Math.Max(maxY, p.Y);
+            }
+            evidence = evidence with { HudBarOuterWidth = maxX - minX, HudBarOuterHeight = maxY - minY, HudBarCenterY = (minY + maxY) / 2 };
+        }
+        return frame;
     }
 }

@@ -230,6 +230,8 @@ try
                 gameplayFrames++;
                 if (gameplayViewports.Add((framebuffer.X, framebuffer.Y)))
                     Console.WriteLine($"Gameplay viewport: {framebuffer.X}x{framebuffer.Y}; indices={frame.Value.Indices.Length}; arenaIndices={gameplayGeometry.ArenaIndices}; ballIndices={gameplayGeometry.BallIndices}; aimIndices={gameplayGeometry.AimIndices}; brickIndices={gameplayGeometry.BrickIndices}; catchLineIndices={gameplayGeometry.CatchLineIndices}; hudIndices={gameplayGeometry.HudIndices}; backgroundIndices={gameplayGeometry.BackgroundIndices}; heldRingIndices={gameplayGeometry.HeldRingIndices}.");
+                if (gameplayFrames == 1)
+                    Console.WriteLine(FormattableString.Invariant($"Gameplay HUD geometry: viewport={framebuffer.X}x{framebuffer.Y}; barOuterWidth={gameplayGeometry.HudBarOuterWidth:R}; barOuterHeight={gameplayGeometry.HudBarOuterHeight:R}; barCenterY={gameplayGeometry.HudBarCenterY:R}."));
                 gameplayScript.Presented(framebuffer.X, framebuffer.Y, gameplayGeometry);
             }
             if (injectStaleFrame && frame.HasValue && renderer.PresentedFrames > framesBeforeDraw)

@@ -3,7 +3,7 @@ using BrutalBreakout.Platform.Input;
 
 internal static class TestSettings
 {
-    internal static BrutalBreakout.Presentation.PresentationStyle Style { get; } = new(.2, .02, 16, .5, 2, .25, .1, 2, 4, .1, .01, 3, 3);
+    internal static BrutalBreakout.Presentation.PresentationStyle Style { get; } = new(.2, .02, 16, .5, 2, .25, .1, 2, 4, .1, .01, 3, 3, new(120, .25, 6, 1, 4, .5, 28, .125, 4));
     internal static BrutalBreakout.Presentation.ColorScheme Colors { get; } = new("test",
         new(1, 1, 1), BrutalBreakout.Rendering.Shapes.LinearColor.FromSrgb(.25f, .38f, .48f),
         BrutalBreakout.Rendering.Shapes.LinearColor.FromSrgb(1, .75f, .25f),

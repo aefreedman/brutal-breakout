@@ -10,7 +10,9 @@ public class PresentationStyleConfigurationTests
         "heldRingGapFraction":0.5,"heldRingCyclesPerSecond":2,"aimWidthRadiusRatio":0.25,
         "impactRingWidthRadiusRatio":0.1,"reflectedLengthRadiusRatio":2,"fallbackAimLengthRadiusRatio":4,
         "brickCornerFraction":0.1,"catchLineWidthScreenFraction":0.01,
-        "catchLineDashLengthMultiples":3,"catchLineGapMultiples":3}
+        "catchLineDashLengthMultiples":3,"catchLineGapMultiples":3,
+        "hud":{"barMaxWidth":120,"barMaxArenaWidthFraction":0.25,"barHeight":6,"barOutlineWidth":1,
+        "barMinCenterY":4,"barTopMarginFraction":0.5,"terminalMaxSize":28,"terminalMaxArenaSizeFraction":0.125,"terminalMarkerWidth":4}}
         """;
 
     public static IEnumerable<object[]> Invalid()
@@ -26,6 +28,20 @@ public class PresentationStyleConfigurationTests
                 var invalid = JsonNode.Parse(Valid)!; invalid[key] = JsonNode.Parse(value); yield return [invalid.ToJsonString()];
             }
         }
+        foreach (var (key, _) in JsonNode.Parse(Valid)!["hud"]!.AsObject())
+        {
+            var missing = JsonNode.Parse(Valid)!; missing["hud"]!.AsObject().Remove(key); yield return [missing.ToJsonString()];
+            foreach (string value in new[] { "null", "0", "-1", "1e300", "1e-300", "\"bad\"", "true", "{}" })
+            {
+                var invalid = JsonNode.Parse(Valid)!; invalid["hud"]![key] = JsonNode.Parse(value); yield return [invalid.ToJsonString()];
+            }
+        }
+        foreach (string key in new[] { "barMaxArenaWidthFraction", "barTopMarginFraction", "terminalMaxArenaSizeFraction" })
+        {
+            var invalid = JsonNode.Parse(Valid)!; invalid["hud"]![key] = 1.01; yield return [invalid.ToJsonString()];
+        }
+        foreach (string prefix in new[] { "\"future\":{},", "\"barHeight\":6,", "\"barHe\\u0069ght\":6," })
+            yield return [Valid.Replace("\"hud\":{", "\"hud\":{" + prefix)];
         foreach (var (key, value) in new[] { ("heldRingGapFraction", "1"), ("heldRingDashCount", "4097"),
             ("heldRingDashCount", "1.5"), ("heldRingGapFraction", "0.01"), ("brickCornerFraction", "0.6"), ("catchLineGapMultiples", "0.5") })
         {
@@ -51,6 +67,8 @@ public class PresentationStyleConfigurationTests
         Assert.Equal(16, loaded.Settings.HeldRingDashCount);
         Assert.All(typeof(PresentationStyle).GetProperties(), p => Assert.Null(p.SetMethod));
         Assert.Contains("HeldRingCyclesPerSecond=2", loaded.Describe());
+        Assert.Contains("Hud.BarHeight=6", loaded.Describe());
+        Assert.All(typeof(HudStyle).GetProperties(), p => Assert.Null(p.SetMethod));
     }
 
     [Fact]
@@ -75,6 +93,22 @@ public class PresentationStyleConfigurationTests
     [InlineData("--style-config", "one", "--style-config", "two")]
     public void InvalidCliSyntaxFailsBeforeLoading(params string[] args) =>
         Assert.Throws<ArgumentException>(() => PresentationStyleConfiguration.LoadForMode(args, false, "unused", "unused"));
+
+    [Theory]
+    [InlineData("barHeight", 1e-30)]
+    [InlineData("barOutlineWidth", 1e-30)]
+    [InlineData("terminalMarkerWidth", 1e-30)]
+    [InlineData("terminalMarkerWidth", 100)]
+    [InlineData("barMinCenterY", 1048576)]
+    public void HudCrossGeometryIsValidatedWithoutNativeWorld(string key, double value)
+    {
+        using var files = new GameplayConfigurationTests.Files();
+        var json = JsonNode.Parse(Valid)!; json["hud"]![key] = value;
+        var style = PresentationStyleConfiguration.Load(files.Put(json.ToJsonString())).Settings;
+        var game = new BrutalBreakout.Simulation.GameplaySettings(TestSettings.Gameplay.Arena, TestSettings.Gameplay.Ball,
+            new(3, 1.0 / 3, 12, [new(450, 200, 100, 30)]));
+        Assert.Throws<ArgumentException>(() => style.Validate(game));
+    }
 
     [Fact]
     public void CrossGeometryIsValidatedWithoutNativeWorld()

@@ -214,10 +214,28 @@ try {
         Write-Output "Verified color scheme: $($colorsExpected.name); all semantic linear RGB roles match; path=$colorsPath."
         $loadedStyle = [regex]::Match($output, 'Style configuration: path=([^;]+); ([^\r\n]+)')
         if (-not $loadedStyle.Success -or $loadedStyle.Groups[1].Value -ne $stylePath) { throw 'Wrong loaded style/path.' }
+        $styleFields = @{}
         foreach ($property in $styleExpected.PSObject.Properties) {
-            $actual = [regex]::Match($loadedStyle.Groups[2].Value, '(?:^|; )' + [regex]::Escape($property.Name) + '=([^;]+)', 'IgnoreCase')
-            if (-not $actual.Success -or [double]::Parse($actual.Groups[1].Value, $culture) -ne [double]$property.Value) { throw "Style mismatch: $($property.Name)" }
+            if ($property.Name -eq 'hud') {
+                foreach ($hud in $property.Value.PSObject.Properties) { $styleFields["Hud.$($hud.Name)"] = $hud.Value }
+            } else { $styleFields[$property.Name] = $property.Value }
         }
+        foreach ($name in $styleFields.Keys) {
+            $actual = [regex]::Match($loadedStyle.Groups[2].Value, '(?:^|; )' + [regex]::Escape($name) + '=([^;]+)', 'IgnoreCase')
+            if (-not $actual.Success -or [double]::Parse($actual.Groups[1].Value, $culture) -ne [double]$styleFields[$name]) { throw "Style mismatch: $name" }
+        }
+        $hudGeometry = [regex]::Match($output, 'Gameplay HUD geometry: viewport=1280x720; barOuterWidth=([^;]+); barOuterHeight=([^;]+); barCenterY=([^\r\n]+)\.')
+        if (-not $hudGeometry.Success) { throw 'Missing emitted HUD geometry bounds.' }
+        $h = $styleExpected.hud
+        $viewportScale = [Math]::Min(1280.0 / $a.width, 720.0 / $a.height)
+        $expectedHud = @(
+            (([Math]::Min([double]$h.barMaxWidth, [double](($a.right - $a.left) * $h.barMaxArenaWidthFraction)) + $h.barOutlineWidth) * $viewportScale),
+            (($h.barHeight + $h.barOutlineWidth) * $viewportScale),
+            ((720 - $a.height * $viewportScale) / 2 + [Math]::Max([double]$h.barMinCenterY, [double](($a.top - $a.wallThickness) * $h.barTopMarginFraction)) * $viewportScale))
+        for ($i = 0; $i -lt 3; $i++) {
+            if ([Math]::Abs([double]::Parse($hudGeometry.Groups[$i + 1].Value, $culture) - $expectedHud[$i]) -gt .001) { throw 'Emitted HUD geometry does not match configured dimensions.' }
+        }
+        Write-Output "Verified actual indexed HUD bounds: $($hudGeometry.Value)"
         Write-Output "Verified presentation style: all required dimensions match; path=$stylePath."
         $reset = [regex]::Match($output, 'Gameplay stage: Reset; ticks=\d+; phase=Aiming; eligible=False; position=([^,;]+),([^;]+);')
         if (-not $reset.Success -or [double]::Parse($reset.Groups[1].Value, $culture) -ne [double]$b.spawnX -or
