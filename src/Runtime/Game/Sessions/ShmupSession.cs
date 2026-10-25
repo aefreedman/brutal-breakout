@@ -1,0 +1,115 @@
+using Brutal.Numerics;
+using BrutalBreakout.Platform.Input;
+using BrutalBreakout.Simulation;
+
+namespace BrutalBreakout.Presentation;
+
+/// <summary>Aspect-fit mapping of the shmup's own immutable logical canvas; never uses breakout geometry.</summary>
+public readonly record struct ShmupViewport(int WindowWidth, int WindowHeight, int Width, int Height, ShmupArenaSettings Arena)
+{
+    public float Scale => MathF.Min(Width / (float)Arena.Width, Height / (float)Arena.Height);
+    public float X => (Width - (float)Arena.Width * Scale) / 2;
+    public float Y => (Height - (float)Arena.Height * Scale) / 2;
+    public bool TryWorld(double2 cursor, out double2 world)
+    {
+        world = default;
+        if (WindowWidth <= 0 || WindowHeight <= 0 || Width <= 0 || Height <= 0 ||
+            !double.IsFinite(cursor.X) || !double.IsFinite(cursor.Y)) return false;
+        double x = (cursor.X * Width / WindowWidth - X) / Scale;
+        double y = (cursor.Y * Height / WindowHeight - Y) / Scale;
+        if (x < 0 || y < 0 || x > Arena.Width || y > Arena.Height) return false;
+        world = new(x, y);
+        return true;
+    }
+}
+
+/// <summary>Synchronous fixed ticks. Movement/fire are levels; restart survives render-only frames once.
+/// Pausing resets clocks and input baselines, not simulation invulnerability or progression.</summary>
+public sealed class ShmupSession : IDisposable
+{
+    public ShmupSimulation Simulation { get; }
+    public ShmupSettings Settings { get; }
+    public ShmupInputRouter Router { get; }
+    private readonly FixedStepClock clock;
+    private bool active, restart, disposed;
+    private double2? aim;
+    public int TotalTicks { get; private set; }
+    public ShmupSession(PhysicsSettings physics, ShmupSettings settings, InputSettings input, ExecutionSettings execution)
+    {
+        Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        Router = new(input);
+        clock = new(physics);
+        Simulation = new(physics, settings, execution);
+    }
+    public int Advance(InputSnapshot snapshot, double seconds, ShmupViewport viewport)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (!ReferenceEquals(viewport.Arena, Settings.Arena)) throw new ArgumentException("Viewport must use this session's settings.", nameof(viewport));
+        var input = Router.Route(snapshot);
+        if (!input.Active)
+        {
+            active = restart = false; aim = null;
+            clock.Reset(); Router.Reset(); return 0;
+        }
+        if (!active) { seconds = 0; active = true; }
+        if (input.Aim is { } stick) aim = new(stick.X, -stick.Y);
+        else if (input.Pointer is { } cursor && viewport.TryWorld(cursor, out var target))
+            aim = target - Simulation.Snapshot.PlayerPosition;
+        restart |= input.RestartPressed;
+        int ticks = clock.Advance(seconds);
+        bool fire = !restart && input.FireHeld;
+        for (int i = 0; i < ticks; i++)
+        {
+            Simulation.Step(new(new(input.Move.X, -input.Move.Y), aim, fire, restart));
+            if (restart) { aim = null; Router.Reset(); }
+            restart = false;
+            TotalTicks++;
+        }
+        return ticks;
+    }
+    public void Dispose()
+    {
+        if (disposed) return;
+        disposed = true;
+        Simulation.Dispose();
+    }
+}
+
+public enum GameplayMode { Breakout, Shmup }
+
+/// <summary>Exactly one live gameplay world. Switching disposes the old run and creates a fresh isolated run.</summary>
+public sealed class GameplaySessionHost : IDisposable
+{
+    private readonly PhysicsSettings physics;
+    private readonly GameplaySettings gameplay;
+    private readonly ShmupSettings shmup;
+    private readonly InputSettings input;
+    private readonly ExecutionSettings execution;
+    public GameplayMode Mode { get; private set; }
+    public BallSandboxSession? Breakout { get; private set; }
+    public ShmupSession? Shmup { get; private set; }
+    private bool disposed;
+    public GameplaySessionHost(PhysicsSettings physics, GameplaySettings gameplay, ShmupSettings shmup,
+        InputSettings input, ExecutionSettings execution, GameplayMode initialMode)
+    {
+        (this.physics, this.gameplay, this.shmup, this.input, this.execution) = (physics, gameplay, shmup, input, execution);
+        Switch(initialMode);
+    }
+    public void Switch(GameplayMode mode)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
+        Breakout?.Dispose(); Breakout = null;
+        Shmup?.Dispose(); Shmup = null;
+        Mode = mode;
+        if (mode == GameplayMode.Breakout) Breakout = new(physics, gameplay, input, execution);
+        else Shmup = new(physics, shmup, input, execution);
+    }
+    public void Dispose()
+    {
+        if (disposed) return;
+        disposed = true;
+        try { Breakout?.Dispose(); }
+        finally { Shmup?.Dispose(); Breakout = null; Shmup = null; }
+    }
+}
