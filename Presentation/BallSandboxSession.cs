@@ -30,12 +30,25 @@ public sealed class BallSandboxSession : IDisposable
     public PhysicsSettings Settings => Simulation.Settings;
     public InputRouter Router { get; }
     private readonly FixedStepClock clock;
+    private readonly SimulationEvents[] tickEvents;
+    private int eventCount;
+    /// <summary>Consume immediately after Advance; a second drain is empty. Next Advance clears undrained facts.</summary>
+    public ReadOnlySpan<SimulationEvents> DrainEvents()
+    {
+        if (Environment.CurrentManagedThreadId != ownerThread)
+            throw new InvalidOperationException("Session facts must be drained on the owner thread.");
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var events = tickEvents.AsSpan(0, eventCount);
+        eventCount = 0;
+        return events;
+    }
 
     public BallSandboxSession(PhysicsSettings physics, GameplaySettings gameplay, InputSettings input)
     {
         Router = new(input);
         ArgumentNullException.ThrowIfNull(gameplay);
         clock = new(physics); // Validate managed dependencies before creating the native world.
+        tickEvents = new SimulationEvents[physics.MaxCatchUpSteps];
         Simulation = new(physics, gameplay);
     }
     private readonly int ownerThread = Environment.CurrentManagedThreadId;
@@ -47,6 +60,7 @@ public sealed class BallSandboxSession : IDisposable
     public void Dispose()
     {
         Simulation.Dispose(); // Enforces owner-thread destruction, including repeated disposal.
+        eventCount = 0;
         disposed = true;
     }
 
@@ -57,6 +71,7 @@ public sealed class BallSandboxSession : IDisposable
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!ReferenceEquals(viewport.Arena, Simulation.Gameplay.Arena))
             throw new ArgumentException("Viewport must use this session's arena settings.", nameof(viewport));
+        eventCount = 0;
         var input = Router.Route(snapshot);
         if (!input.Active)
         {
@@ -76,6 +91,7 @@ public sealed class BallSandboxSession : IDisposable
         for (int i = 0; i < ticks; i++)
         {
             Simulation.Step(new(aim, primary, restart));
+            tickEvents[eventCount++] = Simulation.Events;
             if (restart) aim = null;
             primary = restart = false;
             TotalTicks++;

@@ -1,0 +1,7 @@
+# Project-owned cue assets
+
+The six WAVs and author-cues.py were authored for Brutal Breakout during this implementation, not sampled from another work or copied from an OS asset. Their complete reproducible offline source is author-cues.py (Python standard library). These short, enveloped pure tones are original placeholder game feedback. There is no runtime synthesis and no third-party recording/content license. They are provided under CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/ . To the extent possible under law, the authors waive all copyright and related rights to these six recordings and their generator; provided without warranty.
+
+launch: rising two-tone; catch: falling two-tone; brick: short high tone; miss: low falling pair; win: rising triad; loss: falling triad. Format: mono little-endian PCM16, 22050 Hz, canonical 44-byte RIFF/WAV header. Duration is 0.1 second per tone. The generator is an authoring artifact only; no interpreter is needed for build/deployment.
+
+ThirdParty contains verbatim LICENSE.txt, NOTICE.txt and LICENSES trees from published Ahwoo.BRUTAL.Sdl, Sdl.Native, Sdl.Mixer and Sdl.Mixer.Native 2026.10.3 NuGet archives (api.nuget.org flat container). Preserve these on distribution. The BRUTAL license includes credit/logo conditions; this audio component does not implement or waive the application's pre-existing branding obligations. Remaining BRUTAL dependencies keep their existing application distribution obligations.

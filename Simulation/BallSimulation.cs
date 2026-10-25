@@ -2,6 +2,9 @@ using Brutal.Numerics;
 
 namespace BrutalBreakout.Simulation;
 
+[Flags]
+public enum SimulationEvents { None = 0, Launch = 1, Catch = 2, Brick = 4, Miss = 8, Win = 16, Loss = 32, Restart = 64 }
+
 public enum BallPhase { Aiming, Flying }
 
 /// <summary>Input edges belong to the caller. Send each pressed edge on only one Step.
@@ -24,6 +27,8 @@ public readonly struct BallState
 /// <summary>One owned native world and synchronous configured-frequency gameplay. No paddle.</summary>
 public sealed class BallSimulation : IDisposable
 {
+    /// <summary>Facts from the most recent Step only; replaced even on idle/restart ticks.</summary>
+    public SimulationEvents Events { get; private set; }
     public PhysicsSettings Settings { get; }
     public double StepSeconds => Settings.StepSeconds;
     private readonly NativeArena native;
@@ -75,10 +80,12 @@ public sealed class BallSimulation : IDisposable
     {
         native.Freeze();
         RoundPhase = phase;
+        Events |= phase == RoundPhase.Won ? SimulationEvents.Win : SimulationEvents.Loss;
         State = new(position, default, aim, BallPhase.Aiming, false);
     }
     private void LoseBall(double2 position, double2 aim)
     {
+        Events |= SimulationEvents.Miss;
         BallsRemaining--;
         ClearShotFacts();
         if (BallsRemaining == 0) FinishRound(RoundPhase.Lost, position, aim);
@@ -93,10 +100,12 @@ public sealed class BallSimulation : IDisposable
     public void Step(SimulationCommand command = default)
     {
         native.Guard();
+        Events = SimulationEvents.None;
         if (command.RestartPressed)
         {
             native.Reset();
             native.ResetBricks();
+            Events = SimulationEvents.Restart;
             RestoreRoundState();
             return;
         }
@@ -115,12 +124,14 @@ public sealed class BallSimulation : IDisposable
             {
                 ClearShotFacts();
                 native.Launch(aim);
+                Events |= SimulationEvents.Launch;
                 phase = BallPhase.Flying;
                 eligible = false;
             }
             else if (eligible)
             {
                 native.Freeze();
+                Events |= SimulationEvents.Catch;
                 ClearShotFacts();
                 State = new(state.Position, default, aim, BallPhase.Aiming, false);
                 return; // A catch never fires or advances native motion on the same edge.
@@ -147,6 +158,7 @@ public sealed class BallSimulation : IDisposable
         contactSinceLaunch |= result.HasContact;
         if (result.BricksDestroyed > 0)
         {
+            Events |= SimulationEvents.Brick;
             for (int i = 0; i < bricks.Length; i++)
                 if (bricks[i].Alive && !native.IsBrickAlive(i)) bricks[i] = bricks[i] with { Alive = false };
             RemainingBricks -= result.BricksDestroyed;
