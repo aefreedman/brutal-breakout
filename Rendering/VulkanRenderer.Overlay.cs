@@ -20,6 +20,7 @@ internal sealed unsafe partial class VulkanRenderer
     private ImTextureRef _previewReference;
     private bool _hasPreviewReference;
     private ImGuiContextPtr _uiContext;
+    private ImFontPtr _inspectorFont;
     private bool _hasUiContext, _uiFrame, _overlayActiveFrame;
     private GlfwBackend? _uiPlatform;
     private VulkanBackend? _uiRenderer;
@@ -63,7 +64,7 @@ internal sealed unsafe partial class VulkanRenderer
             ResourceLifetime.OnFailure(EnsureInspector, ReleaseInspector);
             ImGui.SetCurrentContext(_uiContext);
             _uiRenderer!.NewFrame(); _uiPlatform!.NewFrame();
-            ImGui.GetStyle().FontSizeBase = settings.FontSize / ImGui.GetIO().DisplayFramebufferScale.Y;
+            ImGui.GetStyle().FontSizeBase = InspectorFont.LogicalSize(settings.FontSize, ImGui.GetIO().DisplayFramebufferScale);
             ImGui.NewFrame(); _uiFrame = true;
         }
         _overlayActiveFrame = true;
@@ -110,6 +111,7 @@ internal sealed unsafe partial class VulkanRenderer
             _hasUiContext = true;
             var io = ImGui.GetIO(); io.IniFilename = default; io.LogFilename = default;
             io.ConfigFlags |= ImGuiConfigFlags.NoMouseCursorChange;
+            _inspectorFont = InspectorFont.Load(io, s.DebugFontPath, s.FontSize);
             _uiPlatform = new GlfwBackend(_window, GlfwBackend.ClientApi.Vulkan);
         }
         ImGui.SetCurrentContext(_uiContext);
@@ -166,7 +168,7 @@ internal sealed unsafe partial class VulkanRenderer
         if (ImGui.Begin("Diagnostics (read only)"u8, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove))
         {
             var d = _overlayFrame!.Diagnostics;
-            ImGui.Text(Encoding.UTF8.GetBytes($"{d.State}\nBalls {d.Balls}  Bricks {d.Bricks}\nFrame {d.FrameMilliseconds:F2} ms\nShape frames {d.PresentedShapeFrames}\nVertices {d.ShapeVertices}  Indices {d.ShapeIndices}\nOverlay frames {OverlayEvidence.PresentedFrames}\nText cache {_overlayText!.Count}, rasterizations {_overlayText.Rasterizations}, hits {_overlayText.CacheHits}"));
+            ImGui.Text(Encoding.UTF8.GetBytes($"{d.State}\nBalls {d.Balls}  Bricks {d.Bricks}\nFrame {d.FrameMilliseconds:F2} ms\nShape frames {d.PresentedShapeFrames}\nVertices {d.ShapeVertices}  Indices {d.ShapeIndices}\nOverlay frames {OverlayEvidence.PresentedFrames}\nText cache {_overlayText!.Count}, rasterizations {_overlayText.Rasterizations}, hits {_overlayText.CacheHits}\nInspector TTF {_inspectorFont.GetDebugName()}\nFont {ImGui.GetFontSize():F2} logical / {ImGui.GetFontSize() * scale.Y:F2} physical px\nFramebuffer scale {scale.X:F2} x {scale.Y:F2}, raster density {ImGui.GetFontBaked().RasterizerDensity:F2}\nF1 closes this inspector"));
             var min = ImGui.GetCursorScreenPos(); var available = ImGui.GetContentRegionAvail();
             var imageSize = new float2(s.DebugImageSize / scale.X, s.DebugImageSize / scale.Y);
             if (OverlayPixels.HasCoverage(_previewPixels!) && available.X > 0 && available.Y > 0 && Visible(min, min + imageSize, io.DisplaySize))
@@ -220,7 +222,7 @@ internal sealed unsafe partial class VulkanRenderer
         if (_uiPlatform != null) releases.Add(_uiPlatform.Dispose);
         if (_hasUiContext) releases.Add(() => ImGui.DestroyContext(_uiContext));
         try { ResourceLifetime.ReleaseAll(releases.ToArray()); }
-        finally { _uiRenderer = null; _uiPlatform = null; _hasUiContext = false; }
+        finally { _uiRenderer = null; _uiPlatform = null; _hasUiContext = false; _inspectorFont = default; }
     }
 
     // Device-idle swapchain boundary, before destroying the render pass.

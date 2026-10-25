@@ -36,6 +36,7 @@ public sealed class GlfwInputPoller
             KeyboardDirection = new float2(x, y),
             KeyboardPrimary = Key(GlfwKey.Space),
             KeyboardRestart = Key(GlfwKey.R),
+            KeyboardDebugToggle = Key(GlfwKey.F1),
             MousePrimary = window.GetMouseButton(GlfwMouseButton.Left) == GlfwButtonAction.Press,
             Cursor = window.CursorPos,
             PadConnected = connected,

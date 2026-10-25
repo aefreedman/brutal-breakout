@@ -1,6 +1,31 @@
-Abel Regular, Google Fonts upstream; SIL Open Font License 1.1.
-Downloaded pinned upstream files (not OS fonts).
-https://raw.githubusercontent.com/google/fonts/9437b806936896fa1a8c812e561067a5f30f5933/ofl/abel/Abel-Regular.ttf
-SHA256 8809dcad25318225052f88333e208c5aad4adcb7b2c934c135735ec19aa410b4
-https://raw.githubusercontent.com/google/fonts/9437b806936896fa1a8c812e561067a5f30f5933/ofl/abel/OFL.txt
-SHA256 4f4bc3806a1e55789c6ef75ca5fc628297b05292f74966474dc0d40324abc609
+Official Iosevka v34.9.1 hinted static TrueType fonts.
+Copyright 2015-2026, Renzhi Li (aka. Belleve Invis, belleve@typeof.net).
+SIL Open Font License 1.1; unmodified official fonts. Shared license: OFL.txt.
+Official release: https://github.com/be5invis/Iosevka/releases/tag/v34.9.1
+
+GAME: Iosevka Aile Regular (proportional sans, not monospaced Iosevka or Etoile).
+Archive: https://github.com/be5invis/Iosevka/releases/download/v34.9.1/PkgTTF-IosevkaAile-34.9.1.zip
+Archive SHA256: ae0385776a422115496e2f831656e2d0721f363aad0147b0a9180fb01d0bcd6f
+Extracted entry: IosevkaAile-Regular.ttf
+TTF SHA256: be7e1730d23b0ec9d68966402222ec810c8d6d2a708c1ec3b10e5bab74c5186b
+TTF bytes: 11878496 (11.33 MiB).
+Actual TrueType name table: family Iosevka Aile, subfamily Regular.
+Configuration: overlay.json fontPath, used by SDL.Ttf game labels.
+
+INSPECTOR: Iosevka Regular (standard monospaced family, not Term/Etoile/Aile).
+Archive: https://github.com/be5invis/Iosevka/releases/download/v34.9.1/PkgTTF-Iosevka-34.9.1.zip
+Archive SHA256: 7a77a3dfa0e2d713a8920a30624863e23df2867a1f55a5e3d6d23dad07c14c65
+Extracted entry: Iosevka-Regular.ttf
+TTF SHA256: 1ba24b81d82df65a68c9d0bb44bda306fdcdb5d7763afe89b0dea29ea827d1a2
+TTF bytes: 11613712 (11.08 MiB).
+Actual TrueType name table: family Iosevka, subfamily Regular.
+Configuration: overlay.json debugFontPath, loaded into the inspector ImGui atlas.
+
+Total committed font data: 23492208 bytes (22.40 MiB), exactly TWO Regular faces.
+No other weights, italics, variable collections, download archives, OS font install,
+subsetting or runtime font download. Previous Abel family removed.
+The asset footprint is the official hinted fonts, not many variant files.
+
+License: https://raw.githubusercontent.com/be5invis/Iosevka/v34.9.1/LICENSE.md
+Upstream license SHA256: 4ba53c7c1cb39279aae5f8d7d22054c485c71169920e5a36ed098b115e2e3c5d
+Stored OFL.txt retains all license wording; trailing spaces on one blank line normalized.

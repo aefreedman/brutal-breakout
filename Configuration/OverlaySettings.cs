@@ -6,6 +6,7 @@ public sealed class OverlaySettings
 {
     public bool Enabled { get; }
     public string FontPath { get; }
+    public string DebugFontPath { get; }
     public string ImagePath { get; }
     public float FontSize { get; }
     public float Left { get; }
@@ -23,7 +24,7 @@ public sealed class OverlaySettings
     public float DebugHeight { get; }
     public float DebugImageSize { get; }
 
-    public OverlaySettings(bool enabled, string fontPath, string imagePath, float fontSize, float left, float top,
+    public OverlaySettings(bool enabled, string fontPath, string debugFontPath, string imagePath, float fontSize, float left, float top,
         float lineSpacing, int cacheEntries, int maxLabelCharacters, int maxLabels, int maxTextureDimension,
         int maxEncodedImageBytes, bool debugVisible, float debugLeft, float debugTop, float debugWidth,
         float debugHeight, float debugImageSize)
@@ -33,6 +34,7 @@ public sealed class OverlaySettings
         static int Limit(int n, int min, int max, string name) => n >= min && n <= max ? n : throw new ArgumentOutOfRangeException(name);
         Enabled = enabled;
         FontPath = CheckFile(fontPath, true);
+        DebugFontPath = CheckFile(debugFontPath, true);
         ImagePath = CheckFile(imagePath, false);
         FontSize = Range(fontSize, 1, 256, nameof(fontSize));
         Left = Range(left, 0, 65536, nameof(left)); Top = Range(top, 0, 65536, nameof(top));

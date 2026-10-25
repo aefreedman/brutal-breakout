@@ -44,7 +44,8 @@ try
     colors = ColorSchemeConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     style = PresentationStyleConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     audioConfiguration = AudioConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
-    overlays = OverlayConfiguration.LoadForMode(args, !gallery || gpuTest || debugUi, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    // Overlay settings are available in every mode so F1 never requires a startup flag.
+    overlays = OverlayConfiguration.LoadForMode(args, true, AppContext.BaseDirectory, Environment.CurrentDirectory);
     if (overlays is not null) OverlayHost.Validate(overlays.Settings, gameplay?.Settings);
     if (overlaySmokeTest && overlays?.Settings.Enabled != true)
         throw new ArgumentException("Overlay smoke requires enabled overlays.");
@@ -112,6 +113,8 @@ try
         if (audioDiagnostic is not null) Console.Error.WriteLine(audioDiagnostic);
         Console.WriteLine($"Audio host: nativeRequested={session is not null && !muteAudio && audioConfiguration!.Settings.Enabled}; muted={muteAudio || session is null}.");
         var poller = new GlfwInputPoller(window);
+        var inspector = new InspectorToggle(debugUi || overlays!.Settings.DebugVisible);
+        Console.WriteLine("F1: toggle the read-only diagnostics inspector.");
         using var gameplayScript = gameplaySmokeTest ? new BallSandboxSmoke(physics!.Settings, gameplay!.Settings, input!.Settings) : null;
         string? lastGameTitle = null;
         var gameplayViewports = new HashSet<(int Width, int Height)>();
@@ -137,7 +140,8 @@ try
             Glfw.PollEvents();
             if (window.ShouldClose) break;
             // Hidden acceptance opens/closes the inspector without desktop input, including after resize.
-            bool? inspectorOverride = overlaySmokeTest ? renderer.PresentedFrames % 6 is >= 2 and <= 4 : debugUi ? true : null;
+            var raw = poller.Poll(); // Inspect F1 before capture filtering, including while ImGui owns keyboard input.
+            bool? inspectorOverride = overlaySmokeTest ? renderer.PresentedFrames % 6 is >= 2 and <= 4 : inspector.Update(raw);
             var capture = overlays is null ? default : renderer.BeginOverlayFrame(inspectorOverride);
             if (overlaySmokeTest && inspectorOverride == false &&
                 (renderer.InspectorActive || capture.Mouse || capture.Keyboard))
@@ -164,7 +168,6 @@ try
                 }
                 else
                 {
-                    var raw = poller.Poll();
                     if (capture.ResetBaselines)
                     {
                         audio!.SetSuppressed(muteAudio, hasFocus: false);
@@ -256,9 +259,14 @@ try
             // Consumes borrowed CPU buffers before the next BeginFrame; only a true receipt
             // proves this frame's indexed geometry survived extent validation and presentation.
             if (overlays is not null)
-                renderer.SetOverlayFrame(OverlayHost.Build((gameplayScript?.Session ?? session)?.Simulation,
+            {
+                var overlayFrame = OverlayHost.Build((gameplayScript?.Session ?? session)?.Simulation,
                     colors?.Settings.Hud ?? LinearColor.FromSrgb(1, 1, 1), elapsedSeconds * 1000,
-                    gameplayFrames + shapeFrames, frame?.Vertices.Length ?? 0, frame?.Indices.Length ?? 0));
+                    gameplayFrames + shapeFrames, frame?.Vertices.Length ?? 0, frame?.Indices.Length ?? 0);
+                // Ordinary gallery keeps its original artwork; F1 can still inspect it. GPU fixtures exercise labels too.
+                if (gallery && !gpuTest) overlayFrame = overlayFrame with { Labels = Array.Empty<OverlayLabel>() };
+                renderer.SetOverlayFrame(overlayFrame);
+            }
             var previousOverlay = renderer.OverlayEvidence;
             var geometryPresented = renderer.Draw(frame, colors?.Settings.Background ?? ShapeShowcase.Background);
             var overlayReceipt = renderer.OverlayEvidence;

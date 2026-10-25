@@ -7,7 +7,7 @@ namespace BrutalBreakout.Presentation.Overlay;
 /// <summary>The host's fixed labels and limits are checked before native initialization.</summary>
 public static class OverlayHost
 {
-    public const string Controls = "Space/click/A: launch/catch | R/Start: restart";
+    public const string Controls = "Space/click/A: launch/catch | R/Start: restart | F1: debug";
     private const string GalleryTitle = "Primitive showcase";
     private const string GalleryDetail = "BRUTAL text / Stb image / ImGui";
 

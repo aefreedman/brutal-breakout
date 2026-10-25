@@ -11,6 +11,8 @@ public readonly record struct InputSnapshot
     public float2 KeyboardDirection { get; init; }
     public bool KeyboardPrimary { get; init; }
     public bool KeyboardRestart { get; init; }
+    /// <summary>Raw host-level F1 state; not a gameplay action and never filtered through ImGui capture.</summary>
+    public bool KeyboardDebugToggle { get; init; }
     public bool MousePrimary { get; init; }
     public double2 Cursor { get; init; }
     public bool PadConnected { get; init; }

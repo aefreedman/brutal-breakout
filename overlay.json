@@ -1,6 +1,7 @@
 {
   "enabled": true,
-  "fontPath": "Assets/Fonts/Abel-Regular.ttf",
+  "fontPath": "Assets/Fonts/IosevkaAile-Regular.ttf",
+  "debugFontPath": "Assets/Fonts/Iosevka-Regular.ttf",
   "imagePath": "Assets/Images/debug.png",
   "fontSize": 22,
   "left": 20,

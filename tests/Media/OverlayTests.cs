@@ -17,6 +17,11 @@ public sealed class OverlayTests
     {
         var s = Settings();
         Assert.True(Path.IsPathFullyQualified(s.FontPath));
+        Assert.True(Path.IsPathFullyQualified(s.DebugFontPath));
+        Assert.NotEqual(s.FontPath, s.DebugFontPath);
+        Assert.True(File.Exists(s.DebugFontPath));
+        Assert.Equal("IosevkaAile-Regular.ttf", Path.GetFileName(s.FontPath));
+        Assert.Equal("Iosevka-Regular.ttf", Path.GetFileName(s.DebugFontPath));
         Assert.True(Path.IsPathFullyQualified(s.ImagePath));
         Assert.True(File.Exists(s.FontPath));
         Assert.True(File.Exists(s.ImagePath));
@@ -48,6 +53,9 @@ public sealed class OverlayTests
     [InlineData("maxEncodedImageBytes", "1")]
     [InlineData("fontPath", "null")]
     [InlineData("fontPath", "\"missing.ttf\"")]
+    [InlineData("debugFontPath", "null")]
+    [InlineData("debugFontPath", "\"missing.ttf\"")]
+    [InlineData("debugFontPath", "17")]
     [InlineData("imagePath", "\"missing.png\"")]
     [InlineData("left", "-1")]
     [InlineData("debugImageSize", "0")]
@@ -60,6 +68,7 @@ public sealed class OverlayTests
     public void RejectsMissingRequiredAndDuplicateProperties()
     {
         WithConfig(n => n.Remove("enabled"), path => Assert.Throws<InvalidDataException>(() => OverlayConfiguration.Load(path)));
+        WithConfig(n => n.Remove("debugFontPath"), path => Assert.Throws<InvalidDataException>(() => OverlayConfiguration.Load(path)));
         WithConfig(_ => { }, path =>
         {
             File.WriteAllText(path, File.ReadAllText(path).TrimEnd().TrimEnd('}') + ",\"enabled\":true}");
@@ -237,7 +246,7 @@ public sealed class OverlayTests
         try
         {
             var node = JsonNode.Parse(File.ReadAllText(ConfigPath))!.AsObject();
-            var s = Settings(); node["fontPath"] = s.FontPath; node["imagePath"] = s.ImagePath;
+            var s = Settings(); node["fontPath"] = s.FontPath; node["debugFontPath"] = s.DebugFontPath; node["imagePath"] = s.ImagePath;
             mutate(node); File.WriteAllText(path, node.ToJsonString()); test(path);
         }
         finally { Directory.Delete(directory, true); }
