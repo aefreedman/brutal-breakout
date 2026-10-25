@@ -158,10 +158,19 @@ try {
     } elseif ($Mode -eq 'Shmup') {
         if (-not $output.Contains('Shmup smoke PASS:') -or
             -not $output.Contains('Shmup inspector callback failure caught before acquisition; retrying with a fresh UI frame.') -or
-            $output -notmatch 'Shmup viewport: 1280x720; vertices=\d+; indices=[1-9]\d*\.' -or
-            $output -notmatch 'Shmup viewport: 960x540; vertices=\d+; indices=[1-9]\d*\.' -or
+            $output -notmatch 'Shmup viewport: 1280x720; vertices=\d+; indices=[1-9]\d*; aimIndices=[1-9]\d*;' -or
+            $output -notmatch 'Shmup viewport: 960x540; vertices=\d+; indices=[1-9]\d*; aimIndices=[1-9]\d*;' -or
             $output -notmatch 'Validation: 0 errors, \d+ warnings\.') {
             throw 'Missing shmup callback recovery, indexed resize presentations, input/mode lifecycle or validation evidence.'
+        }
+        $trailState = [regex]::Match($output, 'Trail configuration: enabled=(True|False);')
+        if (-not $trailState.Success) { throw 'Missing selected trail configuration.' }
+        if ($trailState.Groups[1].Value -eq 'True') {
+            if ($output -notmatch 'Shmup trails viewport: 1280x720; trailIndices=[1-9]\d*; historyPoints=[1-9]\d*\.' -or
+                $output -notmatch 'Shmup trails viewport: 960x540; trailIndices=[1-9]\d*; historyPoints=[1-9]\d*\.' -or
+                -not $output.Contains('aim=True; trails=True.')) { throw 'Missing actual aim/trail geometry at both extents.' }
+        } elseif (-not $output.Contains('aim=True; trails=False.') -or $output.Contains('Shmup trails viewport:')) {
+            throw 'Disabled trails emitted geometry or aim evidence is missing.'
         }
     } else {
         $expectedExecution = "Execution configuration: workers=$($executionExpected.workerCount); physicsWorkers=$($executionExpected.physicsWorkerCount); maxExpectedConcurrentJobs=$($executionExpected.maxExpectedConcurrentJobs); path=$executionPath"

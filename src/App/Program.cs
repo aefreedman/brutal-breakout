@@ -177,6 +177,7 @@ try
         var shmupFrames = 0;
         var shmupSmokeStage = 0;
         var shmupViewports = new HashSet<(int Width, int Height)>();
+        var shmupTrailViewports = new HashSet<(int Width, int Height)>();
         bool shmupSawBalls = false, shmupSawBricks = false, shmupSawAim = false, shmupSawTrails = false;
         var staleFrameRegressionPassed = false;
         var resizeRequested = false;
@@ -244,7 +245,7 @@ try
                     if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered)
                         throw new InvalidOperationException("Shmup smoke did not recover and redraw after the inspector callback failure.");
 #endif
-                    if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks || !shmupSawAim || (trails!.Settings.Enabled && !shmupSawTrails))
+                    if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks || !shmupSawAim || (trails!.Settings.Enabled && (!shmupSawTrails || shmupTrailViewports.Count < 2)))
                         throw new InvalidOperationException("Shmup smoke missing resized, fired-ball or spawned-brick geometry.");
                     Console.WriteLine($"Shmup smoke PASS: hidden input, widening, resize, isolated mode switches, fresh reset and indexed presentation; aim={shmupSawAim}; trails={shmupSawTrails}.");
                     break;
@@ -449,6 +450,8 @@ try
                 shmupFrames++;
                 shmupSawAim |= shmupGeometry.AimIndices > 0;
                 shmupSawTrails |= shmupGeometry.TrailIndices > 0;
+                if (shmupGeometry.TrailIndices > 0 && shmupTrailViewports.Add((framebuffer.X, framebuffer.Y)))
+                    Console.WriteLine($"Shmup trails viewport: {framebuffer.X}x{framebuffer.Y}; trailIndices={shmupGeometry.TrailIndices}; historyPoints={shmupSession?.Trails?.PointCount ?? 0}.");
                 if (shmupViewports.Add((framebuffer.X, framebuffer.Y)))
                     Console.WriteLine($"Shmup viewport: {framebuffer.X}x{framebuffer.Y}; vertices={frame.Value.Vertices.Length}; indices={frame.Value.Indices.Length}; aimIndices={shmupGeometry.AimIndices}; trailIndices={shmupGeometry.TrailIndices}; historyPoints={shmupSession?.Trails?.PointCount ?? 0}.");
                 shmupSawBalls |= shmupSession?.Simulation.Snapshot.Balls.Length > 0;
