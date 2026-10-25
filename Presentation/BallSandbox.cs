@@ -1,5 +1,5 @@
 using Brutal.Numerics;
-using BrutalBreakout.Rendering.Shapes;
+using CrushKit.Brutal.Draw2D;
 using BrutalBreakout.Simulation;
 
 namespace BrutalBreakout.Presentation;

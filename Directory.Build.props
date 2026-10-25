@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <CrushKitVersion>0.1.0-preview.1</CrushKitVersion>
+    <CrushKitRoot Condition="'$(CrushKitRoot)' == ''">$(MSBuildThisFileDirectory)../../crushkit-brutal</CrushKitRoot>
+  </PropertyGroup>
+</Project>

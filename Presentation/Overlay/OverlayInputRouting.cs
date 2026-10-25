@@ -1,3 +1,4 @@
+using CrushKit.Brutal.Vulkan;
 using Brutal.Numerics;
 using BrutalBreakout.Platform.Input;
 

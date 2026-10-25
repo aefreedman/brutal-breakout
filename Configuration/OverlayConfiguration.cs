@@ -1,3 +1,4 @@
+using CrushKit.Brutal.Vulkan;
 namespace BrutalBreakout.Configuration;
 
 public sealed record LoadedOverlayConfiguration(string Path, OverlaySettings Settings);

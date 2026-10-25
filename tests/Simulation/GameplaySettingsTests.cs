@@ -2,7 +2,7 @@ using Brutal.Numerics;
 using Brutal.Box2DApi;
 using BrutalBreakout.Simulation;
 using BrutalBreakout.Presentation;
-using BrutalBreakout.Rendering.Shapes;
+using CrushKit.Brutal.Draw2D;
 using Xunit;
 
 namespace Simulation.Tests;

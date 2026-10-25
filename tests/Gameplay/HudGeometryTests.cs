@@ -2,7 +2,7 @@ using System.Text.Json.Nodes;
 using Brutal.Numerics;
 using BrutalBreakout.Configuration;
 using BrutalBreakout.Presentation;
-using BrutalBreakout.Rendering.Shapes;
+using CrushKit.Brutal.Draw2D;
 using BrutalBreakout.Simulation;
 using Xunit;
 

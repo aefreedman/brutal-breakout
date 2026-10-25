@@ -1,6 +1,6 @@
+using CrushKit.Brutal.Vulkan;
 using System.Text.Json.Nodes;
 using Brutal.TextureApi.Abstractions;
-using BrutalBreakout.Rendering;
 using BrutalBreakout.Configuration;
 using BrutalBreakout.Presentation.Overlay;
 using Xunit;
@@ -99,7 +99,7 @@ public sealed class OverlayTests
     {
         var settings = Settings();
         OverlayHost.Validate(settings, null);
-        var tint = new BrutalBreakout.Rendering.Shapes.LinearColor(.9f, .8f, .7f, .5f);
+        var tint = new CrushKit.Brutal.Draw2D.LinearColor(.9f, .8f, .7f, .5f);
         var frame = OverlayHost.Build(null, tint, 2.5, 7, 8, 9);
         Assert.Equal(3, frame.Labels.Count);
         Assert.Equal(OverlayHost.Controls, frame.Labels[2].Text);

@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 using BrutalBreakout.Configuration;
 using BrutalBreakout.Presentation;
-using BrutalBreakout.Rendering.Shapes;
+using CrushKit.Brutal.Draw2D;
 using Xunit;
 
 public class ColorSchemeConfigurationTests

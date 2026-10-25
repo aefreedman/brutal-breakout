@@ -1,11 +1,12 @@
+using CrushKit.Brutal.Vulkan;
+using CrushKit.Brutal.ImGui;
 using System.Diagnostics;
 using BrutalBreakout.Audio;
 using BrutalBreakout.Presentation.Overlay;
 using BrutalBreakout.Configuration;
 using Brutal.GlfwApi;
 using Brutal.Numerics;
-using BrutalBreakout.Rendering;
-using BrutalBreakout.Rendering.Shapes;
+using CrushKit.Brutal.Draw2D;
 using BrutalBreakout.Presentation;
 using BrutalBreakout.Platform.Input;
 
@@ -100,7 +101,7 @@ try
     var renderer = VulkanRenderer.Create(window, validation);
     ResourceLifetime.Run(() =>
     {
-        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings);
+        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, new ImGuiInspector());
         using var shapes = new ShapeDrawList();
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
@@ -269,6 +270,10 @@ try
             }
             var previousOverlay = renderer.OverlayEvidence;
             var geometryPresented = renderer.Draw(frame, colors?.Settings.Background ?? ShapeShowcase.Background);
+            // The host owns event waiting; the reusable renderer must not pump the OS.
+            // Keep processing pause/capture transitions above, then avoid spinning while no framebuffer is available.
+            if (wasIconified || framebuffer.X <= 0 || framebuffer.Y <= 0)
+                Glfw.WaitEventsTimeout(0.05);
             var overlayReceipt = renderer.OverlayEvidence;
             if (overlaySmokeTest && inspectorOverride == false && overlayReceipt.TextFrames > previousOverlay.TextFrames)
             {

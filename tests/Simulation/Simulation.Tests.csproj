@@ -9,7 +9,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../Simulation/BrutalBreakout.Simulation.csproj" />
-    <ProjectReference Include="../../Rendering/Shapes/BrutalBreakout.Shapes.csproj" />
+    <PackageReference Include="CrushKit.Brutal.Draw2D" Version="$(CrushKitVersion)" Condition="'$(UseCrushKitProjects)' != 'true'" />
+    <ProjectReference Include="$(CrushKitRoot)/src/CrushKit.Brutal.Draw2D/CrushKit.Brutal.Draw2D.csproj" Condition="'$(UseCrushKitProjects)' == 'true'" />
     <ProjectReference Include="../../Platform/Input/BrutalBreakout.Input.csproj" />
     <!-- Compile the actual CPU consumer without restoring/building the app or changing its lock. -->
     <Compile Include="../../Presentation/PresentationStyle.cs" Link="Consumer/PresentationStyle.cs" />

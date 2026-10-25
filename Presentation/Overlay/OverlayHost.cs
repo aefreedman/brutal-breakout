@@ -1,5 +1,6 @@
+using CrushKit.Brutal.Vulkan;
 using BrutalBreakout.Configuration;
-using BrutalBreakout.Rendering.Shapes;
+using CrushKit.Brutal.Draw2D;
 using BrutalBreakout.Simulation;
 
 namespace BrutalBreakout.Presentation.Overlay;
@@ -30,7 +31,7 @@ public static class OverlayHost
             new(game is null ? GalleryTitle : $"Balls: {game.BallsRemaining} | Bricks: {game.RemainingBricks}", tint),
             new(game is null ? GalleryDetail : $"Round: {state}", tint),
             new(Controls, tint)
-        }, new(state, game?.BallsRemaining ?? 0, game?.RemainingBricks ?? 0,
+        }, new(state, $"Balls {game?.BallsRemaining ?? 0}  Bricks {game?.RemainingBricks ?? 0}",
             milliseconds, shapeFrames, vertices, indices));
     }
 }
