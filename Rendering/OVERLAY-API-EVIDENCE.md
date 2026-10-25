@@ -17,7 +17,7 @@ Source authority: the read-only `texture-api-audit.md` supplied by the parent (o
 
 ## Color and size contract
 
-Game texture bytes are **linear-premultiplied before filtering**, uploaded as RGBA8 UNORM. White label-mask RGB=A=coverage, including zero/partial-alpha texels. The shader multiplies sampled premultiplied RGBA by the host's existing float premultiplied-linear tint; blend factors are ONE/ONE_MINUS_SRC_ALPHA for color and alpha. No tint unpremultiply/byte quantization, sRGB texture decode, or extra fragment alpha multiply. The existing sRGB attachment performs final encode. This matches the shape color contract and avoids transparent-edge color leakage.
+Game texture bytes are **linear-premultiplied before filtering**, uploaded as RGBA8 UNORM. White label-mask RGB=A=coverage, including zero/partial-alpha texels. The host supplies straight-linear `LinearColor`, matching the existing shape API; the UV vertex boundary premultiplies it exactly once without byte quantization. The shader multiplies sampled premultiplied RGBA by that float premultiplied-linear vertex tint; blend factors are ONE/ONE_MINUS_SRC_ALPHA for color and alpha. No tint unpremultiply/byte quantization, sRGB texture decode, or extra fragment alpha multiply. The existing sRGB attachment performs final encode. This matches the shape color contract and avoids transparent-edge color leakage.
 
 The inspector's stock backend instead requires straight-linear pixels/SRC_ALPHA. Its one preview is derived by unpremultiplying the already-decoded PM image (zero alpha sanitized); this can lose low-alpha byte precision but never changes the game/source texture or decodes PNG twice. It is never used by the game pipeline.
 

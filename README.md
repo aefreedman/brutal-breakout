@@ -34,6 +34,26 @@ Normal `dotnet run --no-build` opens a resizable **brick-clearing game** at the 
 
 Rules reference the Unity `Projectile.cs`, `ProjectileFactory.cs` and `GameSettings-Breakout.asset`: bottom-third catch zone, leave-zone plus contact, top/side walls, limited spawns and bounce expiry. No paddle, progression, damage scaling, drag or level/editor framework. Input uses standardized GLFW mappings; polling can miss complete edges or disconnect/reconnect between frames. No physical-controller or visible/image playtest is claimed for this increment. Published API evidence remains in `Platform/Input/API-EVIDENCE.md` and `Simulation/API-EVIDENCE.md`.
 
+### BRUTAL audio, text, textures and diagnostics
+
+Normal gameplay now shows count/status/control labels through **SDL.Ttf -> BRUTAL.Texture/GenericTexture -> direct Vulkan textured quads**. `TextureLoader` uses BRUTAL Stb internally for the PNG path; there is no second image decoder or alternate graphics stack. ImGui is **only the optional read-only inspector**, not the game text/image compositor. The existing 24-byte solid-shape pipeline is unchanged; textured vertices use a separate 32-byte UV material, with linear-premultiplied texels/tints, sRGB output and the same 4x MSAA render pass.
+
+- `overlay.json` is the required gameplay overlay configuration (`--overlay-config <path>` overrides it). Font/image paths resolve relative to that JSON. Font size, label position/spacing and inspector dimensions are **physical framebuffer pixels**. Cache/label/texture/encoded-byte limits are explicit; all fields/assets and the host's three-label capacity are validated before GLFW. Defaults exist only in JSON, with no partial merge or hot reload. Labels cache unchanged strings; cache eviction and GPU texture/descriptor lifetime follow the shared frame fence.
+- Run `dotnet run --no-build -- --debug-ui` to opt into the inspector (or set `debugVisible` in `overlay.json`). It shows state/counts, timing, geometry/presentation/cache statistics and an authored PNG preview. It does not edit live settings. With it closed, the game does not initialize ImGui or install its GLFW callbacks. Capture transitions clear pending input edges; captured keyboard/mouse sources are suppressed without taking gamepad control away.
+- `audio.json` is required in gameplay (`--audio-config <path>` overrides it). It configures enabled state, master gain, a bounded voice count and six launch/catch/brick/miss/win/loss WAV paths. Cues are collected per fixed tick, not inferred once per render frame. Terminal cues replace same-tick brick/miss feedback. Tracks are reused first-idle; saturation drops the new cue, never queues it. Focus loss/mute/restart stops feedback and prevents stale replay.
+- Audio uses **BRUTAL SDL.Mixer** and cached, predecoded clips. `--mute` avoids creating an audio device entirely. Disabled audio also creates no device. Missing/unavailable native audio devices/libraries give one diagnostic and silent output, without stopping gameplay. Configuration or asset validation errors remain startup errors. The supplied sounds are original simple placeholder tones (CC0); their offline authoring script is included, not a runtime dependency. Custom cue files currently require canonical mono PCM16 WAV, not every format SDL.Mixer can decode.
+- Hidden GPU modes and showcase never open an audio device. Headless tests exercise cue mapping, saturation and unavailable output through fakes; no audible quality/latency/device-shutdown acceptance is claimed.
+
+The licensed Abel font, authored PNG/sounds and license/provenance files copy to build/publish output. New media package notices are under `Licenses/Media` and `Assets/Audio/ThirdParty`. BRUTAL's bundled license also requires product credits, its pre-game logo (subject to stated permission/exception), and NOTICE distribution before end-user distribution; copying notices alone is not a complete release-compliance claim.
+
+Published API/ownership evidence: `Audio/API-EVIDENCE.md`, `Rendering/OVERLAY-API-EVIDENCE.md` and adjacent JSON evidence. The published Render.Mesh2026.10.2 `AddQuad<T>` emits a mismatched 24-index grid for four vertices; our tested six-index UV quad glue avoids that defect without patching/upgrading BRUTAL.
+
+Hidden checks can additionally exercise HUD-only rendering, inspector open/close, texture preview and resize, without input injection:
+
+```powershell
+pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug -Mode Gameplay -Overlays
+```
+
 ### Initial window configuration
 
 `window.json` is the only production default source for initial **physical window** dimensions: required positive integer `width` and `height`. These are independent of `gameplay.json`'s logical canvas; fit/letterboxing still derives from that canvas and the actual framebuffer. Both game and gallery require this file. `--window-config <path>` independently overrides it, using caller cwd for relative paths; default lookup uses the executable directory. Build and publish copy it alongside the other configuration assets. Startup reports selected absolute path, requested dimensions and actual created window/framebuffer dimensions.
