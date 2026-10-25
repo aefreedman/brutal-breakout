@@ -1,4 +1,6 @@
 using System.Text.Json.Nodes;
+using Brutal.TextureApi.Abstractions;
+using BrutalBreakout.Rendering;
 using BrutalBreakout.Configuration;
 using BrutalBreakout.Presentation.Overlay;
 using Xunit;
@@ -26,12 +28,14 @@ public sealed class OverlayTests
     [Fact]
     public void IntroducedPackageNoticesAreDeployed()
     {
-        foreach (var package in new[] { "ImGui", "ImGui.Backends", "ImGui.Native", "Localization", "OpenGl", "OpenGl.Native", "Sdl", "Sdl.Native", "Sdl.Ttf", "Sdl.Ttf.Native", "Stb", "Stb.Native" })
+        foreach (var package in new[] { "ImGui", "ImGui.Backends", "ImGui.Native", "Localization", "OpenGl", "OpenGl.Native", "Sdl", "Sdl.Native", "Sdl.Ttf", "Sdl.Ttf.Native", "Stb", "Stb.Native", "Texture", "Texture.Abstractions", "Gli", "Gli.Native", "Ktx", "Ktx.Native" })
         {
             var directory = Path.Combine(AppContext.BaseDirectory, "Licenses", "Media", package);
             Assert.True(File.Exists(Path.Combine(directory, "LICENSE.txt")), package);
             Assert.True(File.Exists(Path.Combine(directory, "NOTICE.txt")), package);
-            Assert.NotEmpty(Directory.GetFiles(directory, "*THIRD-PARTY-NOTICES.txt", SearchOption.AllDirectories));
+            // Texture/Abstractions have no bundled third-party LICENSES tree; GLI/KTX and natives do.
+            if (!package.StartsWith("Texture", StringComparison.Ordinal))
+                Assert.NotEmpty(Directory.GetFiles(directory, "*THIRD-PARTY-NOTICES.txt", SearchOption.AllDirectories));
         }
     }
 
@@ -115,18 +119,30 @@ public sealed class OverlayTests
     public void StraightLinearConversionDoesNotDoubleDecode(byte srgb, byte linear) => Assert.Equal(linear, OverlayPixels.SrgbToLinear(srgb));
 
     [Fact]
-    public void StbCopiesOwnedRgbaAndPreservesStraightAlpha()
+    public void TextureLoaderCopiesOwnedRgbaAndPremultipliesBeforeFiltering()
     {
         var s = Settings();
         var pixels = OverlayPixels.LoadPng(s.ImagePath, s.MaxTextureDimension, s.MaxEncodedImageBytes);
-        Assert.Equal(16, pixels.Width); Assert.Equal(16, pixels.Height);
-        Assert.Equal(16 * 16 * 4, pixels.Rgba.Length); Assert.True(pixels.HasCoverage);
-        var data = pixels.Rgba.ToArray();
-        // First pixel sRGB (32,128,255,255); last-column alpha is 80, blue stays 255 (not premultiplied).
-        Assert.Equal(new byte[] { 4, 55, 255, 255 }, data[..4]);
-        Assert.Equal(255, data[15 * 4 + 2]); Assert.Equal(80, data[15 * 4 + 3]);
-        GC.Collect();
-        Assert.Equal(data, pixels.Rgba.ToArray()); // Stb's native buffer was already freed by LoadPng.
+        try
+        {
+            Assert.Equal(16, pixels.Width); Assert.Equal(16, pixels.Height);
+            Assert.Equal(16 * 16 * 4, pixels.Data.Length); Assert.True(OverlayPixels.HasCoverage(pixels));
+            var data = pixels.Data.ToArray();
+            Assert.Equal(new byte[] { 4, 55, 255, 255 }, data[..4]);
+            // Blue is premultiplied to 80 BEFORE linear filtering, not kept straight at 255.
+            Assert.Equal(80, data[15 * 4 + 2]); Assert.Equal(80, data[15 * 4 + 3]);
+            for (int i = 0; i < data.Length; i += 4)
+                for (int c = 0; c < 3; c++) Assert.InRange(data[i + c], 0, data[i + 3]);
+            GC.Collect(); Assert.Equal(data, pixels.Data.ToArray()); // TextureLoader/Stb lifetime already ended.
+            var preview = OverlayPixels.CreateInspectorPreview(pixels);
+            try
+            {
+                Assert.Equal(255, preview.Data[15 * 4 + 2]); Assert.Equal(80, preview.Data[15 * 4 + 3]);
+                Assert.Equal(data, pixels.Data.ToArray()); // Derived preview never changes game PM pixels.
+            }
+            finally { preview.Destroy(); }
+        }
+        finally { pixels.Destroy(); } // Not Using/Unload: GenericTexture.Destroy is NOT idempotent.
     }
 
     [Fact]
@@ -140,29 +156,33 @@ public sealed class OverlayTests
     }
 
     [Fact]
-    public void TtfMeasuresRasterizesCachesAndOwnsWhiteCoveragePixels()
+    public void TtfMeasuresRasterizesCachesAndOwnsPremultipliedCoverageTextures()
     {
-        var s = Settings(); OverlayPixels first;
+        var s = Settings(); byte[] ownedCopy;
         using (var text = new OverlayText(s))
         {
-            first = text.Get("BRUTAL score 100");
+            var first = text.Get("BRUTAL score 100");
             Assert.True(first.Width > 0 && first.Width <= s.MaxTextureDimension);
             Assert.True(first.Height > 0 && first.Height <= s.MaxTextureDimension);
-            Assert.True(first.HasCoverage); Assert.Same(first, text.Get("BRUTAL score 100"));
+            Assert.True(OverlayPixels.HasCoverage(first)); Assert.Same(first, text.Get("BRUTAL score 100"));
             Assert.Equal(1, text.Rasterizations); Assert.Equal(1, text.CacheHits);
+            var plan = UploadRegions.Build(first);
+            ownedCopy = new byte[(int)plan.RequiredBufferSizeBytes];
+            OverlayTextureUpload.CopyStaging(first, plan, ownedCopy); // Borrow consumed before eviction/disposal.
+            Assert.Equal(first.Data.ToArray(), ownedCopy);
             for (int i = 0; i < s.CacheEntries + 1; i++) text.Get($"Score {i}");
             Assert.InRange(text.Count, 1, s.CacheEntries); Assert.True(text.Generation > 0);
+            Assert.NotSame(first, text.Get("BRUTAL score 100"));
             Assert.Throws<ArgumentException>(() => text.Get("line\nbreak"));
             Assert.Throws<ArgumentException>(() => text.Get(new string('x', s.MaxLabelCharacters + 1)));
         }
-        Assert.Equal(first.Width * first.Height * 4, first.Rgba.Length);
-        var bytes = first.Rgba.ToArray(); bool partial = false;
-        for (int i = 0; i < bytes.Length; i += 4)
+        bool partial = false;
+        for (int i = 0; i < ownedCopy.Length; i += 4)
         {
-            Assert.Equal(255, bytes[i]); Assert.Equal(255, bytes[i + 1]); Assert.Equal(255, bytes[i + 2]);
-            partial |= bytes[i + 3] is > 0 and < 255;
+            Assert.Equal(ownedCopy[i + 3], ownedCopy[i]); Assert.Equal(ownedCopy[i], ownedCopy[i + 1]); Assert.Equal(ownedCopy[i], ownedCopy[i + 2]);
+            partial |= ownedCopy[i + 3] is > 0 and < 255;
         }
-        Assert.True(partial); // Antialiased transparent edges retain white RGB; no dark fringe/double premultiply.
+        Assert.True(partial); // RGB=A at all texels, including zero/partial alpha; no transparent-edge color leak.
     }
 
     [Fact]

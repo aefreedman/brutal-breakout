@@ -1,4 +1,7 @@
 using System.Text;
+using Brutal.Numerics;
+using Brutal.TextureApi.Abstractions;
+using BrutalBreakout.Rendering;
 using Brutal.SdlApi;
 using Brutal.SdlApi.Ttf;
 using BrutalBreakout.Configuration;
@@ -10,7 +13,7 @@ public sealed unsafe class OverlayText : IDisposable
 {
     private readonly int _thread = Environment.CurrentManagedThreadId;
     private readonly OverlaySettings _settings;
-    private readonly Dictionary<string, OverlayPixels> _cache = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, GenericTexture> _cache = new(StringComparer.Ordinal);
     private TtfFont _font;
     private bool _initialized, _disposed;
     public int Rasterizations { get; private set; }
@@ -26,7 +29,8 @@ public sealed unsafe class OverlayText : IDisposable
         catch { Dispose(); throw; }
     }
 
-    public OverlayPixels Get(string label)
+    /// <returns>A cache-owned BRUTAL texture, borrowed only until eviction/disposal. Do not Destroy or Unload it.</returns>
+    public GenericTexture Get(string label)
     {
         CheckThread(); ObjectDisposedException.ThrowIf(_disposed, this);
         if (string.IsNullOrEmpty(label) || label.Length > _settings.MaxLabelCharacters || label.Any(char.IsControl))
@@ -47,15 +51,25 @@ public sealed unsafe class OverlayText : IDisposable
                 OverlayPixels.ValidateDimensions(converted->w, converted->h, _settings.MaxTextureDimension);
                 var rowBytes = checked(converted->w * 4);
                 if (converted->pitch < rowBytes || converted->pixels == null) throw new InvalidDataException("Invalid SDL surface pitch/pixels.");
-                var pixels = new byte[checked(rowBytes * converted->h)];
-                for (int y = 0; y < converted->h; y++)
-                    new ReadOnlySpan<byte>((byte*)converted->pixels + y * converted->pitch, rowBytes).CopyTo(pixels.AsSpan(y * rowBytes));
-                for (int i = 0; i < pixels.Length; i += 4) pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
-                // White coverage mask is already straight-linear (RGB=1). Alpha is coverage, not sRGB.
-                var result = new OverlayPixels(converted->w, converted->h, pixels);
-                if (_cache.Count == _settings.CacheEntries) { _cache.Clear(); Generation++; }
-                _cache.Add(label, result); Rasterizations++;
-                return result;
+                var result = GenericTexture.Defaults.RGBA8UNorm(new int2(converted->w, converted->h));
+                try
+                {
+                    var pixels = result.ImageData(0, 0, 0); int pitch = checked((int)result.RowPitch(0));
+                    for (int y = 0; y < converted->h; y++)
+                    {
+                        var source = new ReadOnlySpan<byte>((byte*)converted->pixels + y * converted->pitch, rowBytes);
+                        for (int x = 0; x < converted->w; x++)
+                        {
+                            byte coverage = source[x * 4 + 3]; int i = y * pitch + x * 4;
+                            // Premultiply before filtering: a white mask has RGB=A=linear coverage.
+                            pixels[i] = pixels[i + 1] = pixels[i + 2] = pixels[i + 3] = coverage;
+                        }
+                    }
+                    if (_cache.Count == _settings.CacheEntries) { ClearCache(); Generation++; }
+                    _cache.Add(label, result); Rasterizations++;
+                    return result;
+                }
+                catch { result.Destroy(); throw; }
             }
             finally { Sdl.PInvoke.DestroySurface(converted); }
         }
@@ -69,11 +83,20 @@ public sealed unsafe class OverlayText : IDisposable
     public void Dispose()
     {
         CheckThread(); if (_disposed) return; _disposed = true;
-        _cache.Clear();
-        if (_initialized)
+        try { ClearCache(); }
+        finally
         {
-            try { if (!_font.IsNull()) SdlTtf.CloseFont(_font); }
-            finally { SdlTtf.Quit(); }
+            if (_initialized)
+            {
+                try { if (!_font.IsNull()) SdlTtf.CloseFont(_font); }
+                finally { SdlTtf.Quit(); }
+            }
         }
+    }
+
+    private void ClearCache()
+    {
+        var textures = _cache.Values.ToArray(); _cache.Clear();
+        ResourceLifetime.ReleaseAll(textures.Select(t => (Action)t.Destroy).ToArray());
     }
 }

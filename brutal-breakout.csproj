@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Rendering/Shaders/shapes.vert;Rendering/Shaders/shapes.frag" />
+    <EmbeddedResource Include="Rendering/Shaders/shapes.vert;Rendering/Shaders/shapes.frag;Rendering/Shaders/overlay.vert;Rendering/Shaders/overlay.frag" />
     <None Update="overlay.json;Assets/Fonts/**/*;Assets/Images/**/*;window.json;physics.json;gameplay.json;input.json;colors.json;style.json;color-schemes/**/*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -24,7 +24,8 @@
 
   <ItemGroup>
     <PackageReference Include="Ahwoo.BRUTAL.Sdl.Ttf" Version="2026.10.3" />
-    <PackageReference Include="Ahwoo.BRUTAL.Stb" Version="2026.10.3" />
+    <PackageReference Include="Ahwoo.BRUTAL.Texture" Version="2026.10.3" />
+    <PackageReference Include="Ahwoo.BRUTAL.Texture.Abstractions" Version="2026.10.3" />
     <PackageReference Include="Ahwoo.BRUTAL.ImGui" Version="2026.10.3" />
     <PackageReference Include="Ahwoo.BRUTAL.ImGui.Backends" Version="2026.10.3" />
     <PackageReference Include="Ahwoo.BRUTAL.Core" Version="2026.10.4" />
@@ -49,6 +50,12 @@
     <None Include="$(NuGetPackageRoot)ahwoo.brutal.sdl.ttf.native/2026.10.3/LICENSE.txt;$(NuGetPackageRoot)ahwoo.brutal.sdl.ttf.native/2026.10.3/NOTICE.txt;$(NuGetPackageRoot)ahwoo.brutal.sdl.ttf.native/2026.10.3/LICENSES/**/*" Link="Licenses/Media/Sdl.Ttf.Native/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="$(NuGetPackageRoot)ahwoo.brutal.stb/2026.10.3/LICENSE.txt;$(NuGetPackageRoot)ahwoo.brutal.stb/2026.10.3/NOTICE.txt;$(NuGetPackageRoot)ahwoo.brutal.stb/2026.10.3/LICENSES/**/*" Link="Licenses/Media/Stb/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="$(NuGetPackageRoot)ahwoo.brutal.stb.native/2026.10.3/LICENSE.txt;$(NuGetPackageRoot)ahwoo.brutal.stb.native/2026.10.3/NOTICE.txt;$(NuGetPackageRoot)ahwoo.brutal.stb.native/2026.10.3/LICENSES/**/*" Link="Licenses/Media/Stb.Native/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(NuGetPackageRoot)ahwoo.brutal.texture/2026.10.3/LICENSE.txt;$(NuGetPackageRoot)ahwoo.brutal.texture/2026.10.3/NOTICE.txt;$(NuGetPackageRoot)ahwoo.brutal.texture/2026.10.3/LICENSES/**/*" Link="Licenses/Media/Texture/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(NuGetPackageRoot)ahwoo.brutal.texture.abstractions/2026.10.3/LICENSE.txt;$(NuGetPackageRoot)ahwoo.brutal.texture.abstractions/2026.10.3/NOTICE.txt;$(NuGetPackageRoot)ahwoo.brutal.texture.abstractions/2026.10.3/LICENSES/**/*" Link="Licenses/Media/Texture.Abstractions/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(NuGetPackageRoot)ahwoo.brutal.gli/2026.10.2/LICENSE.txt;$(NuGetPackageRoot)ahwoo.brutal.gli/2026.10.2/NOTICE.txt;$(NuGetPackageRoot)ahwoo.brutal.gli/2026.10.2/LICENSES/**/*" Link="Licenses/Media/Gli/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(NuGetPackageRoot)ahwoo.brutal.gli.native/2026.10.2/LICENSE.txt;$(NuGetPackageRoot)ahwoo.brutal.gli.native/2026.10.2/NOTICE.txt;$(NuGetPackageRoot)ahwoo.brutal.gli.native/2026.10.2/LICENSES/**/*" Link="Licenses/Media/Gli.Native/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(NuGetPackageRoot)ahwoo.brutal.ktx/2026.10.2/LICENSE.txt;$(NuGetPackageRoot)ahwoo.brutal.ktx/2026.10.2/NOTICE.txt;$(NuGetPackageRoot)ahwoo.brutal.ktx/2026.10.2/LICENSES/**/*" Link="Licenses/Media/Ktx/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(NuGetPackageRoot)ahwoo.brutal.ktx.native/2026.10.2/LICENSE.txt;$(NuGetPackageRoot)ahwoo.brutal.ktx.native/2026.10.2/NOTICE.txt;$(NuGetPackageRoot)ahwoo.brutal.ktx.native/2026.10.2/LICENSES/**/*" Link="Licenses/Media/Ktx.Native/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

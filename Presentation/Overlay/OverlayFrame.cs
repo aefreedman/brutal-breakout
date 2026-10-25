@@ -22,6 +22,7 @@ public sealed class OverlayCaptureTracker
     }
 }
 
-/// <summary>Counts only nonempty overlay submissions followed by successful presentation, independent of shape receipts.</summary>
+/// <summary>Counts only nonempty overlay submissions followed by successful presentation, independent of shape receipts.
+/// TextFrames/LabelQuads count direct Vulkan game-label draws; DrawIndices includes those plus optional inspector indices.</summary>
 public readonly record struct OverlayPresentationEvidence(int PresentedFrames, int TextFrames, int ImageFrames,
     int InspectorFrames, long LabelQuads, long DrawIndices, int Width, int Height, int SwapchainGeneration);

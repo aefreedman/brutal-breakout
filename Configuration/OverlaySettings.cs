@@ -1,6 +1,7 @@
 namespace BrutalBreakout.Configuration;
 
-/// <summary>Startup-only validated overlay settings. Paths are absolute and checked before native startup.</summary>
+/// <summary>Startup-only validated overlay settings. Paths are absolute and checked before native startup.
+/// Font size, positions and dimensions are physical framebuffer pixels (not ImGui logical units).</summary>
 public sealed class OverlaySettings
 {
     public bool Enabled { get; }

@@ -80,6 +80,21 @@
         "resolved": "2026.10.5",
         "contentHash": "rK/ZnsFI2CVdJwCXz1rzjyOZz0xlbMocAQk1DYZ2sB9U090mwlhLRyCtcrspBYhdQXg0V9J/Kzhvhhnu52yy5A=="
       },
+      "Ahwoo.BRUTAL.Gli": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "QXEtKrNl0I7PpmLZy0cgGohezh9SmQUlGgrrqt7mYdsZKNFoXpELdV00t8ZZYQsJ0a+HwRcShrOT7I01QBgtSQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Gli.Native": "2026.10.2",
+          "Ahwoo.BRUTAL.Numerics": "2026.10.2"
+        }
+      },
+      "Ahwoo.BRUTAL.Gli.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "Wqx84lnwuq2njBXjdV3QgcADfsC/ma/XFc03vc1FQUO6Lf+8/bMu0+AjotLQhOboi38O+VRJPmHdoa1LCR+r7g=="
+      },
       "Ahwoo.BRUTAL.ImGui": {
         "type": "Transitive",
         "resolved": "2026.10.3",
@@ -118,6 +133,21 @@
         "dependencies": {
           "Ahwoo.BRUTAL.Core": "2026.10.4"
         }
+      },
+      "Ahwoo.BRUTAL.Ktx": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "xUXO3XcdJOhfvjWM5gbgR9EzE3mYsPZTIke7wdBjoOcmB6db5uzfPMRDOqdF6y1paq0BzLYX7AS2ictweb12cw==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Ktx.Native": "2026.10.2",
+          "Ahwoo.BRUTAL.Numerics": "2026.10.2"
+        }
+      },
+      "Ahwoo.BRUTAL.Ktx.Native": {
+        "type": "Transitive",
+        "resolved": "2026.10.2",
+        "contentHash": "/QXqaaVhV2hXZQPvWIFhSY4ICwPEtNWSfe2ooPyrlCg23a7oZepNFO5/ccqTgzMlw2U95C0odV88lddjbBTQCg=="
       },
       "Ahwoo.BRUTAL.Localization": {
         "type": "Transitive",
@@ -274,6 +304,27 @@
           "Microsoft.Extensions.Logging": "10.0.0",
           "Microsoft.Extensions.Logging.Console": "10.0.0",
           "Microsoft.Extensions.ObjectPool": "11.0.0-preview.5.26302.115"
+        }
+      },
+      "Ahwoo.BRUTAL.Texture": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "q5ug4aXubCbJ6ygNsKG08IUmMmmWqxMeTLRp3m7P/O6Ifl5NpzCA1wRpMLtN/c5zvzwVYMP+7BzyJwWBjBfxEw==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Core": "2026.10.4",
+          "Ahwoo.BRUTAL.Gli": "2026.10.2",
+          "Ahwoo.BRUTAL.Interop": "2026.10.2",
+          "Ahwoo.BRUTAL.Ktx": "2026.10.2",
+          "Ahwoo.BRUTAL.Numerics": "2026.10.2",
+          "Ahwoo.BRUTAL.Stb": "2026.10.3"
+        }
+      },
+      "Ahwoo.BRUTAL.Texture.Abstractions": {
+        "type": "Transitive",
+        "resolved": "2026.10.3",
+        "contentHash": "f2RetsPmVnfYUVjJe6qFbo8yFsLf2ooQ6R+epPuUHMdo1MgyNEvevDRqzdZK/cPQDH61cN45IP011RbmshkUaQ==",
+        "dependencies": {
+          "Ahwoo.BRUTAL.Texture": "2026.10.3"
         }
       },
       "Ahwoo.BRUTAL.Vulkan": {
@@ -513,9 +564,11 @@
           "Ahwoo.BRUTAL.Glfw": "[2026.10.5, )",
           "Ahwoo.BRUTAL.ImGui": "[2026.10.3, )",
           "Ahwoo.BRUTAL.ImGui.Backends": "[2026.10.3, )",
+          "Ahwoo.BRUTAL.Render.Mesh": "[2026.10.2, )",
           "Ahwoo.BRUTAL.Sdl.Ttf": "[2026.10.3, )",
           "Ahwoo.BRUTAL.ShaderC": "[2026.10.3, )",
-          "Ahwoo.BRUTAL.Stb": "[2026.10.3, )",
+          "Ahwoo.BRUTAL.Texture": "[2026.10.3, )",
+          "Ahwoo.BRUTAL.Texture.Abstractions": "[2026.10.3, )",
           "Ahwoo.BRUTAL.Vulkan": "[2026.10.3, )",
           "Ahwoo.BRUTAL.Vulkan.Abstractions": "[2026.10.3, )",
           "Ahwoo.BRUTAL.Vulkan.Vma": "[2026.10.3, )",
