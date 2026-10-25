@@ -29,6 +29,7 @@ public sealed class ShmupSession : IDisposable
 {
     public ShmupSimulation Simulation { get; }
     public ShmupSettings Settings { get; }
+    public BallTrailHistory? Trails { get; }
     public ShmupInputRouter Router { get; }
     private readonly FixedStepClock clock;
     private readonly ShmupEvents[] tickEvents;
@@ -44,9 +45,12 @@ public sealed class ShmupSession : IDisposable
     private bool active, restart, disposed;
     private double2? aim;
     public int TotalTicks { get; private set; }
-    public ShmupSession(PhysicsSettings physics, ShmupSettings settings, InputSettings input, ExecutionSettings execution)
+    public ShmupSession(PhysicsSettings physics, ShmupSettings settings, InputSettings input, ExecutionSettings execution,
+        BallTrailSettings? trails = null)
     {
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        // Validate and allocate bounded managed history before creating a native world.
+        Trails = trails is null ? null : new(trails, settings.Capacity.MaxBalls);
         Router = new(input);
         clock = new(physics);
         tickEvents = new ShmupEvents[physics.MaxCatchUpSteps];
@@ -57,6 +61,7 @@ public sealed class ShmupSession : IDisposable
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!ReferenceEquals(viewport.Arena, Settings.Arena)) throw new ArgumentException("Viewport must use this session's settings.", nameof(viewport));
         eventCount = 0;
+        Trails?.Synchronize(Simulation.Snapshot);
         var input = Router.Route(snapshot);
         if (!input.Active)
         {
@@ -74,7 +79,8 @@ public sealed class ShmupSession : IDisposable
         {
             Simulation.Step(new(new(input.Move.X, -input.Move.Y), aim, fire, restart));
             tickEvents[eventCount++] = Simulation.Events;
-            if (restart) { aim = null; Router.Reset(); }
+            if (restart) { aim = null; Router.Reset(); Trails?.Clear(); }
+            Trails?.Capture(Simulation.Snapshot);
             restart = false;
             TotalTicks++;
         }
@@ -85,6 +91,7 @@ public sealed class ShmupSession : IDisposable
         if (disposed) return;
         disposed = true;
         eventCount = 0;
+        Trails?.Clear();
         Simulation.Dispose();
     }
 }
@@ -99,14 +106,16 @@ public sealed class GameplaySessionHost : IDisposable
     private readonly ShmupSettings shmup;
     private readonly InputSettings input;
     private readonly ExecutionSettings execution;
+    private readonly BallTrailSettings? trails;
     public GameplayMode Mode { get; private set; }
     public BallSandboxSession? Breakout { get; private set; }
     public ShmupSession? Shmup { get; private set; }
     private bool disposed;
     public GameplaySessionHost(PhysicsSettings physics, GameplaySettings gameplay, ShmupSettings shmup,
-        InputSettings input, ExecutionSettings execution, GameplayMode initialMode)
+        InputSettings input, ExecutionSettings execution, GameplayMode initialMode, BallTrailSettings? trails = null)
     {
-        (this.physics, this.gameplay, this.shmup, this.input, this.execution) = (physics, gameplay, shmup, input, execution);
+        trails?.ValidateCapacity(shmup.Capacity.MaxBalls);
+        (this.physics, this.gameplay, this.shmup, this.input, this.execution, this.trails) = (physics, gameplay, shmup, input, execution, trails);
         Switch(initialMode);
     }
     public void Switch(GameplayMode mode)
@@ -117,7 +126,7 @@ public sealed class GameplaySessionHost : IDisposable
         Shmup?.Dispose(); Shmup = null;
         Mode = mode;
         if (mode == GameplayMode.Breakout) Breakout = new(physics, gameplay, input, execution);
-        else Shmup = new(physics, shmup, input, execution);
+        else Shmup = new(physics, shmup, input, execution, trails);
     }
     public void Dispose()
     {
