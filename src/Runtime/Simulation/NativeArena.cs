@@ -240,38 +240,8 @@ internal sealed class NativeArena : IDisposable
         var filter = B2QueryFilter.Default;
         filter.CategoryBits = 2;
         filter.MaskBits = 1 | 4;
-        float nearest = float.PositiveInfinity;
-        float2 normal = default;
-        bool meaningful = false, ambiguous = false;
-        // Never throw through the native callback. Continue rather than clip so equal-distance
-        // corner normals can be detected independent of broad-phase visitation order.
-        B2CastResultFcn callback = (shape, point, n, fraction, context) =>
-        {
-            if ((!IsWall(shape) && !IsLiveBrick(shape)) || !float.IsFinite(fraction) || fraction < 0 || fraction > 1) return 1;
-            const float tie = 1e-6f;
-            float lengthSquared = n.X * n.X + n.Y * n.Y;
-            bool valid = float.IsFinite(lengthSquared) && lengthSquared > .5f && lengthSquared < 1.5f && fraction > 0;
-            if (fraction < nearest - tie)
-            {
-                nearest = fraction;
-                normal = n;
-                meaningful = valid;
-                ambiguous = false;
-            }
-            else if (Math.Abs(fraction - nearest) <= tie)
-            {
-                if (!valid || !meaningful || n.X * normal.X + n.Y * normal.Y < .999f) ambiguous = true;
-            }
-            return 1;
-        };
-        world.CastShape(in proxy, translation, filter, callback, nint.Zero);
-        GC.KeepAlive(callback);
-        if (!meaningful || ambiguous) return default;
-        normal = float2.Normalize(normal);
-        float2 reflected = float2.Reflect(new((float)unit.X, (float)unit.Y), normal);
-        var displacement = Logical(translation) * nearest;
-        return new(double2.Distance(default, displacement), origin + displacement, new(reflected.X, reflected.Y))
-        { Normal = new(normal.X, normal.Y) };
+        return NativeAimQuery.Cast(world, in proxy, translation, filter,
+            shape => IsWall(shape) || IsLiveBrick(shape), origin, unit, out _);
     }
 
     public void Dispose()

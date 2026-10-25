@@ -193,7 +193,7 @@ public sealed class ShmupSimulation : IDisposable
         }
         Volatile.Write(ref snapshot, new(width, Settings.Arena.Height, avatar.Position, avatar.Aim, avatar.Health, time, Settings.Ball.Speed,
             DescentSpeed, RowInterval, avatar.InvulnerabilityRemaining, tick, row, droppedBalls, droppedBricks,
-            world.Size, native.BodyCount, ballStates.ToArray(), brickStates.ToArray()));
+            world.Size, native.BodyCount, ballStates.ToArray(), brickStates.ToArray(), native.Preview(avatar.Position, avatar.Aim)));
     }
     public void Dispose()
     {

@@ -192,6 +192,42 @@ internal sealed class NativeShmupArena : IDisposable
         };
         world.CastShape(in proxy, Native(v * dt), BrickFilter(), callback, nint.Zero); GC.KeepAlive(callback);
     }
+    /// <summary>Instantaneous projectile-radius query. Open screen exits are not collision surfaces.</summary>
+    internal WallContact Query(double2 origin, double2 direction)
+    {
+        Guard();
+        if (!InsideScreen(origin) || !Arena.Finite(direction) || (direction.X == 0 && direction.Y == 0)) return default;
+        var unit = Arena.Normalize(direction);
+        double exit = double.PositiveInfinity;
+        if (unit.X > 0) exit = Math.Min(exit, (settings.Arena.Width - origin.X) / unit.X);
+        else if (unit.X < 0) exit = Math.Min(exit, -origin.X / unit.X);
+        if (unit.Y > 0) exit = Math.Min(exit, (settings.Arena.Height - origin.Y) / unit.Y);
+        else if (unit.Y < 0) exit = Math.Min(exit, -origin.Y / unit.Y);
+        if (!double.IsFinite(exit) || exit <= 0) return default;
+        var proxy = Circle(origin, settings.Ball.Radius);
+        var filter = B2QueryFilter.Default;
+        filter.CategoryBits = 2; filter.MaskBits = settings.Ball.BounceOnBricks ? 1UL | 4UL : 1UL;
+        bool Obstacle(B2Shape shape) => wallIds.ContainsKey(shape) ||
+            (settings.Ball.BounceOnBricks && brickIds.TryGetValue(shape, out int id) && bricks[id].IsEnabled());
+        // Shape casts omit initial overlaps. Do not misreport those as a clear path or a later hit.
+        bool overlap = false;
+        B2OverlapResultFcn callback = (shape, context) => { if (Obstacle(shape)) overlap = true; return true; };
+        world.OverlapShape(in proxy, filter, callback, nint.Zero);
+        GC.KeepAlive(callback);
+        if (overlap) return default;
+        var hit = NativeAimQuery.Cast(world, in proxy, Native(unit * exit), filter, Obstacle, origin, unit, out bool clear);
+        return clear ? new WallContact(exit, origin + unit * exit, default) { HasHit = false } : hit;
+    }
+    private bool InsideScreen(double2 p) => Arena.Finite(p) && p.X >= 0 && p.X <= settings.Arena.Width &&
+        p.Y >= 0 && p.Y <= settings.Arena.Height;
+    internal AimPreviewState Preview(double2 origin, double2 direction)
+    {
+        var hit = Query(origin, direction);
+        if (!hit.HasHit) return new(hit, default);
+        // Same query-only separation as the original mode; never changes a body or radius.
+        var secondOrigin = hit.Position + hit.Normal;
+        return new(hit, InsideScreen(secondOrigin) ? Query(secondOrigin, hit.ReflectedDirection) : default);
+    }
     internal unsafe void Step(double descentSpeed, double2 previousAvatar, double2 avatar)
     {
         Guard(); Array.Clear(BrickHits); Array.Clear(WallHits);
