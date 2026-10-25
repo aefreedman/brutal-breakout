@@ -140,6 +140,21 @@ Hidden checks can additionally exercise HUD-only rendering, inspector open/close
 pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug -Mode Gameplay -Overlays
 ```
 
+#### Inspector layout
+
+The inspector has two independent movable/resizable windows. Drag a title bar to move a window; drag its edges to resize it. Diagnostics can also collapse to its title bar.
+
+| Window | Initial physical-pixel bounds | Contents |
+| --- | --- | --- |
+| Gameplay | `(16, 16)`, `360×420` | Running/Paused, Pause/Resume and Restart; selected-mode radios; Shmup widening |
+| Diagnostics | `(392, 16)`, `440×480` | Aligned state/run facts/frame-time readings, preview and expandable technical readings |
+
+These defaults fit without overlapping at both 960×540 and 1280×720. Preview starts open; Rendering, Text cache and Font start closed. Labels, values and help wrap rather than forming one large text block. Shmup reports its actual timing, geometry, HP/counts and pause state. Widening is disabled while paused or at maximum width; its stable range cannot narrow the current run.
+
+`Config/inspector.json` owns initial bounds: root `left/top/width/height` configure Diagnostics, and required `gameplayWindow: { "left": 16, "top": 16, "width": 360, "height": 420 }` configures Gameplay. Custom inspector JSON must include that complete object. Both immutable settings objects are validated before native allocation and passed unchanged to the UI. Bounds are starting positions, not locks: moved/resized bounds and diagnostic section choices survive panel toggles and context recreation within the running application. Smaller framebuffers/DPI changes recover reachable bounds. A new launch starts from JSON again; no docking system or layout files are written.
+
+CPU/native ImGui and hidden GPU checks verify layout mechanics and real geometry/preview receipts, not subjective readability or visible mixed-DPI quality. Visible inspection remains a separate permission-gated check.
+
 ### Initial window configuration
 
 `Config/window.json` is the only production default source for initial **physical window** dimensions: required positive integer `width` and `height`. These are independent of `Config/gameplay.json`'s logical canvas; fit/letterboxing still derives from that canvas and the actual framebuffer. Both game and gallery require this file. `--window-config <path>` independently overrides it, using caller cwd for relative paths; default lookup uses the executable directory. Build and publish copy it alongside the other configuration assets. Startup reports selected absolute path, requested dimensions and actual created window/framebuffer dimensions.
