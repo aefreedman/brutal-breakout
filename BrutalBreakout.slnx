@@ -1,0 +1,26 @@
+<Solution>
+  <Folder Name="/App/">
+    <Project Path="src/App/BrutalBreakout.App.csproj" />
+  </Folder>
+  <Folder Name="/Runtime/">
+    <Project Path="src/Runtime/Game/BrutalBreakout.Runtime.csproj" />
+    <Project Path="src/Runtime/Simulation/BrutalBreakout.Simulation.csproj" />
+    <Project Path="src/Runtime/Input/BrutalBreakout.Input.csproj" />
+    <Project Path="src/Runtime/Audio/BrutalBreakout.Audio.csproj" />
+  </Folder>
+  <Folder Name="/Editor/">
+    <Project Path="src/Editor/BrutalBreakout.Editor.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/Runtime/Audio/Audio.Tests.csproj" />
+    <Project Path="tests/Runtime/Simulation/Simulation.Tests.csproj" />
+    <Project Path="tests/Runtime/Input/BrutalBreakout.Input.Tests.csproj" />
+    <Project Path="tests/Runtime/Gameplay/Gameplay.Tests.csproj" />
+    <Project Path="tests/Runtime/Media/BrutalBreakout.Media.Tests.csproj" />
+    <Project Path="tests/Editor/BrutalBreakout.Editor.Tests.csproj" />
+    <Project Path="tests/Rendering/BrutalBreakout.Rendering.csproj" />
+  </Folder>
+  <Folder Name="/Tools/">
+    <Project Path="tools/Showcase/BrutalBreakout.Showcase.csproj" />
+  </Folder>
+</Solution>

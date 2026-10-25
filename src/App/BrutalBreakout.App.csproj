@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>BrutalBreakout</RootNamespace>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableEditor Condition="'$(EnableEditor)' == ''">true</EnableEditor>
+    <DefineConstants Condition="'$(EnableEditor)' == 'true'">$(DefineConstants);BREAKOUT_EDITOR</DefineConstants>
+    <NuGetLockFilePath Condition="'$(EnableEditor)' != 'true'">packages.shipping.lock.json</NuGetLockFilePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Runtime/Game/BrutalBreakout.Runtime.csproj" />
+    <ProjectReference Include="../Editor/BrutalBreakout.Editor.csproj" Condition="'$(EnableEditor)' == 'true'" />
+    <ProjectReference Include="../../tools/Showcase/BrutalBreakout.Showcase.csproj" />
+    <ProjectReference Include="../../tests/Rendering/BrutalBreakout.Rendering.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../Config/**/*.json" Exclude="../../Config/inspector.json" Link="Config/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="../../Config/inspector.json" Link="Config/inspector.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="'$(EnableEditor)' == 'true'" />
+    <None Include="../../Assets/**/*" Exclude="../../Assets/Fonts/Iosevka-Regular.ttf;../../Assets/Images/debug.png" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="../../Assets/Fonts/Iosevka-Regular.ttf" Link="Assets/Fonts/Iosevka-Regular.ttf" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="'$(EnableEditor)' == 'true'" />
+    <None Include="../../Assets/Images/debug.png" Link="Assets/Images/debug.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="'$(EnableEditor)' == 'true'" />
+  </ItemGroup>
+</Project>

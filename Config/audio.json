@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "masterGain": 0.35,
+  "maxVoices": 8,
+  "cues": {
+    "launch": "../Assets/Audio/launch.wav",
+    "catch": "../Assets/Audio/catch.wav",
+    "brick": "../Assets/Audio/brick.wav",
+    "miss": "../Assets/Audio/miss.wav",
+    "win": "../Assets/Audio/win.wav",
+    "loss": "../Assets/Audio/loss.wav"
+  }
+}

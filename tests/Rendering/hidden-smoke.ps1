@@ -13,9 +13,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Requires Windows/PowerShell 7.' }
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
-$exe = Join-Path $root "bin/$Configuration/net10.0/brutal-breakout.exe"
-if (-not (Test-Path -LiteralPath $exe)) { throw "Build first: dotnet build -c $Configuration" }
-$windowPath = if ([string]::IsNullOrWhiteSpace($WindowConfig)) { Join-Path $root 'tests/Gameplay/Fixtures/window-default.json' } else { [IO.Path]::GetFullPath($WindowConfig) }
+$exe = Join-Path $root "artifacts/bin/BrutalBreakout.App/$($Configuration.ToLowerInvariant())/BrutalBreakout.App.exe"
+if (-not (Test-Path -LiteralPath $exe)) { throw "Build first: dotnet build src/App/BrutalBreakout.App.csproj -c $Configuration" }
+$windowPath = if ([string]::IsNullOrWhiteSpace($WindowConfig)) { Join-Path $root 'tests/Fixtures/window-default.json' } else { [IO.Path]::GetFullPath($WindowConfig) }
 $windowExpected = [IO.File]::ReadAllText($windowPath) | ConvertFrom-Json
 # Stale-extent regression is deliberately a fixed 1281 -> 1280 receipt test.
 if ($windowExpected.width -ne 1280 -or $windowExpected.height -ne 720) { throw 'Hidden receipt harness requires the 1280x720 fixture; custom sizes are covered by CPU startup tests.' }
@@ -28,24 +28,24 @@ $inputExpected = $null
 if ($Mode -eq 'Gameplay') {
     # Deterministic test fixture, independent of the editable production physics.json.
     $physicsPath = if ([string]::IsNullOrWhiteSpace($PhysicsConfig)) {
-        Join-Path $root 'tests/Gameplay/Fixtures/physics-default.json'
+        Join-Path $root 'tests/Fixtures/physics-default.json'
     } else { [IO.Path]::GetFullPath($PhysicsConfig) }
     $physicsExpected = [IO.File]::ReadAllText($physicsPath) | ConvertFrom-Json
     $executionPath = if ([string]::IsNullOrWhiteSpace($ExecutionConfig)) {
-        Join-Path $root 'tests/Gameplay/Fixtures/execution-default.json'
+        Join-Path $root 'tests/Fixtures/execution-default.json'
     } else { [IO.Path]::GetFullPath($ExecutionConfig) }
     $executionExpected = [IO.File]::ReadAllText($executionPath) | ConvertFrom-Json
     $gameplayPath = if ([string]::IsNullOrWhiteSpace($GameplayConfig)) {
-        Join-Path $root 'tests/Gameplay/Fixtures/gameplay-default.json'
+        Join-Path $root 'tests/Fixtures/gameplay-default.json'
     } else { [IO.Path]::GetFullPath($GameplayConfig) }
     $inputPath = if ([string]::IsNullOrWhiteSpace($InputConfig)) {
-        Join-Path $root 'tests/Gameplay/Fixtures/input-default.json'
+        Join-Path $root 'tests/Fixtures/input-default.json'
     } else { [IO.Path]::GetFullPath($InputConfig) }
     $gameplayExpected = [IO.File]::ReadAllText($gameplayPath) | ConvertFrom-Json
     $inputExpected = [IO.File]::ReadAllText($inputPath) | ConvertFrom-Json
-    $colorsPath = if ([string]::IsNullOrWhiteSpace($ColorsConfig)) { Join-Path $root 'tests/Gameplay/Fixtures/colors-unity.json' } else { [IO.Path]::GetFullPath($ColorsConfig) }
+    $colorsPath = if ([string]::IsNullOrWhiteSpace($ColorsConfig)) { Join-Path $root 'tests/Fixtures/colors-unity.json' } else { [IO.Path]::GetFullPath($ColorsConfig) }
     $colorsExpected = [IO.File]::ReadAllText($colorsPath) | ConvertFrom-Json
-    $stylePath = if ([string]::IsNullOrWhiteSpace($StyleConfig)) { Join-Path $root 'style.json' } else { [IO.Path]::GetFullPath($StyleConfig) }
+    $stylePath = if ([string]::IsNullOrWhiteSpace($StyleConfig)) { Join-Path $root 'Config/style.json' } else { [IO.Path]::GetFullPath($StyleConfig) }
     $styleExpected = [IO.File]::ReadAllText($stylePath) | ConvertFrom-Json
 } elseif (-not [string]::IsNullOrWhiteSpace($PhysicsConfig) -or -not [string]::IsNullOrWhiteSpace($ExecutionConfig) -or
           -not [string]::IsNullOrWhiteSpace($GameplayConfig) -or -not [string]::IsNullOrWhiteSpace($InputConfig) -or -not [string]::IsNullOrWhiteSpace($ColorsConfig) -or -not [string]::IsNullOrWhiteSpace($StyleConfig)) {

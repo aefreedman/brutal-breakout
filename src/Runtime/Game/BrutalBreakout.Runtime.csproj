@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>BrutalBreakout</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="BrutalBreakout.Editor" />
+    <ProjectReference Include="../Simulation/BrutalBreakout.Simulation.csproj" />
+    <ProjectReference Include="../Audio/BrutalBreakout.Audio.csproj" />
+    <ProjectReference Include="../Input/BrutalBreakout.Input.csproj" />
+    <PackageReference Include="CrushKit.Brutal.Draw2D" Version="$(CrushKitVersion)" Condition="'$(UseCrushKitProjects)' != 'true'" />
+    <PackageReference Include="CrushKit.Brutal.Vulkan" Version="$(CrushKitVersion)" Condition="'$(UseCrushKitProjects)' != 'true'" />
+    <ProjectReference Include="$(CrushKitRoot)/src/CrushKit.Brutal.Draw2D/CrushKit.Brutal.Draw2D.csproj" Condition="'$(UseCrushKitProjects)' == 'true'" />
+    <ProjectReference Include="$(CrushKitRoot)/src/CrushKit.Brutal.Vulkan/CrushKit.Brutal.Vulkan.csproj" Condition="'$(UseCrushKitProjects)' == 'true'" />
+  </ItemGroup>
+</Project>

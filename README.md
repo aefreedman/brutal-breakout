@@ -1,5 +1,35 @@
 # brutal-breakout
 
+## Repository layout
+
+- `Assets/`: source audio, images, fonts and their provenance/licenses; no application C#.
+- `Config/`: designer-facing authoritative JSON; alternate palettes live in `Config/ColorSchemes/`.
+- `src/App/`: executable composition and platform/render loop.
+- `src/Runtime/Game/`: `BrutalBreakout.Runtime` assembly, configuration loading, game presentation, HUD and sessions.
+- `src/Runtime/{Simulation,Input,Audio}/`: existing independent runtime assemblies.
+- `src/Editor/`: optional `BrutalBreakout.Editor` assembly, inspector configuration, toggle and capture routing. Runtime has no Editor or ImGui dependency.
+- `tools/Showcase/`: primitive-gallery assembly used by development modes.
+- `tests/Runtime/`, `tests/Editor/`: CPU/offscreen suites; `tests/Fixtures/`: test-only configuration; `tests/Rendering/`: GPU scripts and scripted gameplay scenario assembly.
+- `BrutalBreakout.slnx`: all projects. Package locks live beside their owning projects.
+
+Build/publish output preserves `Config/` and `Assets/`. Default configuration paths resolve beneath the executable's `Config/`, independent of working directory; explicit overrides remain relative to the caller. Asset paths resolve relative to their JSON file.
+
+### Optional editor
+
+Normal development builds include the read-only F1 inspector. HUD text is configured independently in `Config/overlay.json`; editor font, preview image, layout and initial visibility are configured in `Config/inspector.json` (`--inspector-config <path>`). Both settings objects are validated before native initialization and passed unchanged to their consumers.
+
+Build without editor code, ImGui packages or inspector configuration/asset validation:
+
+```powershell
+dotnet restore src/App/BrutalBreakout.App.csproj -p:EnableEditor=false --locked-mode
+dotnet build src/App/BrutalBreakout.App.csproj -c Release -p:EnableEditor=false --no-restore
+dotnet publish src/App/BrutalBreakout.App.csproj -c Release -p:EnableEditor=false --no-restore -o artifacts/shipping
+```
+
+All generated outputs are centralized under ignored `artifacts/`: `bin/<project>/<configuration>/` for binaries, `obj/<project>/` for restore/build intermediates, and `publish/<project>/<configuration>/` for default publish output. Configuration names are lowercase (for example, `debug` and `release`).
+
+The editor-free app uses its own `src/App/packages.shipping.lock.json` and `BrutalBreakout.App.shipping` artifact directories, keeping its binaries and restore intermediates separate from editor-enabled builds. Inspector-only options are rejected in this build. The separate app restore directories allow switching between restored editor-enabled and editor-free builds without overwriting either app's dependency graph. Publish to a fresh directory when changing build variants; incremental publishing does not remove old files.
+
 A Windows-first 2D game built with C# and [BRUTAL](https://github.com/ahwootech/BRUTAL). Current milestone: brick clearing with the Unity prototype's catch line and swappable schemes on a small direct Vulkan renderer—not a general engine.
 
 ## Requirements
@@ -24,10 +54,10 @@ pwsh -NoProfile -File ../../crushkit-brutal/tools/pack-local.ps1
 ```powershell
 dotnet restore --locked-mode
 dotnet build --no-restore
-dotnet run --no-build
+dotnet run --project src/App/BrutalBreakout.App.csproj --no-build
 ```
 
-Normal `dotnet run --no-build` opens a resizable **brick-clearing game** at the initial physical size in `window.json` (shipped 1280 x 720). Use `dotnet run --no-build -- --showcase` for the existing twelve-panel primitive gallery. These interactive commands open visible windows; automated validation below uses hidden windows only. Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation` or any GPU test mode.
+Normal `dotnet run --project src/App/BrutalBreakout.App.csproj --no-build` opens a resizable **brick-clearing game** at the initial physical size in `Config/window.json` (shipped 1280 x 720). Use `dotnet run --project src/App/BrutalBreakout.App.csproj --no-build -- --showcase` for the existing twelve-panel primitive gallery. These interactive commands open visible windows; automated validation below uses hidden windows only. Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation` or any GPU test mode.
 
 ### Edit CrushKit locally
 
@@ -40,13 +70,13 @@ dotnet build --no-restore -p:UseCrushKitProjects=true -p:NuGetLockFilePath=packa
 
 Set `CrushKitRoot` explicitly if the kit checkout is elsewhere. Use the same properties on test/run commands. Development lock files are ignored; switch back with normal locked restore. Do not overwrite a shared/published NuGet version: bump it and update consumer lock files. Repacking an unpublished version requires deliberately refreshing only that version's kit cache entries and reevaluating its lock hashes; the kit's `tools/verify-packages.ps1` avoids stale-cache ambiguity with an isolated consumer cache.
 
-The renderer/geometry/shaders and optional inspector now live in CrushKit, not this repository. Breakout retains gameplay, configuration loading/JSON, overlay label/diagnostic content, input bindings/aim priorities, audio cue/event mapping and licensed game assets. CrushKit owns raw input sampling/edge/deadzone helpers and generic clip/device/bounded-voice mechanics; Input/Audio depend on neither graphics nor one another. The renderer no longer knows about balls/bricks; `OverlayHost` supplies those details as text. The kit's Vulkan package alone has no ImGui dependency; this application explicitly configures `ImGuiInspector` with its separately validated `InspectorSettings`; text `OverlaySettings` no longer require any inspector assets. The combined game JSON remains strict and both immutable objects are passed unchanged to their consumers.
+The renderer/geometry/shaders and optional inspector now live in CrushKit, not this repository. Breakout retains gameplay, configuration loading/JSON, overlay label/diagnostic content, input bindings/aim priorities, audio cue/event mapping and licensed game assets. CrushKit owns raw input sampling/edge/deadzone helpers and generic clip/device/bounded-voice mechanics; Input/Audio depend on neither graphics nor one another. The renderer no longer knows about balls/bricks; `OverlayHost` supplies those details as text. The kit's Vulkan package alone has no ImGui dependency; this application explicitly configures `ImGuiInspector` with its separately validated `InspectorSettings`; text `OverlaySettings` no longer require any inspector assets. HUD and inspector JSON are independently strict; their immutable settings objects are passed unchanged to their respective consumers.
 
 ### Arch ECS and jobs
 
 Breakout uses **Arch 2.1.0** through `CrushKit.Brutal.Ecs`, with `ZeroAllocJobScheduler 1.1.2` for explicit dependencies. `CrushKit.Brutal.Physics` owns the reusable Box2D worker/task bridge; neither package knows about balls, bricks, catch rules or game JSON. Breakout owns those components/systems, the native arena layout, tick graph and immutable render publications.
 
-`execution.json` is required for gameplay, copied beside the executable and validated before platform/native startup. `--execution-config <path>` selects an override. Its three required positive-integer fields are `workerCount` (ECS graph workers), `maxExpectedConcurrentJobs` (scheduler handle-pool sizing, not a queue limit) and `physicsWorkerCount` (Box2D workers). Shipped budgets are 2/64/2; they are explicit composition choices, not a single-thread restriction or a performance claim. Coordinator threads are additional to these worker budgets. Tune total CPU use rather than giving every pool all cores.
+`Config/execution.json` is required for gameplay, copied into the executable's `Config/` directory and validated before platform/native startup. `--execution-config <path>` selects an override. Its three required positive-integer fields are `workerCount` (ECS graph workers), `maxExpectedConcurrentJobs` (scheduler handle-pool sizing, not a queue limit) and `physicsWorkerCount` (Box2D workers). Shipped budgets are 2/64/2; they are explicit composition choices, not a single-thread restriction or a performance claim. Coordinator threads are additional to these worker budgets. Tune total CPU use rather than giving every pool all cores.
 
 Each tick runs input/native physics first, then independent ball/round and brick ECS jobs, then joins both before publishing. The physics engine, not an ECS movement system, owns flight integration and collisions. No world reads/writes overlap its native step; native events are fully copied/consumed before destroying bodies. Structural ECS changes occur only at exclusive boundaries. The pinned Arch query scheduler is static, so the shared host deliberately does not replace it or run nested `ParallelQuery` calls: graph-level jobs provide concurrency over disjoint archetypes instead.
 
@@ -54,8 +84,8 @@ Each tick runs input/native physics first, then independent ball/round and brick
 
 ### Breakout rules and controls
 
-- Aim with **WASD / arrows / left stick / mouse movement**. Active keyboard direction wins over stick, then moved/clicked mouse; a stationary unused mouse does not override direction input. Centered stick preserves the last aim. Initial aim comes from `gameplay.json` (the shipped file points up).
-- **Space / left mouse button / gamepad south (A)** launches or catches. Shot speed and ball radius come from `gameplay.json` (the shipped values are 600 logical units/second and radius 12), with no gravity or drag; subsequent velocity belongs to the native solver (no per-tick speed normalization). Top and side walls reflect; the bottom is open. Single-hit bricks reflect the ball and disappear.
+- Aim with **WASD / arrows / left stick / mouse movement**. Active keyboard direction wins over stick, then moved/clicked mouse; a stationary unused mouse does not override direction input. Centered stick preserves the last aim. Initial aim comes from `Config/gameplay.json` (the shipped file points up).
+- **Space / left mouse button / gamepad south (A)** launches or catches. Shot speed and ball radius come from `Config/gameplay.json` (the shipped values are 600 logical units/second and radius 12), with no gravity or drag; subsequent velocity belongs to the native solver (no per-tick speed normalization). Top and side walls reflect; the bottom is open. Single-hit bricks reflect the ball and disappear.
 - After launch, the ball must **leave the lower catch zone and hit a wall or brick**, then return below/on the catch line before it can be caught. The restriction is on the ball center, not the cursor. Crossing the line does not catch automatically. The ball retains its configured disc color when eligible; eligibility does not add a flight halo or recolor.
 - Once eligible, press from any cursor position to catch the ball below the line. Catch holds the ball at its actual position, not a spawn point. **Release and press separately** to relaunch; a catch never fires on the same action.
 - The shipped game has **40 bricks and three balls**. Missing the bottom consumes a ball; destroyed bricks remain destroyed. More than the configured maximum wall bounces without a brick also consumes a ball. Clear all bricks to win; exhaust balls to lose. The title bar reports status/counts; progress bars and terminal markers provide scene feedback.
@@ -69,9 +99,9 @@ Rules reference the Unity `Projectile.cs`, `ProjectileFactory.cs` and `GameSetti
 
 Normal gameplay now shows count/status/control labels through **SDL.Ttf -> BRUTAL.Texture/GenericTexture -> direct Vulkan textured quads**. `TextureLoader` uses BRUTAL Stb internally for the PNG path; there is no second image decoder or alternate graphics stack. ImGui is **only the optional read-only inspector**, not the game text/image compositor. The existing 24-byte solid-shape pipeline is unchanged; textured vertices use a separate 32-byte UV material, with linear-premultiplied texels/tints, sRGB output and the same 4x MSAA render pass.
 
-- `overlay.json` is required in game and gallery modes so the inspector can open with F1 (`--overlay-config <path>` overrides it). Required `fontPath` selects the proportional game font, and `debugFontPath` selects the monospaced inspector font; both and the image path resolve relative to that JSON. Font size, label position/spacing and inspector dimensions are **physical framebuffer pixels**. Cache/label/texture/encoded-byte limits are explicit; all fields/assets and the host's three-label capacity are validated before GLFW. Defaults exist only in JSON, with no partial merge or hot reload. Labels cache unchanged strings; cache eviction and GPU texture/descriptor lifetime follow the shared frame fence.
-- Press **F1** to open/close the inspector at runtime, including while it captures keyboard input. Holding F1 does not repeat; a held key on focus regain is baselined. No CLI argument is required. `debugVisible` in `overlay.json` seeds the initial state; `--debug-ui` remains an optional initially-open shortcut. It shows state/counts, timing, geometry/presentation/cache statistics, font/framebuffer/raster-density metrics and an authored PNG preview. It does not edit live settings. With it closed, the game does not initialize ImGui or install its GLFW callbacks. Capture transitions clear pending input edges; captured keyboard/mouse sources are suppressed without taking gamepad control away.
-- `audio.json` is required in gameplay (`--audio-config <path>` overrides it). It configures enabled state, master gain, a bounded voice count and six launch/catch/brick/miss/win/loss WAV paths. Cues are collected per fixed tick, not inferred once per render frame. Terminal cues replace same-tick brick/miss feedback. Tracks are reused first-idle; saturation drops the new cue, never queues it. Focus loss/mute/restart stops feedback and prevents stale replay.
+- `Config/overlay.json` is required in game and gallery modes (`--overlay-config <path>` overrides it). Its `fontPath` selects the proportional game font. Editor-enabled builds separately require `Config/inspector.json` (`--inspector-config <path>`), whose `fontPath` selects the monospaced inspector font and whose `imagePath` selects the preview. Asset paths resolve relative to the JSON containing them. Font sizes, label spacing and inspector dimensions are **physical framebuffer pixels**. Cache/label/texture/encoded-byte limits are explicit; required fields/assets and the host's three-label capacity are validated before GLFW. Defaults exist only in JSON, with no partial merge or hot reload. Labels cache unchanged strings; cache eviction and GPU texture/descriptor lifetime follow the shared frame fence.
+- Press **F1** to open/close the inspector at runtime, including while it captures keyboard input. Holding F1 does not repeat; a held key on focus regain is baselined. No CLI argument is required. `visible` in `Config/inspector.json` seeds the initial state; `--debug-ui` remains an optional initially-open shortcut. It shows state/counts, timing, geometry/presentation/cache statistics, font/framebuffer/raster-density metrics and an authored PNG preview. It does not edit live settings. With it closed, the game does not initialize ImGui or install its GLFW callbacks. Capture transitions clear pending input edges; captured keyboard/mouse sources are suppressed without taking gamepad control away.
+- `Config/audio.json` is required in gameplay (`--audio-config <path>` overrides it). It configures enabled state, master gain, a bounded voice count and six launch/catch/brick/miss/win/loss WAV paths. Cues are collected per fixed tick, not inferred once per render frame. Terminal cues replace same-tick brick/miss feedback. Tracks are reused first-idle; saturation drops the new cue, never queues it. Focus loss/mute/restart stops feedback and prevents stale replay.
 - Audio uses **BRUTAL SDL.Mixer** and cached, predecoded clips. `--mute` avoids creating an audio device entirely. Disabled audio also creates no device. Missing/unavailable native audio devices/libraries give one diagnostic and silent output, without stopping gameplay. Configuration or asset validation errors remain startup errors. The supplied sounds are original simple placeholder tones (CC0); their offline authoring script is included, not a runtime dependency. Custom cue files currently require canonical mono PCM16 WAV, not every format SDL.Mixer can decode.
 - Hidden GPU modes and showcase never open an audio device. Headless tests exercise cue mapping, saturation and unavailable output through fakes; no audible quality/latency/device-shutdown acceptance is claimed.
 
@@ -87,16 +117,16 @@ pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug -Mod
 
 ### Initial window configuration
 
-`window.json` is the only production default source for initial **physical window** dimensions: required positive integer `width` and `height`. These are independent of `gameplay.json`'s logical canvas; fit/letterboxing still derives from that canvas and the actual framebuffer. Both game and gallery require this file. `--window-config <path>` independently overrides it, using caller cwd for relative paths; default lookup uses the executable directory. Build and publish copy it alongside the other configuration assets. Startup reports selected absolute path, requested dimensions and actual created window/framebuffer dimensions.
+`Config/window.json` is the only production default source for initial **physical window** dimensions: required positive integer `width` and `height`. These are independent of `Config/gameplay.json`'s logical canvas; fit/letterboxing still derives from that canvas and the actual framebuffer. Both game and gallery require this file. `--window-config <path>` independently overrides it, using caller cwd for relative paths; default lookup uses the executable directory. Build and publish copy it alongside the other configuration assets. Startup reports selected absolute path, requested dimensions and actual created window/framebuffer dimensions.
 
 The immutable `WindowSettings(int width, int height)` has no defaults or mutable properties. The strict loader rejects missing/unreadable files, absent/null/unknown/duplicate/escaped-duplicate fields, wrong types and nonpositive/out-of-int-range dimensions **before GLFW or a native world**. There is no fallback, partial merge or hot reload. Gallery still loads no implicit physics/game/input/colors/style files; explicit overrides remain validated. `--cleanup-self-test` exits before any configuration lookup or native startup. Positive integer representability does not promise OS/GPU support for arbitrarily huge windows.
 
 ### Physics configuration
 
-`physics.json` is the **only production default source** for physics timing/tuning. It is copied to build and publish output; normal startup reads the file beside the executable, independent of the caller's working directory. Edit the source file and run/build again, edit the deployed copy, or select a file explicitly:
+`Config/physics.json` is the **only production default source** for physics timing/tuning. It is copied to build and publish output; normal startup reads the file beneath the executable's `Config/` directory, independent of the caller's working directory. Edit the source file and run/build again, edit the deployed copy, or select a file explicitly:
 
 ```powershell
-dotnet run -- --physics-config ./physics.json
+dotnet run --project src/App/BrutalBreakout.App.csproj -- --physics-config ./physics.json
 ```
 
 An explicit relative path resolves against the caller's working directory. The file is read and validated **before GLFW or a native physics world starts**. All five fields are required; unknown/misspelled/duplicate fields, wrong types, malformed/nonfinite/unrepresentable numbers and missing/unreadable files fail with path context. There is no C# fallback configuration, partial merge, or last-wins duplicate handling. Showcase-only modes do not load an implicit physics file; an explicit override is still validated. `--physics-config` must occur once with a path. Changes take effect on the **next launch**, not through hot reload.
@@ -113,22 +143,22 @@ One immutable validated `PhysicsSettings` instance is shared by session, clock, 
 
 ### Gameplay and input configuration
 
-`gameplay.json` and `input.json` are the only production default sources for ball/arena geometry and stick deadzone. Like `physics.json`, they are copied beside the executable on build/publish and loaded before GLFW/native world creation. Edit the source files and build/run again, edit deployed copies, or choose independent overrides:
+`Config/gameplay.json` and `Config/input.json` are the only production default sources for ball/arena geometry and stick deadzone. Like `Config/physics.json`, they are copied into the executable's `Config/` directory on build/publish and loaded before GLFW/native world creation. Edit the source files and build/run again, edit deployed copies, or choose independent overrides:
 
 ```powershell
-dotnet run -- --gameplay-config ./my-gameplay.json --input-config ./my-input.json
+dotnet run --project src/App/BrutalBreakout.App.csproj -- --gameplay-config ./my-gameplay.json --input-config ./my-input.json
 # All three overrides can be combined:
-dotnet run -- --physics-config ./my-physics.json --gameplay-config ./my-gameplay.json --input-config ./my-input.json
+dotnet run --project src/App/BrutalBreakout.App.csproj -- --physics-config ./my-physics.json --gameplay-config ./my-gameplay.json --input-config ./my-input.json
 ```
 
 Every section/field is required; there is no partial merge, C# fallback or parameterless settings constructor. Unknown/misspelled, duplicate (including escaped names at nested levels), missing, null or wrong-type fields fail with file-path context. Each option accepts one path; relative paths use caller cwd. Showcase-only modes need neither implicit gameplay nor input files, but validate any explicit overrides (window configuration is always required). Changes apply on next launch, not through hot reload.
 
 | File / section | Required fields and meaning |
 | --- | --- |
-| `gameplay.json` / `arena` | `width`, `height`: logical canvas; `left`, `top`, `right`, `bottom`: inner wall faces; `wallThickness`: wall thickness in logical units. |
-| `gameplay.json` / `ball` | `radius`, `speed`: logical radius and units/second; `spawnX`, `spawnY`: reset center; `initialAimX`, `initialAimY`: finite nonzero direction, normalized once. |
-| `gameplay.json` / `breakout` | `startingBalls`, `catchZoneHeightFraction` (canvas fraction measured up from bottom), `maxBouncesWithoutBrick` (0 disables expiry), `bricks`: rectangles with `x`, `y`, `width`, `height`. |
-| `input.json` | `stickDeadzone`: radial deadzone in **[0,1)**, validated after float conversion; the boundary is inactive. |
+| `Config/gameplay.json` / `arena` | `width`, `height`: logical canvas; `left`, `top`, `right`, `bottom`: inner wall faces; `wallThickness`: wall thickness in logical units. |
+| `Config/gameplay.json` / `ball` | `radius`, `speed`: logical radius and units/second; `spawnX`, `spawnY`: reset center; `initialAimX`, `initialAimY`: finite nonzero direction, normalized once. |
+| `Config/gameplay.json` / `breakout` | `startingBalls`, `catchZoneHeightFraction` (canvas fraction measured up from bottom), `maxBouncesWithoutBrick` (0 disables expiry), `bricks`: rectangles with `x`, `y`, `width`, `height`. |
+| `Config/input.json` | `stickDeadzone`: radial deadzone in **[0,1)**, validated after float conversion; the boundary is inactive. |
 
 Ordered walls including thickness must fit the canvas, radius must leave a nonempty playable area, and spawn must fit the radius-inset bounds. Invalid/degenerate native float geometry and unsafe speed/timestep combinations reject before a world is allocated; errors for combined physics/gameplay incompatibility identify both paths. Validation establishes numerical representability, not stable physics for every extreme setting.
 
@@ -136,19 +166,19 @@ The same immutable settings drive native walls/circle/velocity, reset/casts, dra
 
 ### Swappable color schemes
 
-`colors.json` maps the **active serialized Unity setup**, not just palette assets or camera clear color. `BackgroundUICanvas.prefab` has an inactive untinted image and an active `Image.001`: .22 gray tint multiplied by a vertical coral-bottom/cream-top gradient. UI Color32 tint quantization is 56/255; authored opaque sRGB approximations are **top #33332D / bottom #381B18**. The scene only overrides placement/camera. The gradient covers the physical framebuffer, including letterboxes. Clear-only frames use the configured top `background`, not a full gradient.
+`Config/colors.json` maps the **active serialized Unity setup**, not just palette assets or camera clear color. `BackgroundUICanvas.prefab` has an inactive untinted image and an active `Image.001`: .22 gray tint multiplied by a vertical coral-bottom/cream-top gradient. UI Color32 tint quantization is 56/255; authored opaque sRGB approximations are **top #33332D / bottom #381B18**. The scene only overrides placement/camera. The gradient covers the physical framebuffer, including letterboxes. Clear-only frames use the configured top `background`, not a full gradient.
 
 The default projectile (including catch-ready flight) and all three normal-brick roles are coral `#FF7D6E`; bricks have rounded fills with no invented keylines. Walls and aim/contact/reflected lines are white. The catch line and held selection ring are cream `#E8E7CB`. Semantic roles remain independent for alternative themes.
 
 ```powershell
-dotnet run -- --colors-config color-schemes/night.json
+dotnet run --project src/App/BrutalBreakout.App.csproj -- --colors-config Config/ColorSchemes/night.json
 ```
 
 Combine with any other config overrides. Schemes require `name`, a `palette` of named opaque sRGB `#RRGGBB` colors, and `roles` referencing palette names: `background`, `backgroundBottom`, `heldRing`, `walls`, `ball`, `catchReady`, `catchLine`, `aim`, `brickPrimary`, `brickSecondary`, `brickAccent`, `hud`, `win`, `loss`. Missing/unknown/duplicate fields, bad hex and undefined references fail before platform startup. Edit/select a file for the next launch; no hot reload. Both shipped schemes copy to build/publish. Colors convert from sRGB to linear once; the CPU gradient supplies per-vertex linear colors to the unchanged shader/vertex ABI. Roles may share colors; actual index-range receipts never depend on color identity. The primitive gallery retains its demonstration styling.
 
 ### Presentation style configuration
 
-`style.json` is the only production source of new presentation tunables. Use `--style-config <path>` independently of color/game/input/physics overrides. Like those files, all fields are required, unknown/missing/null/duplicate (including escaped-name) fields reject, default lookup is beside the executable, relative overrides use caller cwd, and gallery modes load no implicit style file. Explicit overrides are always validated before GLFW/world creation. Build/publish copies include the style. No merge, optional constructor fallback, hot reload or simulation-timing change.
+`Config/style.json` is the only production source of new presentation tunables. Use `--style-config <path>` independently of color/game/input/physics overrides. Like those files, all fields are required, unknown/missing/null/duplicate (including escaped-name) fields reject, default lookup is beneath the executable's `Config/` directory, relative overrides use caller cwd, and gallery modes load no implicit style file. Explicit overrides are always validated before GLFW/world creation. Build/publish copies include the style. No merge, optional constructor fallback, hot reload or simulation-timing change.
 
 | Required style fields | Shipped values / units |
 | --- | --- |
@@ -177,7 +207,7 @@ Native full-radius preview centers/normals remain authoritative. The plain white
 
 Published **Ahwoo.BRUTAL.Box2D 2026.10.2** replaces the custom collision solver: one native world owns three static arena walls, live static brick bodies and a dynamic circle with bullet CCD. Published `B2Body.Dispose()` was DLL-inspected and headless compile/runtime-probed before use. Events are consumed and deduplicated before destroying hit bodies. The fixed clock, input staging and catch/aim/restart policy remain our game code. The conversion is **100 logical units per meter**, stepping at the configured fixed frequency/substep count through the dependency-job pipeline and Box2D task bridge. Each disposable session owns its simulation/world; the hidden gameplay script owns its own session. Both normal and exceptional app exits dispose these before draw-list/renderer teardown. Showcase and renderer-only smoke modes create no physics world. Snapshot state remains readable after disposal; native operations and session advances do not.
 
-Native contacts are not analytic radius-inset guarantees: bounded checks allow **2 logical units of contact penetration plus a separately named .001 coordinate-roundoff margin**, without clamping positions. At the original explicit 120Hz/four-substep test fixture, the measured worst was 2.000179291 units over 100,000 ticks/ten shots; speed drift was .000190735 units/second. Those measurements are not a universal tolerance guarantee for every configuration. Native cast contact centers have about .5-unit slop, so post-impact paths are not the old exact time-of-impact trajectories. Corners need not yield a combined two-axis normal; initial overlap/zero-normal or ambiguous casts can legitimately have no hit. The presentation's secondary full-radius cast uses a **one-unit query-only separation skin** along the first native normal; it does not move the ball or shrink collision geometry, and clips the fixed short reflected leg when the next obstruction is available. Maintained integration constraints are in the coordination workspace's `docs/reference/brutal-apis.md`; executable checks live in `tests/Simulation/`.
+Native contacts are not analytic radius-inset guarantees: bounded checks allow **2 logical units of contact penetration plus a separately named .001 coordinate-roundoff margin**, without clamping positions. At the original explicit 120Hz/four-substep test fixture, the measured worst was 2.000179291 units over 100,000 ticks/ten shots; speed drift was .000190735 units/second. Those measurements are not a universal tolerance guarantee for every configuration. Native cast contact centers have about .5-unit slop, so post-impact paths are not the old exact time-of-impact trajectories. Corners need not yield a combined two-axis normal; initial overlap/zero-normal or ambiguous casts can legitimately have no hit. The presentation's secondary full-radius cast uses a **one-unit query-only separation skin** along the first native normal; it does not move the ball or shrink collision geometry, and clips the fixed short reflected leg when the next obstruction is available. Maintained integration constraints are in the coordination workspace's `docs/reference/brutal-apis.md`; executable checks live in `tests/Runtime/Simulation/`.
 
 Published native assets cover **win-x64, linux-x64 and osx-arm64 only**; only Windows x64 runtime behavior is verified here. Native worlds are explicitly drained and disposed through their execution host, with no finalizer or shared global world. Shared world creation/destruction is serialized to protect native global allocation state; separate worlds may advance concurrently.
 
@@ -188,34 +218,34 @@ Run GPU commands sequentially, with no other lane using the GPU:
 ```powershell
 dotnet restore --locked-mode
 dotnet restore ../../crushkit-brutal/src/CrushKit.Brutal.Draw2D/CrushKit.Brutal.Draw2D.csproj --locked-mode
-dotnet restore Simulation/BrutalBreakout.Simulation.csproj --locked-mode
-dotnet restore Platform/Input/BrutalBreakout.Input.csproj --locked-mode
+dotnet restore src/Runtime/Simulation/BrutalBreakout.Simulation.csproj --locked-mode
+dotnet restore src/Runtime/Input/BrutalBreakout.Input.csproj --locked-mode
 dotnet restore ../../crushkit-brutal/tests/Draw2D/Draw2D.Tests.csproj --locked-mode
-dotnet restore tests/Simulation/Simulation.Tests.csproj --locked-mode
-dotnet restore tests/Input/BrutalBreakout.Input.Tests.csproj --locked-mode
-dotnet restore tests/Gameplay/Gameplay.Tests.csproj --locked-mode
+dotnet restore tests/Runtime/Simulation/Simulation.Tests.csproj --locked-mode
+dotnet restore tests/Runtime/Input/BrutalBreakout.Input.Tests.csproj --locked-mode
+dotnet restore tests/Runtime/Gameplay/Gameplay.Tests.csproj --locked-mode
 dotnet test ../../crushkit-brutal/tests/Draw2D/Draw2D.Tests.csproj -c Debug --no-restore
 dotnet test ../../crushkit-brutal/tests/Draw2D/Draw2D.Tests.csproj -c Release --no-restore
 foreach ($configuration in 'Debug', 'Release') {
-    dotnet test tests/Simulation/Simulation.Tests.csproj -c $configuration --no-restore
-    dotnet test tests/Input/BrutalBreakout.Input.Tests.csproj -c $configuration --no-restore
-    dotnet test tests/Gameplay/Gameplay.Tests.csproj -c $configuration --no-restore
+    dotnet test tests/Runtime/Simulation/Simulation.Tests.csproj -c $configuration --no-restore
+    dotnet test tests/Runtime/Input/BrutalBreakout.Input.Tests.csproj -c $configuration --no-restore
+    dotnet test tests/Runtime/Gameplay/Gameplay.Tests.csproj -c $configuration --no-restore
 }
 dotnet build -c Debug --no-restore
 dotnet build -c Release --no-restore
-dotnet run -c Debug --no-build -- --cleanup-self-test
+dotnet run --project src/App/BrutalBreakout.App.csproj -c Debug --no-build -- --cleanup-self-test
 pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug
 pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Release
 pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug -Mode Gameplay
 pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Release -Mode Gameplay
 foreach ($configuration in 'Debug', 'Release') {
-    pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration $configuration -Mode Gameplay -PhysicsConfig tests/Gameplay/Fixtures/physics-60hz.json -GameplayConfig tests/Gameplay/Fixtures/gameplay-custom.json -InputConfig tests/Gameplay/Fixtures/input-custom.json -ColorsConfig color-schemes/night.json -StyleConfig tests/Gameplay/Fixtures/style-custom.json
+    pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration $configuration -Mode Gameplay -PhysicsConfig tests/Fixtures/physics-60hz.json -GameplayConfig tests/Fixtures/gameplay-custom.json -InputConfig tests/Fixtures/input-custom.json -ColorsConfig Config/ColorSchemes/night.json -StyleConfig tests/Fixtures/style-custom.json
 }
 ```
 
 Routine `--smoke-test` enables validation and renders in a **hidden GLFW window**. It submits the actual 64-call showcase (14 solid outlines, 8 Basic/dot patterned paths, and 4 angled + 4 chevron paths, plus filled/transform/clip/blend references and panel/marker shapes), reports expected shape counts and nonempty geometry at both 1280 x 720 and 960 x 540, asserts minimum vertex/index counts and five clip-command runs, plus per-appearance counters and nonempty indexed geometry tagged by dedicated showcase colors, requires presentations after resize, and has a 15-second deadline. This is GPU validation, not headless CPU, screenshot comparison, or real minimize/restore coverage. Hidden presentation is verified on one Windows GPU setup (model omitted for publication); other platforms/drivers remain unverified. The metadata regression above suppresses console creation too, samples foreground/window visibility every 10ms, and asserts unchanged foreground/no visible test windows with a 25-second process deadline. It does not move user focus; external user focus activity invalidates the observation. Sampling cannot exclude shorter transients. CPU generation skips iconified/zero-size windows; `Draw(null, background)` retains backend throttling. Validation errors cause nonzero exit. The three known Galaxy/GOG layer-naming warnings are upstream loader warnings, not validation errors; report other warnings separately.
 
-`-Mode Showcase` is the hidden harness default and retains all gallery geometry/resize checks. `-Mode Gameplay` passes `--gameplay-smoke-test`: controlled fake raw snapshots traverse the **same InputRouter and BallSandboxSession** as live polling, using advances derived from the configured timestep (two ticks, bounded by the configured catch-up cap), without OS input injection. The harness uses explicit test fixtures rather than the user's editable production files and verifies the actual startup paths, timing/contact settings, complete logical gameplay geometry/normalized aim and deadzone against the selected JSON. `-PhysicsConfig`, `-GameplayConfig`, `-InputConfig`, `-ColorsConfig` and `-StyleConfig` select independent fixture files. Both modes pass `tests/Gameplay/Fixtures/window-default.json`; `-WindowConfig` selects another path but this receipt harness explicitly requires 1280×720 to preserve its fixed stale-extent regression. CPU tests prove custom800×600 values construct the published `GlfwWindow.CreateInfo.Size` independently of the logical arena. The harness checks selected window path, effective startup window/framebuffer, all nested HUD fields and actual indexed first-bar bounds; custom-HUD CPU cases compare bar and win/loss-marker vertices, exercising both max-size and fraction-limited branches. A real-router inside/outside deadzone probe and measured native launch speed prove the loaded values are used; reset checks use the configured spawn. Critical stages advance only after a true indexed-geometry presentation receipt (not merely a clear-only presentation): initial aim, launch, blocked above-line catch, brick destruction and return-below-line eligibility, catch at the preserved position, six held frames, separate release/repress relaunch, restart, and six resumed 960 x 540 presentations. It asserts states, bounds and position preservation, and reports actual indexed arena/bricks/catch-line/HUD/ball/aim/background/held-ring geometry at both 1280 x 720 and 960 x 540. Both hidden modes always request `Visible=0`, `Focused=0`, `FocusOnShow=0`; the shared harness uses `CreateNoWindow=true`. GPU modes and `--showcase` are mutually exclusive. Before the scenario, it deliberately builds a 1281 x 720 producer frame for the actual 1280 x 720 framebuffer until the renderer discards it and successfully presents a clear-only frame. The required `Gameplay receipt regression PASS` log proves `PresentedFrames` increased while the geometry receipt was false and nonempty-frame/viewports/stage evidence remained at zero/zero/Initial; the harness requires this before any gameplay viewport or stage log. It then resumes correct-extent geometry and all existing stages. There is no minimize/restore or hardware-input coverage in hidden gameplay.
+`-Mode Showcase` is the hidden harness default and retains all gallery geometry/resize checks. `-Mode Gameplay` passes `--gameplay-smoke-test`: controlled fake raw snapshots traverse the **same InputRouter and BallSandboxSession** as live polling, using advances derived from the configured timestep (two ticks, bounded by the configured catch-up cap), without OS input injection. The harness uses explicit test fixtures rather than the user's editable production files and verifies the actual startup paths, timing/contact settings, complete logical gameplay geometry/normalized aim and deadzone against the selected JSON. `-PhysicsConfig`, `-GameplayConfig`, `-InputConfig`, `-ColorsConfig` and `-StyleConfig` select independent fixture files. Both modes pass `tests/Fixtures/window-default.json`; `-WindowConfig` selects another path but this receipt harness explicitly requires 1280×720 to preserve its fixed stale-extent regression. CPU tests prove custom800×600 values construct the published `GlfwWindow.CreateInfo.Size` independently of the logical arena. The harness checks selected window path, effective startup window/framebuffer, all nested HUD fields and actual indexed first-bar bounds; custom-HUD CPU cases compare bar and win/loss-marker vertices, exercising both max-size and fraction-limited branches. A real-router inside/outside deadzone probe and measured native launch speed prove the loaded values are used; reset checks use the configured spawn. Critical stages advance only after a true indexed-geometry presentation receipt (not merely a clear-only presentation): initial aim, launch, blocked above-line catch, brick destruction and return-below-line eligibility, catch at the preserved position, six held frames, separate release/repress relaunch, restart, and six resumed 960 x 540 presentations. It asserts states, bounds and position preservation, and reports actual indexed arena/bricks/catch-line/HUD/ball/aim/background/held-ring geometry at both 1280 x 720 and 960 x 540. Both hidden modes always request `Visible=0`, `Focused=0`, `FocusOnShow=0`; the shared harness uses `CreateNoWindow=true`. GPU modes and `--showcase` are mutually exclusive. Before the scenario, it deliberately builds a 1281 x 720 producer frame for the actual 1280 x 720 framebuffer until the renderer discards it and successfully presents a clear-only frame. The required `Gameplay receipt regression PASS` log proves `PresentedFrames` increased while the geometry receipt was false and nonempty-frame/viewports/stage evidence remained at zero/zero/Initial; the harness requires this before any gameplay viewport or stage log. It then resumes correct-extent geometry and all existing stages. There is no minimize/restore or hardware-input coverage in hidden gameplay.
 
 Final milestone counts are recorded in the dated results note. Coverage includes strict nested breakout/color schemas, native brick lifecycle and casts, catch-line facts and boundaries, host catch/miss/restart at 60/120/240Hz, terminal geometry and identical-color schemes. Prior native timing/partition and ownership tests remain. Build/publish asset copies are verified.
 
@@ -227,13 +257,13 @@ Cleanup injects resource-lifetime helper failures, not actual device loss. CPU t
 
 ```powershell
 # Visible resize/minimize/idle/restore/resumed presentation; 15-second app deadline:
-dotnet run -c Debug --no-build -- --lifecycle-smoke-test
+dotnet run --project src/App/BrutalBreakout.App.csproj -c Debug --no-build -- --lifecycle-smoke-test
 # Visible external resize stress (bounded, per-iteration cleanup):
 pwsh -NoProfile -File tests/Rendering/resize-smoke.ps1 -Configuration Debug
 pwsh -NoProfile -File tests/Rendering/resize-smoke.ps1 -Configuration Release
 ```
 
-All test-created windows request `Focused=false` and `FocusOnShow=false`; external resize uses `SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS`. Native lifecycle restore can still activate; **no portable zero-focus guarantee** is made for visible lifecycle mode. No test calls focus/foreground activation APIs. Normal interactive `dotnet run` now selects the ball sandbox; `--showcase` selects the gallery. With permission, also inspect/close the visible demo and repeat startup/shutdown. The Windows-only external-resize regression changes the native window asynchronously during rendering, including 40 rapid resizes per iteration, and retains logs under the system temp directory. This catches acquire/present out-of-date exceptions that between-frame smoke resizing can miss.
+All test-created windows request `Focused=false` and `FocusOnShow=false`; external resize uses `SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS`. Native lifecycle restore can still activate; **no portable zero-focus guarantee** is made for visible lifecycle mode. No test calls focus/foreground activation APIs. Normal interactive `dotnet run --project src/App/BrutalBreakout.App.csproj` now selects the ball sandbox; `--showcase` selects the gallery. With permission, also inspect/close the visible demo and repeat startup/shutdown. The Windows-only external-resize regression changes the native window asynchronously during rendering, including 40 rapid resizes per iteration, and retains logs under the system temp directory. This catches acquire/present out-of-date exceptions that between-frame smoke resizing can miss.
 
 ## Showcase guide
 
@@ -266,7 +296,7 @@ Shared agent tooling and maintained usage/reference documentation live in the se
 
 ## How this differs from Unity
 
-- `Program.cs` owns initialization, OS event processing and shutdown; no Unity player lifecycle.
+- `src/App/Program.cs` owns initialization, OS event processing and shutdown; no Unity player lifecycle.
 - GLFW creates the window, not graphics. The main thread polls and renders; minimization waits briefly for events. The host session uses a synchronous accumulator with the shared configured fixed frequency and catch-up limit; input edges apply only on the first tick, not once per render or catch-up tick.
 - Vulkan acquires an image, records a render pass and ordered indexed draws, submits and presents. A fence protects command/upload reuse; semaphores coordinate acquisition/presentation.
 - `BallSimulation.Step` is the small explicit equivalent of gameplay `FixedUpdate`; state is plain data, not a GameObject/MonoBehaviour. Input snapshots are the equivalent of sampled player controls, and `BallSandbox.Build` is a state-to-draw-list presentation pass. There are no per-ball tasks or awaited frame continuations.
@@ -274,22 +304,22 @@ Shared agent tooling and maintained usage/reference documentation live in the se
 
 ## Project files and dependencies
 
-- `Program.cs`: main-thread lifecycle and bounded smoke/self-tests.
-- `Presentation/ShapeShowcase.cs`: fitted twelve-panel demo (`--showcase`).
-- `Presentation/BallSandbox*.cs`: arena geometry, pure session/viewport bridge and hidden scripted scenario.
-- `physics.json`, `execution.json`, `gameplay.json`, `input.json`, `Configuration/`: authoritative production defaults, strict nested startup-only loading, independent CLI overrides and pre-native cross-validation.
-- `Simulation/`: Arch ball/brick/round components, the game dependency graph, immutable publications, validated settings, native arena adapter, gameplay rules, radius-aware casts/preview and fixed-step clock.
+- `src/App/Program.cs`: main-thread lifecycle and bounded smoke/self-tests.
+- `tools/Showcase/ShapeShowcase.cs`: fitted twelve-panel demo (`--showcase`).
+- `src/Runtime/Game/Presentation/BallSandbox.cs`, `src/Runtime/Game/Sessions/BallSandboxSession.cs` and `tests/Rendering/BallSandboxSmoke.cs`: arena geometry, pure session/viewport bridge and hidden scripted scenario.
+- `Config/physics.json`, `Config/execution.json`, `Config/gameplay.json`, `Config/input.json`, `src/Runtime/Game/Configuration/`: authoritative production defaults, strict nested startup-only loading, independent CLI overrides and pre-native cross-validation.
+- `src/Runtime/Simulation/`: Arch ball/brick/round components, the game dependency graph, immutable publications, validated settings, native arena adapter, gameplay rules, radius-aware casts/preview and fixed-step clock.
 - Independent `crushkit-brutal/src/CrushKit.Brutal.Ecs/` and `CrushKit.Brutal.Physics/`: reusable Arch/job ownership and Box2D worker-task integration; no game rules or JSON.
-- `Platform/Input/`: Breakout bindings, input schema and aim/action router over CrushKit device sampling/edges.
-- `Audio/`: six-cue schema and simulation-event policy over CrushKit SDL.Mixer/voice ownership; `Presentation/Overlay/`: game labels and inspector content.
+- `src/Runtime/Input/`: Breakout bindings, input schema and aim/action router over CrushKit device sampling/edges.
+- `src/Runtime/Audio/`: six-cue schema and simulation-event policy over CrushKit SDL.Mixer/voice ownership; `src/Runtime/Game/Presentation/Overlay/` and `src/Editor/Inspector/`: game labels and inspector content.
 - Independent `crushkit-brutal/src/CrushKit.Brutal.Input/` and `CrushKit.Brutal.Audio/`: reusable input/audio mechanics and headless tests.
-- `tests/Gameplay/`, `tests/Simulation/`, `tests/Input/`, `tests/Audio/`, `tests/Media/`: CPU/offscreen suites; `tests/Rendering/hidden-smoke.ps1`: shared hidden GPU harness.
+- `tests/Runtime/Gameplay/`, `tests/Runtime/Simulation/`, `tests/Runtime/Input/`, `tests/Runtime/Audio/`, `tests/Runtime/Media/`: CPU/offscreen suites; `tests/Rendering/hidden-smoke.ps1`: shared hidden GPU harness.
 - Independent `crushkit-brutal/src/CrushKit.Brutal.Draw2D/`: headless geometry/contracts/colors/clips and borrowed buffers; CPU geometry tests live with the kit.
 - Independent `crushkit-brutal/src/CrushKit.Brutal.Vulkan/`: lifecycle, embedded shaders, uploads, MSAA, text/texture support and best-effort cleanup.
 - Independent `crushkit-brutal/src/CrushKit.Brutal.ImGui/`: optional inspector integration.
-- `brutal-breakout.csproj`, `global.json`, `packages.lock.json`: dependencies, SDK and locked graph.
+- `BrutalBreakout.slnx`, `src/App/BrutalBreakout.App.csproj`, `global.json` and per-project `packages.lock.json` files: dependencies, SDK and locked graph.
 
-Dependency versions are authoritative in the project files and `packages.lock.json`. The application uses BRUTAL Core/GLFW/Vulkan/VMA/ShaderC, SDL.Ttf, Texture abstractions and ImGui backends; `Audio/` uses SDL.Mixer, `Simulation/` consumes the Physics module's pinned Box2D2026.10.2, and CrushKit's Draw2D package uses Numerics/Render.Mesh. Native dependencies arrive transitively. The locked graph includes a transitive preview `Microsoft.Extensions.ObjectPool`, not a direct application dependency.
+Dependency versions are authoritative in the project files and `packages.lock.json`. The application uses BRUTAL Core/GLFW/Vulkan/VMA/ShaderC, SDL.Ttf, Texture abstractions and ImGui backends; `src/Runtime/Audio/` uses SDL.Mixer, `src/Runtime/Simulation/` consumes the Physics module's pinned Box2D2026.10.2, and CrushKit's Draw2D package uses Numerics/Render.Mesh. Native dependencies arrive transitively. The locked graph includes a transitive preview `Microsoft.Extensions.ObjectPool`, not a direct application dependency.
 
 ## Repository and release
 

@@ -1,0 +1,13 @@
+{
+  "fontPath": "../Assets/Fonts/Iosevka-Regular.ttf",
+  "imagePath": "../Assets/Images/debug.png",
+  "fontSize": 22,
+  "visible": false,
+  "left": 300,
+  "top": 16,
+  "width": 420,
+  "height": 420,
+  "imageSize": 96,
+  "maxTextureDimension": 2048,
+  "maxEncodedImageBytes": 1048576
+}

@@ -13,8 +13,8 @@ $ErrorActionPreference = 'Stop'
 $resizeFlags = 0x4000 -bor 0x0010 -bor 0x0002 -bor 0x0004
 if (-not $IsWindows) { throw 'This external-resize regression requires Windows/PowerShell 7.' }
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
-$exe = Join-Path $root "bin/$Configuration/net10.0/brutal-breakout.exe"
-if (-not (Test-Path -LiteralPath $exe)) { throw "Build first: dotnet build -c $Configuration" }
+$exe = Join-Path $root "artifacts/bin/BrutalBreakout.App/$($Configuration.ToLowerInvariant())/BrutalBreakout.App.exe"
+if (-not (Test-Path -LiteralPath $exe)) { throw "Build first: dotnet build src/App/BrutalBreakout.App.csproj -c $Configuration" }
 $logs = Join-Path ([IO.Path]::GetTempPath()) ('brutal-resize-' + [Guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($logs)
 Add-Type @'

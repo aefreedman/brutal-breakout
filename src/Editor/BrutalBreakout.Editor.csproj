@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Runtime/Game/BrutalBreakout.Runtime.csproj" />
+    <PackageReference Include="CrushKit.Brutal.ImGui" Version="$(CrushKitVersion)" Condition="'$(UseCrushKitProjects)' != 'true'" />
+    <ProjectReference Include="$(CrushKitRoot)/src/CrushKit.Brutal.ImGui/CrushKit.Brutal.ImGui.csproj" Condition="'$(UseCrushKitProjects)' == 'true'" />
+  </ItemGroup>
+</Project>
