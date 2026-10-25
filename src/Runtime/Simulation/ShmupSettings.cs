@@ -24,6 +24,31 @@ public sealed class ShmupSettings
         if (Math.Ceiling(arena.Width / brick.ColumnPitch) > 16384 ||
             !double.IsFinite(16384 * noise.ColumnScale) || !double.IsFinite(65536 * noise.RowScale))
             throw new ArgumentException("Row geometry/noise exceeds supported bounds.");
+        // Four permanent convex slots per brick, plus ball circles and two walls. Check
+        // all supported shapes (including internal test/reuse activation) before native allocation.
+        if ((long)capacity.MaxBricks * ShmupBrickGeometry.MaximumRectangles + capacity.MaxBalls + 2 > 65538)
+            throw new ArgumentException("Fixture capacity exceeds the bounded native budget.");
+        foreach (var shape in Enum.GetValues<ShmupBrickShape>()) for (int q = 0; q < 4; q++)
+        {
+            var bounds = ShmupBrickGeometry.BoundsSize(shape, q) * brick.Size;
+            Geometry.NativePositive(bounds.X); Geometry.NativePositive(bounds.Y);
+            foreach (var rect in ShmupBrickGeometry.Rectangles(shape, q))
+            {
+                float hx = Geometry.NativePositive(rect.HalfExtents.X * brick.Size);
+                float hy = Geometry.NativePositive(rect.HalfExtents.Y * brick.Size);
+                Geometry.SafeSquare(hx); Geometry.SafeSquare(hy);
+                float cx = Geometry.Meters(rect.Center.X * brick.Size);
+                float cy = Geometry.Meters(rect.Center.Y * brick.Size);
+                if (!(cx - hx < cx && cx + hx > cx && cy - hy < cy && cy + hy > cy))
+                    throw new ArgumentException("Native fixture geometry collapses.");
+                foreach (double location in new[] { arena.Width + bounds.X, arena.Height + bounds.Y })
+                {
+                    float p = Geometry.Meters(location);
+                    if (!(p - hx < p && p + hx > p && p - hy < p && p + hy > p))
+                        throw new ArgumentException("Native compound geometry collapses at its position.");
+                }
+            }
+        }
         // Check native float geometry, circle mass/inertia and float positions before creating a world.
         foreach (double size in new[] { avatar.Radius, ball.Radius, brick.Size / 2 })
         {

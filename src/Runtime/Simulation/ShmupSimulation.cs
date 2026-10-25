@@ -96,16 +96,42 @@ public sealed class ShmupSimulation : IDisposable
     private void SpawnRow()
     {
         double size = Settings.Brick.Size, pitch = Settings.Brick.ColumnPitch;
-        int columns = (int)Math.Floor((width - size) / pitch) + 1;
-        double start = Settings.Arena.Width / 2 - (columns - 1) * pitch / 2;
-        // Noise coordinates are row/column indices, not pixel positions; seeded gaps are resolution-independent.
-        for (int column = 0; column < columns; column++)
+        double origin = Settings.Arena.Width / 2, left = origin - width / 2, right = origin + width / 2;
+        int first = (int)Math.Ceiling((left + size / 2 - origin) / pitch);
+        int last = (int)Math.Floor((right - size / 2 - origin) / pitch);
+        // Coordinates and choices use GLOBAL signed lattice indices, never the unlocked column count.
+        for (int column = first; column <= last; column++)
         {
             if (ShmupNoise.Sample(Settings.Noise.Seed, column * Settings.Noise.ColumnScale,
                 (row % 65536) * Settings.Noise.RowScale) < Settings.Noise.GapThreshold) continue;
-            SpawnBrick(new(start + column * pitch, -size / 2));
+            uint choice = Choice(Settings.Noise.Seed, column, row);
+            var shape = Settings.Brick.Shapes[(int)(choice % (uint)Settings.Brick.Shapes.Length)];
+            int turns = Settings.Brick.QuarterTurns[(int)((choice / 17) % (uint)Settings.Brick.QuarterTurns.Length)];
+            var bounds = ShmupBrickGeometry.BoundsSize(shape, turns) * size;
+            double2 position = new(origin + column * pitch, -bounds.Y / 2);
+            if (position.X - bounds.X / 2 < left || position.X + bounds.X / 2 > right) continue;
+            // Compact unit-cell solids use Size internally. Pitch pads anchors only. Conservative
+            // bounding reservations allow loose gaps, including between tall bricks in successive rows.
+            bool blocked = false;
+            for (int i = 0; i < bricks.Length; i++)
+            {
+                ref var brick = ref Brick(i); if (!brick.Active) continue;
+                var other = ShmupBrickGeometry.BoundsSize(brick.Shape, brick.QuarterTurns) * size;
+                var delta = native.BrickPosition(i) - position;
+                if (Math.Abs(delta.X) < (bounds.X + other.X) / 2 + 1e-4 &&
+                    Math.Abs(delta.Y) < (bounds.Y + other.Y) / 2 + 1e-4) { blocked = true; break; }
+            }
+            if (!blocked) SpawnBrick(position, shape, turns);
         }
         row++;
+    }
+    private static uint Choice(int seed, int column, long row)
+    {
+        unchecked
+        {
+            uint x = (uint)seed ^ (uint)column * 0x9e3779b9U ^ (uint)row * 0x85ebca6bU ^ (uint)(row >> 32);
+            x ^= x >> 16; x *= 0x7feb352dU; x ^= x >> 15; x *= 0x846ca68bU; return x ^ (x >> 16);
+        }
     }
     private void Fire()
     {
@@ -125,14 +151,15 @@ public sealed class ShmupSimulation : IDisposable
         }
         return -1;
     }
-    internal int SpawnBrick(double2 position)
+    internal int SpawnBrick(double2 position, ShmupBrickShape shape = ShmupBrickShape.Square, int quarterTurns = 0)
     {
+        _ = ShmupBrickGeometry.Rectangles(shape, quarterTurns);
         for (int i = 0; i < bricks.Length; i++)
         {
             ref var brick = ref Brick(i);
             if (brick.Active || brick.Generation == long.MaxValue) continue;
-            brick = new() { Active = true, Generation = brick.Generation + 1, Health = Settings.Brick.Health };
-            native.ActivateBrick(i, position); return i;
+            brick = new() { Active = true, Generation = brick.Generation + 1, Health = Settings.Brick.Health, Shape = shape, QuarterTurns = quarterTurns };
+            native.ActivateBrick(i, position, shape, quarterTurns); return i;
         }
         droppedBricks++; return -1;
     }
@@ -159,7 +186,7 @@ public sealed class ShmupSimulation : IDisposable
         for (int j = 0; j < bricks.Length; j++)
         {
             ref var brick = ref Brick(j); if (!brick.Active) continue;
-            bool escaped = native.BrickPosition(j).Y - Settings.Brick.Size / 2 > Settings.Arena.Height;
+            bool escaped = native.BrickPosition(j).Y - ShmupBrickGeometry.BoundsSize(brick.Shape, brick.QuarterTurns).Y * Settings.Brick.Size / 2 > Settings.Arena.Height;
             if (brick.Health == 0 || escaped)
             {
                 // A killed brick does not also inflict escape damage in the same tick.
@@ -189,7 +216,7 @@ public sealed class ShmupSimulation : IDisposable
         for (int i = 0; i < bricks.Length; i++)
         {
             ref var brick = ref Brick(i);
-            if (brick.Active) brickStates.Add(new(i, brick.Generation, native.BrickPosition(i), Settings.Brick.Size, brick.Health));
+            if (brick.Active) brickStates.Add(new(i, brick.Generation, native.BrickPosition(i), Settings.Brick.Size, brick.Health, brick.Shape, brick.QuarterTurns));
         }
         Volatile.Write(ref snapshot, new(width, Settings.Arena.Height, avatar.Position, avatar.Aim, avatar.Health, time, Settings.Ball.Speed,
             DescentSpeed, RowInterval, avatar.InvulnerabilityRemaining, tick, row, droppedBalls, droppedBricks,

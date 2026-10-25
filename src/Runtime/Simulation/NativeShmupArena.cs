@@ -15,7 +15,11 @@ internal sealed class NativeShmupArena : IDisposable
     private readonly B2Body[] balls, bricks;
     private readonly B2Body[] walls = new B2Body[2];
     private readonly Dictionary<B2Shape, int> ballIds = new(), brickIds = new(), wallIds = new();
+    private readonly B2Shape[,] brickFixtures;
+    private readonly Dictionary<B2Shape, int> fixtureSlots = new();
+    private readonly byte[,] contactFixtures;
     private readonly bool[,] touching;
+    internal int ShapeCount => world.GetCounters().ShapeCount;
     private readonly bool[,] wallTouching;
     private readonly bool[,] overlaps;
     private readonly bool[,] intervalBrickHits;
@@ -34,6 +38,8 @@ internal sealed class NativeShmupArena : IDisposable
         settings.ValidatePhysics(physics);
         this.physics = physics; this.settings = settings;
         balls = new B2Body[settings.Capacity.MaxBalls]; bricks = new B2Body[settings.Capacity.MaxBricks];
+        brickFixtures = new B2Shape[bricks.Length, ShmupBrickGeometry.MaximumRectangles];
+        contactFixtures = new byte[balls.Length, bricks.Length];
         touching = new bool[balls.Length, bricks.Length]; overlaps = new bool[balls.Length, bricks.Length];
         wallTouching = new bool[balls.Length, 2]; BrickHits = new int[balls.Length, bricks.Length]; WallHits = new int[balls.Length];
         intervalBrickHits = new bool[balls.Length, bricks.Length]; intervalWallHits = new int[balls.Length];
@@ -70,7 +76,11 @@ internal sealed class NativeShmupArena : IDisposable
             {
                 var bd = B2BodyDef.Default; bd.Type = B2BodyType.Kinematic; bd.IsEnabled = false;
                 bricks[i] = world.CreateBody(in bd);
-                brickIds.Add(bricks[i].CreatePolygonShape(in sd, in box), i);
+                for (int slot = 0; slot < ShmupBrickGeometry.MaximumRectangles; slot++)
+                {
+                    var fixture = bricks[i].CreatePolygonShape(in sd, in box);
+                    brickFixtures[i, slot] = fixture; brickIds.Add(fixture, i); fixtureSlots.Add(fixture, slot);
+                }
             }
             sd.IsSensor = false; sd.EnableSensorEvents = true;
             sd.Filter.CategoryBits = 2; sd.Filter.MaskBits = 1 | 4; sd.Density = 1;
@@ -105,9 +115,22 @@ internal sealed class NativeShmupArena : IDisposable
         balls[id].SetTransform(Native(position), B2Rot.Identity);
         balls[id].Enable(); balls[id].SetLinearVelocity(Native(direction * settings.Ball.Speed));
     }
-    internal void ActivateBrick(int id, double2 position)
+    internal void ActivateBrick(int id, double2 position, ShmupBrickShape shape = ShmupBrickShape.Square, int quarterTurns = 0)
     {
         Guard(); ClearBrick(id);
+        var rects = ShmupBrickGeometry.Rectangles(shape, quarterTurns);
+        for (int slot = 0; slot < ShmupBrickGeometry.MaximumRectangles; slot++)
+        {
+            var filter = B2Filter.Default;
+            filter.CategoryBits = slot < rects.Length ? 4UL : 0UL;
+            filter.MaskBits = slot < rects.Length ? 2UL : 0UL;
+            brickFixtures[id, slot].SetFilter(filter);
+            if (slot >= rects.Length) continue;
+            var rect = rects[slot];
+            var polygon = Box2D.MakeOffsetBox(Geometry.Meters(rect.HalfExtents.X * settings.Brick.Size),
+                Geometry.Meters(rect.HalfExtents.Y * settings.Brick.Size), Native(rect.Center * settings.Brick.Size), B2Rot.Identity);
+            brickFixtures[id, slot].SetPolygon(in polygon);
+        }
         bricks[id].SetTransform(Native(position), B2Rot.Identity); bricks[id].SetLinearVelocity(default); bricks[id].Enable();
     }
     internal void ClearBall(int id)
@@ -116,7 +139,7 @@ internal sealed class NativeShmupArena : IDisposable
         for (int j = 0; j < bricks.Length; j++)
         {
             touching[id, j] = overlaps[id, j] = intervalBrickHits[id, j] = false;
-            BrickHits[id, j] = 0;
+            BrickHits[id, j] = 0; contactFixtures[id, j] = 0;
         }
         for (int j = 0; j < 2; j++) wallTouching[id, j] = false;
         WallHits[id] = intervalWallHits[id] = WallStreak[id] = 0; Expired[id] = false;
@@ -127,7 +150,7 @@ internal sealed class NativeShmupArena : IDisposable
         for (int i = 0; i < balls.Length; i++)
         {
             touching[i, id] = overlaps[i, id] = intervalBrickHits[i, id] = false;
-            BrickHits[i, id] = 0;
+            BrickHits[i, id] = 0; contactFixtures[i, id] = 0;
         }
     }
     internal void Reset()
@@ -152,8 +175,14 @@ internal sealed class NativeShmupArena : IDisposable
         }
         else if (settings.Ball.BounceOnBricks && brickIds.TryGetValue(b, out int brick) && bricks[brick].IsEnabled())
         {
-            if (end) touching[ball, brick] = false;
-            else if (!touching[ball, brick]) { intervalBrickHits[ball, brick] = true; touching[ball, brick] = true; }
+            byte bit = (byte)(1 << fixtureSlots[b]);
+            if (end) contactFixtures[ball, brick] &= (byte)~bit;
+            else
+            {
+                contactFixtures[ball, brick] |= bit;
+                if (!touching[ball, brick]) intervalBrickHits[ball, brick] = true;
+                touching[ball, brick] = true;
+            }
         }
     }
     private static B2ShapeProxy Circle(double2 p, double radius)
@@ -268,12 +297,10 @@ internal sealed class NativeShmupArena : IDisposable
             for (int i = 0; i < events.EndCount; i++) { var e = events.EndEvents[i]; Contact(e.ShapeIdA, e.ShapeIdB, true); }
             for (int i = 0; i < events.BeginCount; i++) { var e = events.BeginEvents[i]; Contact(e.ShapeIdA, e.ShapeIdB, false); }
             for (int i = 0; i < events.HitCount; i++) { var e = events.HitEvents[i]; Contact(e.ShapeIdA, e.ShapeIdB, false); }
-            if (!settings.Ball.BounceOnBricks)
-            {
-                Array.Clear(overlaps);
-                for (int i = 0; i < balls.Length; i++) if (balls[i].IsEnabled()) OverlapBall(i, true);
-                Array.Copy(overlaps, touching, overlaps.Length);
-            }
+            Array.Clear(overlaps);
+            for (int i = 0; i < balls.Length; i++) if (balls[i].IsEnabled()) OverlapBall(i, true);
+            for (int i = 0; i < balls.Length; i++) for (int j = 0; j < bricks.Length; j++)
+                touching[i, j] = overlaps[i, j] || (settings.Ball.BounceOnBricks && contactFixtures[i, j] != 0);
             // Deduplicate overlap/sweep/begin/hit within this interval, not the entire tick.
             // Touch state survives intervals, so a later exit/reentry is a distinct damage event.
             // Buffer traversal is complete before any disable. Expiry prevents later intervals
