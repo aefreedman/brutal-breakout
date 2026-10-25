@@ -3,7 +3,7 @@ using CrushKit.Brutal.Audio;
 
 namespace BrutalBreakout.Audio;
 
-/// <summary>Breakout event-to-cue mapping and focus policy; playback/voice ownership belongs to the kit.</summary>
+/// <summary>Mode-specific event-to-cue mapping and focus policy; playback/voice ownership belongs to the kit.</summary>
 public sealed class GameAudio : IDisposable
 {
     private readonly VoicePlayer<AudioCue> voices;
@@ -15,10 +15,14 @@ public sealed class GameAudio : IDisposable
         voices = new(settings.Output, output);
     }
     public void SetSuppressed(bool mute, bool hasFocus) => voices.SetMuted(mute || !hasFocus);
-    public void Consume(ReadOnlySpan<SimulationEvents> ticks)
+    private void Guard()
     {
         if (Environment.CurrentManagedThreadId != owner) throw new InvalidOperationException("Audio belongs to its creating thread.");
         ObjectDisposedException.ThrowIf(disposed, this);
+    }
+    public void Consume(ReadOnlySpan<SimulationEvents> ticks)
+    {
+        Guard();
         foreach (var facts in ticks)
         {
             if ((facts & SimulationEvents.Restart) != 0) { voices.StopAll(); continue; }
@@ -32,6 +36,23 @@ public sealed class GameAudio : IDisposable
             }
             if ((facts & SimulationEvents.Launch) != 0) voices.TryPlay(AudioCue.Launch);
             if ((facts & SimulationEvents.Catch) != 0) voices.TryPlay(AudioCue.Catch);
+        }
+    }
+    public void ConsumeShmup(ReadOnlySpan<ShmupEvents> ticks)
+    {
+        Guard();
+        foreach (var facts in ticks)
+        {
+            if ((facts & ShmupEvents.Restart) != 0) { voices.StopAll(); continue; }
+            if ((facts & ShmupEvents.Defeat) != 0)
+            {
+                // Cut short any stream/hit tails so game over is audible even at capacity.
+                voices.StopAll(); voices.TryPlay(AudioCue.Loss); continue;
+            }
+            if ((facts & ShmupEvents.PlayerDamaged) != 0) voices.TryPlay(AudioCue.ShmupDamage);
+            if ((facts & ShmupEvents.BrickDestroyed) != 0) voices.TryPlay(AudioCue.ShmupDestroy);
+            else if ((facts & ShmupEvents.BrickHit) != 0) voices.TryPlay(AudioCue.ShmupHit);
+            if ((facts & ShmupEvents.Fire) != 0) voices.TryPlay(AudioCue.ShmupFire);
         }
     }
     public void Dispose()

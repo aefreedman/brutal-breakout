@@ -2,7 +2,7 @@ using CrushKit.Brutal.Audio;
 
 namespace BrutalBreakout.Audio;
 
-public enum AudioCue { Launch, Catch, Brick, Miss, Win, Loss }
+public enum AudioCue { Launch, Catch, Brick, Miss, Win, Loss, ShmupFire, ShmupHit, ShmupDestroy, ShmupDamage }
 
 /// <summary>Game schema requires every cue. The same immutable output settings reach the kit backend/player.</summary>
 public sealed class AudioSettings

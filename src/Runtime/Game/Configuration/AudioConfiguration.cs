@@ -7,7 +7,8 @@ public sealed record LoadedAudioConfiguration(string Path, AudioSettings Setting
 /// <summary>Strict audio tuning. Defaults exist only in audio.json.</summary>
 public static class AudioConfiguration
 {
-    private sealed record CueFiles(string Launch, string Catch, string Brick, string Miss, string Win, string Loss);
+    private sealed record CueFiles(string Launch, string Catch, string Brick, string Miss, string Win, string Loss,
+        string ShmupFire, string ShmupHit, string ShmupDestroy, string ShmupDamage);
     private sealed record AudioFile(bool Enabled, double MasterGain, int MaxVoices, CueFiles Cues);
 
     public static LoadedAudioConfiguration Load(string path)
@@ -21,7 +22,9 @@ public static class AudioConfiguration
             {
                 [AudioCue.Launch] = Resolve(data.Cues.Launch), [AudioCue.Catch] = Resolve(data.Cues.Catch),
                 [AudioCue.Brick] = Resolve(data.Cues.Brick), [AudioCue.Miss] = Resolve(data.Cues.Miss),
-                [AudioCue.Win] = Resolve(data.Cues.Win), [AudioCue.Loss] = Resolve(data.Cues.Loss)
+                [AudioCue.Win] = Resolve(data.Cues.Win), [AudioCue.Loss] = Resolve(data.Cues.Loss),
+                [AudioCue.ShmupFire] = Resolve(data.Cues.ShmupFire), [AudioCue.ShmupHit] = Resolve(data.Cues.ShmupHit),
+                [AudioCue.ShmupDestroy] = Resolve(data.Cues.ShmupDestroy), [AudioCue.ShmupDamage] = Resolve(data.Cues.ShmupDamage)
             });
         });
         return new(loaded.Path, loaded.Settings);

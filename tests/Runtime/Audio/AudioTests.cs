@@ -36,6 +36,93 @@ public class AudioTests
         var fake = new Fake(); using var audio = new GameAudio(Settings(), fake);
         audio.Consume([fact]); Assert.Equal(cue, Assert.Single(fake.Played).Cue);
     }
+    [Theory]
+    [InlineData(ShmupEvents.Fire, AudioCue.ShmupFire)]
+    [InlineData(ShmupEvents.BrickHit, AudioCue.ShmupHit)]
+    [InlineData(ShmupEvents.BrickHit | ShmupEvents.BrickDestroyed, AudioCue.ShmupDestroy)]
+    [InlineData(ShmupEvents.PlayerDamaged, AudioCue.ShmupDamage)]
+    [InlineData(ShmupEvents.Defeat | ShmupEvents.PlayerDamaged | ShmupEvents.Fire, AudioCue.Loss)]
+    public void ShmupCueMapping(ShmupEvents facts, AudioCue cue)
+    {
+        var fake = new Fake(); using var audio = new GameAudio(Settings(), fake);
+        audio.ConsumeShmup([facts]); Assert.Equal(cue, Assert.Single(fake.Played).Cue);
+    }
+    [Fact]
+    public void ShmupCoalescesHitDestructionAndPrioritizesDamageBeforeStream()
+    {
+        var fake = new Fake(); using var audio = new GameAudio(Settings(), fake);
+        audio.ConsumeShmup([ShmupEvents.Fire | ShmupEvents.BrickHit | ShmupEvents.BrickDestroyed | ShmupEvents.PlayerDamaged]);
+        Assert.Equal(new[] { AudioCue.ShmupDamage, AudioCue.ShmupDestroy, AudioCue.ShmupFire }, fake.Played.Select(p => p.Cue));
+    }
+    [Fact]
+    public void ShmupDefeatPreemptsFullVoicesAndRestartStopsTails()
+    {
+        var fake = new Fake(); using var audio = new GameAudio(Settings(1), fake);
+        audio.ConsumeShmup([ShmupEvents.Fire, ShmupEvents.BrickHit, ShmupEvents.Defeat | ShmupEvents.Fire]);
+        Assert.Equal(new[] { AudioCue.ShmupFire, AudioCue.Loss }, fake.Played.Select(p => p.Cue));
+        audio.ConsumeShmup([ShmupEvents.Restart | ShmupEvents.Fire]); Assert.Empty(fake.Busy);
+        Assert.Equal(2, fake.Played.Count);
+    }
+    [Fact]
+    public void ShmupSuppressionDropsFactsAndModeChangeStopsOldTails()
+    {
+        var fake = new Fake(); using var audio = new GameAudio(Settings(), fake);
+        audio.Consume([SimulationEvents.Launch]);
+        audio.SetSuppressed(false, false); Assert.Empty(fake.Busy);
+        audio.ConsumeShmup([ShmupEvents.Fire]);
+        audio.SetSuppressed(true, true); audio.ConsumeShmup([ShmupEvents.PlayerDamaged]);
+        audio.SetSuppressed(false, true); audio.ConsumeShmup([]);
+        Assert.Single(fake.Played);
+        audio.ConsumeShmup([ShmupEvents.Fire]); Assert.Equal(AudioCue.ShmupFire, fake.Played[^1].Cue);
+    }
+    [Fact]
+    public void ShmupConsumeHonorsLifetimeAndThreadEvenWhenEmpty()
+    {
+        var audio = new GameAudio(Settings(), new Fake());
+        Exception? error = null;
+        var thread = new Thread(() => error = Record.Exception(() => audio.ConsumeShmup([])));
+        thread.Start(); Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
+        Assert.IsType<InvalidOperationException>(error);
+        audio.Dispose(); Assert.Throws<ObjectDisposedException>(() => audio.ConsumeShmup([]));
+    }
+    [Fact]
+    public void ShmupCatchupFactsDrainOnceAndCannotSurviveFocusOrRenderOnlyFrames()
+    {
+        var settings = ShmupConfiguration.Load(Path.Combine(AppContext.BaseDirectory, "Config", "shmup.json")).Settings;
+        using var session = new ShmupSession(Physics, settings, new(.2), new(1, 64, 1));
+        var viewport = new ShmupViewport(1280, 720, 1280, 720, settings.Arena);
+        var idle = new InputSnapshot { Focused = true, Cursor = new(double.NaN) };
+        session.Advance(idle, 0, viewport);
+        Assert.Equal(8, session.Advance(idle with { KeyboardPrimary = true }, 8 * Physics.StepSeconds, viewport));
+        var ticks = session.DrainEvents().ToArray();
+        Assert.Equal(8, ticks.Length); Assert.Equal(ShmupEvents.Fire, ticks[0]);
+        Assert.All(ticks.Skip(1), f => Assert.Equal(ShmupEvents.None, f));
+        Assert.True(session.DrainEvents().IsEmpty);
+        session.Advance(idle, 0, viewport); Assert.True(session.DrainEvents().IsEmpty);
+        session.Advance(default, 1, viewport); Assert.True(session.DrainEvents().IsEmpty);
+        session.Advance(idle, 1, viewport); Assert.True(session.DrainEvents().IsEmpty);
+        session.Advance(idle with { KeyboardRestart = true }, 8 * Physics.StepSeconds, viewport);
+        ticks = session.DrainEvents().ToArray();
+        Assert.Equal(ShmupEvents.Restart, ticks[0]);
+        Assert.All(ticks.Skip(1), f => Assert.Equal(ShmupEvents.None, f));
+        session.Dispose(); Assert.Throws<ObjectDisposedException>(() => session.DrainEvents().ToArray());
+    }
+    [Fact]
+    public void AllShmupAssetsAreValidatedAndRequiredByStrictConfiguration()
+    {
+        var settings = AudioConfiguration.Load(Config).Settings;
+        Assert.Equal(10, settings.Assets.Count);
+        foreach (var cue in new[] { AudioCue.ShmupFire, AudioCue.ShmupHit, AudioCue.ShmupDestroy, AudioCue.ShmupDamage })
+            Assert.True(File.Exists(settings.Assets[cue]));
+        var node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Config))!;
+        var cues = node["cues"]!.AsObject();
+        foreach (var entry in cues.ToArray())
+            cues[entry.Key] = Path.GetFullPath(entry.Value!.GetValue<string>(), Path.GetDirectoryName(Config)!);
+        cues.Remove("shmupFire");
+        string path = Path.GetTempFileName();
+        try { File.WriteAllText(path, node.ToJsonString()); Assert.Throws<InvalidDataException>(() => AudioConfiguration.Load(path)); }
+        finally { File.Delete(path); }
+    }
     [Fact]
     public void EmptyConsumeStillHonorsLifetimeAndThread()
     {
@@ -72,7 +159,9 @@ public class AudioTests
     public void DisabledAndZeroGainAreSilent(bool enabled, double gain)
     {
         var fake = new Fake(); using var audio = new GameAudio(Settings(gain: gain, enabled: enabled), fake);
-        audio.Consume([SimulationEvents.Launch]); Assert.Empty(fake.Played);
+        audio.Consume([SimulationEvents.Launch]);
+        audio.ConsumeShmup([ShmupEvents.Fire | ShmupEvents.PlayerDamaged | ShmupEvents.Defeat]);
+        Assert.Empty(fake.Played);
     }
     [Fact]
     public void DisabledNativeFactoryDoesNotLoadHardware()

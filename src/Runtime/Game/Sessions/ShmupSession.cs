@@ -31,6 +31,16 @@ public sealed class ShmupSession : IDisposable
     public ShmupSettings Settings { get; }
     public ShmupInputRouter Router { get; }
     private readonly FixedStepClock clock;
+    private readonly ShmupEvents[] tickEvents;
+    private int eventCount;
+    /// <summary>Drain immediately after Advance; each tick is consumed once, including catch-up ticks.</summary>
+    public ReadOnlySpan<ShmupEvents> DrainEvents()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var events = tickEvents.AsSpan(0, eventCount);
+        eventCount = 0;
+        return events;
+    }
     private bool active, restart, disposed;
     private double2? aim;
     public int TotalTicks { get; private set; }
@@ -39,12 +49,14 @@ public sealed class ShmupSession : IDisposable
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
         Router = new(input);
         clock = new(physics);
+        tickEvents = new ShmupEvents[physics.MaxCatchUpSteps];
         Simulation = new(physics, settings, execution);
     }
     public int Advance(InputSnapshot snapshot, double seconds, ShmupViewport viewport)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!ReferenceEquals(viewport.Arena, Settings.Arena)) throw new ArgumentException("Viewport must use this session's settings.", nameof(viewport));
+        eventCount = 0;
         var input = Router.Route(snapshot);
         if (!input.Active)
         {
@@ -61,6 +73,7 @@ public sealed class ShmupSession : IDisposable
         for (int i = 0; i < ticks; i++)
         {
             Simulation.Step(new(new(input.Move.X, -input.Move.Y), aim, fire, restart));
+            tickEvents[eventCount++] = Simulation.Events;
             if (restart) { aim = null; Router.Reset(); }
             restart = false;
             TotalTicks++;
@@ -71,6 +84,7 @@ public sealed class ShmupSession : IDisposable
     {
         if (disposed) return;
         disposed = true;
+        eventCount = 0;
         Simulation.Dispose();
     }
 }

@@ -8,6 +8,10 @@
     "brick": "../Assets/Audio/brick.wav",
     "miss": "../Assets/Audio/miss.wav",
     "win": "../Assets/Audio/win.wav",
-    "loss": "../Assets/Audio/loss.wav"
+    "loss": "../Assets/Audio/loss.wav",
+    "shmupFire": "../Assets/Audio/shmup-fire.wav",
+    "shmupHit": "../Assets/Audio/shmup-hit.wav",
+    "shmupDestroy": "../Assets/Audio/shmup-destroy.wav",
+    "shmupDamage": "../Assets/Audio/shmup-damage.wav"
   }
 }
