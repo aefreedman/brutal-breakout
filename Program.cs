@@ -20,6 +20,7 @@ var gallery = showcase || smokeTest || resizeStressTest;
 var cleanupSelfTest = args.Contains("--cleanup-self-test");
 if (smokeTest || cleanupSelfTest) VerifyCleanupFailureHandling();
 if (cleanupSelfTest) return;
+LoadedWindowConfiguration windowConfiguration;
 LoadedPhysicsConfiguration? physics;
 LoadedGameplayConfiguration? gameplay;
 LoadedInputConfiguration? input;
@@ -27,6 +28,7 @@ LoadedColorSchemeConfiguration? colors;
 LoadedPresentationStyleConfiguration? style;
 try
 {
+    windowConfiguration = WindowConfiguration.LoadForMode(args, AppContext.BaseDirectory, Environment.CurrentDirectory);
     physics = PhysicsConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     gameplay = GameplayConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     input = InputConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
@@ -34,6 +36,7 @@ try
     style = PresentationStyleConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     if (style is not null && gameplay is not null) style.Settings.Validate(gameplay.Settings);
     if (physics is not null && gameplay is not null) GameplayConfiguration.ValidatePhysics(gameplay, physics);
+    Console.WriteLine(windowConfiguration.Describe());
     if (physics is not null) Console.WriteLine(physics.Describe());
     if (gameplay is not null) Console.WriteLine(gameplay.Describe());
     if (input is not null) Console.WriteLine(input.Describe());
@@ -71,11 +74,12 @@ try
     {
         Title = gallery ? "Brutal Breakout - primitive showcase" :
             "Brutal Breakout - Space / click / A: launch or catch below line; R / Start: restart; WASD / arrows / stick / mouse: aim",
-        Size = new int2(1280, 720),
+        Size = new int2(windowConfiguration.Settings.Width, windowConfiguration.Settings.Height),
     });
     if (window.IsNull())
         throw new InvalidOperationException("Failed to create the game window.");
 
+    Console.WriteLine($"Window created: {window.Size.X}x{window.Size.Y}; framebuffer={window.FramebufferSize.X}x{window.FramebufferSize.Y}.");
     var renderer = VulkanRenderer.Create(window, validation);
     ResourceLifetime.Run(() =>
     {

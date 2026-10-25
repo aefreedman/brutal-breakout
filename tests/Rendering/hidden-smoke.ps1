@@ -5,13 +5,18 @@ param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug',
       [string] $GameplayConfig,
       [string] $InputConfig,
       [string] $ColorsConfig,
-      [string] $StyleConfig)
+      [string] $StyleConfig,
+      [string] $WindowConfig)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Requires Windows/PowerShell 7.' }
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $exe = Join-Path $root "bin/$Configuration/net10.0/brutal-breakout.exe"
 if (-not (Test-Path -LiteralPath $exe)) { throw "Build first: dotnet build -c $Configuration" }
+$windowPath = if ([string]::IsNullOrWhiteSpace($WindowConfig)) { Join-Path $root 'tests/Gameplay/Fixtures/window-default.json' } else { [IO.Path]::GetFullPath($WindowConfig) }
+$windowExpected = [IO.File]::ReadAllText($windowPath) | ConvertFrom-Json
+# Stale-extent regression is deliberately a fixed 1281 -> 1280 receipt test.
+if ($windowExpected.width -ne 1280 -or $windowExpected.height -ne 720) { throw 'Hidden receipt harness requires the 1280x720 fixture; custom sizes are covered by CPU startup tests.' }
 $physicsPath = $null
 $physicsExpected = $null
 $gameplayPath = $null
@@ -72,6 +77,8 @@ $process = $null
 try {
     $start = [Diagnostics.ProcessStartInfo]::new($exe)
     $start.ArgumentList.Add($(if ($Mode -eq 'Gameplay') { '--gameplay-smoke-test' } else { '--smoke-test' }))
+    $start.ArgumentList.Add('--window-config')
+    $start.ArgumentList.Add($windowPath)
     if ($Mode -eq 'Gameplay') {
         $start.ArgumentList.Add('--physics-config')
         $start.ArgumentList.Add($physicsPath)
@@ -119,6 +126,8 @@ try {
     if ($windows.Count -eq 0) { throw 'No test window observed; hidden-state evidence incomplete.' }
     if ($visible.Count -ne 0) { throw 'A test window became visible.' }
     if ($foregrounds.Count -ne 1 -or -not $foregrounds.Contains($before.ToInt64())) { throw 'Foreground changed during observation (possibly external user activity); nonactivation evidence incomplete.' }
+    if (-not $output.Contains("Window configuration: width=$($windowExpected.width); height=$($windowExpected.height); path=$windowPath") -or
+        -not $output.Contains('Window created: 1280x720; framebuffer=1280x720.')) { throw 'Missing selected window path/effective startup dimensions.' }
     if ($Mode -eq 'Showcase') {
     $expected = [regex]::Match($output, 'Smoke showcase: expectedShapes=(\d+);')
     $frames = [regex]::Match($output, 'Smoke: (\d+) shapes/frame, (\d+) nonempty frames; hidden resize and resumed presentation passed')
