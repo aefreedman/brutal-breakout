@@ -4,11 +4,12 @@ using Xunit;
 
 public sealed class GameplayControlsTests
 {
+    private static GameplayControls Create() => new(new GameplayWindowSettings(16, 16, 360, 420));
     [Fact]
     public void RequestsAreQueuedUntilDrainAndNeverMutatePublishedState()
     {
-        var controls = new GameplayControls();
-        controls.Synchronize(GameplayMode.Shmup, 432, 1280);
+        var controls = Create();
+        controls.Synchronize(GameplayMode.Shmup, 432, new BrutalBreakout.Simulation.ShmupArenaSettings(1280, 720, 432));
         controls.RequestWiden(600);
         Assert.Equal(432, controls.Width);
         var request = controls.Drain();
@@ -20,19 +21,30 @@ public sealed class GameplayControlsTests
         Assert.Equal(GameplayMode.Breakout, request.Mode); Assert.Null(request.Width);
         Assert.Equal(GameplayMode.Shmup, controls.Mode);
     }
+    [Fact]
+    public void SelectedModeIsNoOpAndPausedWideningIsRejected()
+    {
+        var controls = Create();
+        controls.Synchronize(GameplayMode.Shmup, 432, new BrutalBreakout.Simulation.ShmupArenaSettings(1280, 720, 432), true);
+        controls.RequestMode(GameplayMode.Shmup);
+        Assert.Null(controls.Drain().Mode);
+        Assert.Throws<InvalidOperationException>(() => controls.RequestWiden(600));
+        Assert.Null(controls.Drain().Width);
+    }
+
     [Theory]
     [InlineData(431)] [InlineData(1281)] [InlineData(double.NaN)]
     public void WideningRejectsNarrowingAndInvalidValues(double width)
     {
-        var controls = new GameplayControls();
-        controls.Synchronize(GameplayMode.Shmup, 432, 1280);
+        var controls = Create();
+        controls.Synchronize(GameplayMode.Shmup, 432, new BrutalBreakout.Simulation.ShmupArenaSettings(1280, 720, 432));
         Assert.Throws<ArgumentOutOfRangeException>(() => controls.RequestWiden(width));
     }
     [Fact]
     public void RestartAndPauseAreQueuedOnceWithoutChangingPublishedState()
     {
-        var controls = new GameplayControls();
-        controls.Synchronize(GameplayMode.Shmup, 432, 1280, true);
+        var controls = Create();
+        controls.Synchronize(GameplayMode.Shmup, 432, new BrutalBreakout.Simulation.ShmupArenaSettings(1280, 720, 432), true);
         controls.RequestRestart();
         controls.RequestPauseToggle();
         Assert.True(controls.Paused);
@@ -44,8 +56,8 @@ public sealed class GameplayControlsTests
     [Fact]
     public void BreakoutHasNoWidthControl()
     {
-        var controls = new GameplayControls();
-        controls.Synchronize(GameplayMode.Breakout, 0, 1280);
+        var controls = Create();
+        controls.Synchronize(GameplayMode.Breakout, 0, new BrutalBreakout.Simulation.ShmupArenaSettings(1280, 720, 432));
         Assert.Throws<ArgumentOutOfRangeException>(() => controls.RequestWiden(700));
     }
 }

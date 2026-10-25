@@ -3,10 +3,16 @@
   "imagePath": "../Assets/Images/debug.png",
   "fontSize": 22,
   "visible": false,
-  "left": 300,
+  "left": 392,
   "top": 16,
-  "width": 420,
-  "height": 420,
+  "width": 440,
+  "height": 480,
+  "gameplayWindow": {
+    "left": 16,
+    "top": 16,
+    "width": 360,
+    "height": 420
+  },
   "imageSize": 96,
   "maxTextureDimension": 2048,
   "maxEncodedImageBytes": 1048576

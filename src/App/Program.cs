@@ -137,7 +137,7 @@ try
     ResourceLifetime.Run(() =>
     {
 #if BREAKOUT_EDITOR
-        var gameplayControls = new GameplayControls();
+        var gameplayControls = new GameplayControls(inspectorConfiguration!.GameplayWindow);
         var callbackFailure = new InvalidOperationException("Injected hidden-smoke inspector callback failure.");
         bool callbackFailureInjected = false, callbackFailureRecovered = false;
         if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, new ImGuiInspector(inspectorConfiguration!.Settings, () =>
@@ -232,7 +232,7 @@ try
 #endif
             modes?.UpdateControls(raw); // Raw Start is processed even when UI captures or simulation is paused.
 #if BREAKOUT_EDITOR
-            if (modes is not null) gameplayControls.Synchronize(modes.Mode, modes.Shmup?.Simulation.Snapshot.Width ?? 0, shmup!.Settings.Arena.Width, modes.Paused);
+            if (modes is not null) gameplayControls.Synchronize(modes.Mode, modes.Shmup?.Simulation.Snapshot.Width ?? 0, shmup!.Settings.Arena, modes.Paused);
 #endif
             if (modes is not null && (wasPaused != modes.Paused || modes.Paused))
                 audio!.SetSuppressed(muteAudio, hasFocus: false);
@@ -451,8 +451,9 @@ try
                     OverlayHost.Build((gameplayScript?.Session ?? session)?.Simulation,
                     colors?.Settings.Hud ?? LinearColor.FromSrgb(1, 1, 1));
 #if BREAKOUT_EDITOR
-                if (shmupSession is null) overlayFrame = InspectorHost.Compose(overlayFrame, (gameplayScript?.Session ?? session)?.Simulation,
-                    elapsedSeconds * 1000, gameplayFrames + shapeFrames, frame?.Vertices.Length ?? 0, frame?.Indices.Length ?? 0);
+                overlayFrame = InspectorHost.Compose(overlayFrame, (gameplayScript?.Session ?? session)?.Simulation,
+                    elapsedSeconds * 1000, gameplayFrames + shapeFrames + shmupFrames, frame?.Vertices.Length ?? 0, frame?.Indices.Length ?? 0,
+                    shmupSession?.Simulation.Snapshot, modes?.Paused ?? false);
 #endif
                 // Ordinary gallery keeps its original artwork; F1 can still inspect it. GPU fixtures exercise labels too.
                 if (gallery && !gpuTest) overlayFrame = overlayFrame with { Labels = Array.Empty<OverlayLabel>() };

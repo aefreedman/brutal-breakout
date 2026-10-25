@@ -3,20 +3,24 @@ using CrushKit.Brutal.ImGui;
 
 namespace BrutalBreakout.Editor;
 
-public sealed record LoadedInspectorConfiguration(string Path, InspectorSettings Settings);
+public sealed record LoadedInspectorConfiguration(string Path, InspectorSettings Settings, GameplayWindowSettings GameplayWindow);
 
 public static class InspectorConfiguration
 {
     public static LoadedInspectorConfiguration Load(string path)
     {
-        var loaded = ConfigurationFile.Load<InspectorFile, InspectorSettings>(path, "inspector", d =>
+        var loaded = ConfigurationFile.Load<InspectorFile, (InspectorSettings Inspector, GameplayWindowSettings GameplayWindow)>(path, "inspector", d =>
         {
             string directory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path))!;
-            return new InspectorSettings(System.IO.Path.GetFullPath(d.FontPath, directory),
+            ArgumentNullException.ThrowIfNull(d.GameplayWindow);
+            var window = new GameplayWindowSettings(d.GameplayWindow.Left, d.GameplayWindow.Top,
+                d.GameplayWindow.Width, d.GameplayWindow.Height);
+            var inspector = new InspectorSettings(System.IO.Path.GetFullPath(d.FontPath, directory),
                 System.IO.Path.GetFullPath(d.ImagePath, directory), d.FontSize, d.Visible, d.Left, d.Top,
                 d.Width, d.Height, d.ImageSize, d.MaxTextureDimension, d.MaxEncodedImageBytes);
+            return (inspector, window);
         });
-        return new(loaded.Path, loaded.Settings);
+        return new(loaded.Path, loaded.Settings.Inspector, loaded.Settings.GameplayWindow);
     }
 
     public static LoadedInspectorConfiguration? LoadForMode(IReadOnlyList<string> args, bool needed,
@@ -27,5 +31,7 @@ public static class InspectorConfiguration
     }
 
     private sealed record InspectorFile(string FontPath, string ImagePath, float FontSize, bool Visible,
-        float Left, float Top, float Width, float Height, float ImageSize, int MaxTextureDimension, int MaxEncodedImageBytes);
+        float Left, float Top, float Width, float Height, float ImageSize, int MaxTextureDimension, int MaxEncodedImageBytes,
+        GameplayWindowFile GameplayWindow);
+    private sealed record GameplayWindowFile(float Left, float Top, float Width, float Height);
 }

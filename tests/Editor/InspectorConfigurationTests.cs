@@ -20,6 +20,15 @@ public sealed class InspectorConfigurationTests
         using var text = new OverlayText(loaded.Settings);
         using var inspector = new CrushKit.Brutal.ImGui.ImGuiInspector(configured.Settings);
         Assert.Same(configured.Settings, inspector.Settings);
+        var controls = new GameplayControls(configured.GameplayWindow);
+        Assert.Same(configured.GameplayWindow, controls.Settings);
+        Assert.Equal(16, controls.Settings.Left);
+        Assert.Equal(16, controls.Settings.Top);
+        Assert.Equal(360, controls.Settings.Width);
+        Assert.Equal(420, controls.Settings.Height);
+        Assert.Equal(392, configured.Settings.Left);
+        Assert.Equal(440, configured.Settings.Width);
+        Assert.Equal(480, configured.Settings.Height);
         Assert.NotEqual(loaded.Settings.FontPath, inspector.Settings.FontPath);
         Assert.Equal(loaded.Settings.FontSize, inspector.Settings.FontSize);
         // No GLFW, device or ImGui context is initialized by inspector construction/disposal.
@@ -64,6 +73,35 @@ public sealed class InspectorConfigurationTests
         Assert.Equal(7, frame.Diagnostics.PresentedShapeFrames);
         Assert.Equal(8, frame.Diagnostics.ShapeVertices);
         Assert.Equal(9, frame.Diagnostics.ShapeIndices);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void ShmupDiagnosticsIncludeLiveTimingFactsAndPauseWithoutReplacingHud(bool paused)
+    {
+        string directory = Path.Combine(AppContext.BaseDirectory, "Config");
+        var physics = PhysicsConfiguration.Load(Path.Combine(directory, "physics.json")).Settings;
+        var shmup = ShmupConfiguration.Load(Path.Combine(directory, "shmup.json")).Settings;
+        var execution = ExecutionConfiguration.Load(Path.Combine(directory, "execution.json")).Settings;
+        using var simulation = new BrutalBreakout.Simulation.ShmupSimulation(physics, shmup, execution);
+        simulation.Step(new(FireHeld: true));
+        var snapshot = simulation.Snapshot;
+        var hud = BrutalBreakout.Presentation.ShmupPresentation.Overlay(snapshot, new(1, 1, 1));
+        var result = InspectorHost.Compose(hud, null, 3.5, 17, 180, 240, snapshot, paused);
+        Assert.Equal(hud.Labels[0], result.Labels[0]);
+        Assert.Equal(hud.Labels[1], result.Labels[1]);
+        Assert.StartsWith(hud.Labels[2].Text, result.Labels[2].Text);
+        Assert.Contains("WASD/LS", result.Labels[2].Text);
+        Assert.Contains("Shmup", result.Diagnostics.State);
+        Assert.Contains(paused ? "Paused" : "Running", result.Diagnostics.State);
+        Assert.Contains($"HP {snapshot.PlayerHealth}", result.Diagnostics.Detail);
+        Assert.Contains($"Balls {snapshot.Balls.Length}", result.Diagnostics.Detail);
+        Assert.Contains($"Bricks {snapshot.Bricks.Length}", result.Diagnostics.Detail);
+        Assert.Contains(hud.Diagnostics.Detail, result.Diagnostics.Detail);
+        Assert.Equal(3.5, result.Diagnostics.FrameMilliseconds);
+        Assert.Equal(17, result.Diagnostics.PresentedShapeFrames);
+        Assert.Equal(180, result.Diagnostics.ShapeVertices);
+        Assert.Equal(240, result.Diagnostics.ShapeIndices);
     }
 
     [Fact]
@@ -112,6 +150,42 @@ public sealed class InspectorConfigurationTests
             File.WriteAllText(path, File.ReadAllText(path).TrimEnd().TrimEnd('}') + ",\"visible\":true}");
             Assert.Throws<InvalidDataException>(() => InspectorConfiguration.Load(path));
         });
+    }
+
+    [Theory]
+    [InlineData("left", "-1")] [InlineData("top", "65537")]
+    [InlineData("width", "0")] [InlineData("width", "8193")]
+    [InlineData("height", "0")] [InlineData("height", "8193")]
+    [InlineData("unknown", "1")] [InlineData("width", "null")]
+    public void InvalidNestedWindowIsRejected(string property, string value)
+    {
+        WithConfig(n => n["gameplayWindow"]![property] = JsonNode.Parse(value), path =>
+            Assert.Throws<InvalidDataException>(() => InspectorConfiguration.Load(path)));
+    }
+
+    [Theory]
+    [InlineData("left")] [InlineData("top")] [InlineData("width")] [InlineData("height")]
+    public void AllNestedWindowPropertiesAreRequired(string property)
+    {
+        WithConfig(n => n["gameplayWindow"]!.AsObject().Remove(property), path =>
+            Assert.Throws<InvalidDataException>(() => InspectorConfiguration.Load(path)));
+    }
+
+    [Fact]
+    public void NestedWindowCannotBeMissingNullOrHaveDuplicates()
+    {
+        WithConfig(n => n.Remove("gameplayWindow"), path =>
+            Assert.Throws<InvalidDataException>(() => InspectorConfiguration.Load(path)));
+        WithConfig(n => n["gameplayWindow"] = null, path =>
+            Assert.Throws<InvalidDataException>(() => InspectorConfiguration.Load(path)));
+        WithConfig(_ => { }, path =>
+        {
+            File.WriteAllText(path, File.ReadAllText(path).Replace("\"gameplayWindow\":{", "\"gameplayWindow\":{\"left\":2,"));
+            Assert.Throws<InvalidDataException>(() => InspectorConfiguration.Load(path));
+        });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new GameplayWindowSettings(float.NaN, 0, 100, 100));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new GameplayWindowSettings(0, 0, float.PositiveInfinity, 100));
+        Assert.Throws<ArgumentNullException>(() => new GameplayControls(null!));
     }
 
     [Fact]
