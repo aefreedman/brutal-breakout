@@ -2,6 +2,14 @@ using Brutal.Numerics;
 
 namespace BrutalBreakout.Simulation;
 
+/// <summary>Coalesced gameplay facts for one synchronous command, independent of audio/presentation.</summary>
+[Flags]
+public enum ShmupEvents
+{
+    None = 0, Fire = 1, BrickHit = 2, BrickDestroyed = 4,
+    PlayerDamaged = 8, Defeat = 16, Restart = 32
+}
+
 /// <summary>Movement is analog, clamped to unit length. Neutral aim retains last valid aim.
 /// Restart wins over other input. Commands are consumed synchronously.</summary>
 public readonly record struct ShmupCommand(double2 MoveDirection = default, double2? AimDirection = null,

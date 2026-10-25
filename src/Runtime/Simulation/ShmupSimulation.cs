@@ -21,6 +21,8 @@ public sealed class ShmupSimulation : IDisposable
     public ExecutionSettings Execution { get; }
     public double StepSeconds => Physics.StepSeconds;
     public ShmupSnapshot Snapshot => Volatile.Read(ref snapshot);
+    /// <summary>Facts from the last command; cleared even when a defeated run cannot advance.</summary>
+    public ShmupEvents Events { get; private set; }
     private double DescentSpeed => Math.Min(Settings.Difficulty.MaximumDescentSpeed,
         Settings.Difficulty.DescentSpeed * Math.Pow(Settings.Difficulty.SpeedMultiplier, time / Settings.Difficulty.RampSeconds));
     private double RowInterval => Math.Max(Settings.Difficulty.MinimumRowInterval,
@@ -47,9 +49,10 @@ public sealed class ShmupSimulation : IDisposable
         catch { native.Dispose(); World.Destroy(world); throw; }
     }
     private void Guard() { ObjectDisposedException.ThrowIf(disposed, this); native.Guard(); }
-    public void Restart() { lock (gate) { Guard(); Reset(); } }
+    public void Restart() { lock (gate) { Guard(); Reset(); Events = ShmupEvents.Restart; } }
     private void Reset()
     {
+        Events = ShmupEvents.None;
         native.Reset();
         // Retain generations across restart: a retained publication never aliases another life.
         for (int i = 0; i < balls.Length; i++) { long generation = Ball(i).Generation; Ball(i) = new() { Generation = generation }; }
@@ -76,7 +79,8 @@ public sealed class ShmupSimulation : IDisposable
         lock (gate)
         {
             Guard();
-            if (command.RestartPressed) { Reset(); return; }
+            Events = ShmupEvents.None;
+            if (command.RestartPressed) { Reset(); Events = ShmupEvents.Restart; return; }
             if (avatar.Health == 0) return; // Freeze everything, including clocks and publication identity.
             double dt = StepSeconds;
             tick++; time += dt;
@@ -107,6 +111,7 @@ public sealed class ShmupSimulation : IDisposable
     {
         // Spawn at the avatar center: no own-body collision, and every firing direction remains inside the area.
         if (SpawnBall(avatar.Position, avatar.Aim) < 0) droppedBalls++;
+        else Events |= ShmupEvents.Fire;
     }
     internal int SpawnBall(double2 position, double2 direction)
     {
@@ -133,6 +138,7 @@ public sealed class ShmupSimulation : IDisposable
     }
     private void Resolve()
     {
+        int healthBefore = avatar.Health;
         // First gather every pair's damage without disabling/reusing resources. Brick interaction wins
         // over simultaneous wall contacts and resets the consecutive wall streak deterministically.
         for (int i = 0; i < balls.Length; i++)
@@ -143,6 +149,7 @@ public sealed class ShmupSimulation : IDisposable
                 ref var brick = ref Brick(j);
                 int hits = native.BrickHits[i, j];
                 if (!brick.Active || hits == 0) continue;
+                Events |= ShmupEvents.BrickHit;
                 brick.Health = (int)Math.Max(0L, (long)brick.Health - (long)Settings.Ball.Damage * hits);
             }
             // Native interval chronology owns the streak; ECS mirrors the final owned fact.
@@ -157,6 +164,7 @@ public sealed class ShmupSimulation : IDisposable
             {
                 // A killed brick does not also inflict escape damage in the same tick.
                 if (escaped && brick.Health > 0) avatar.Damage(Settings.Brick.EscapeDamage);
+                if (brick.Health == 0) Events |= ShmupEvents.BrickDestroyed;
                 native.ClearBrick(j); brick.Active = false;
             }
         }
@@ -167,6 +175,8 @@ public sealed class ShmupSimulation : IDisposable
             if (y + r < 0 || y - r > Settings.Arena.Height || native.Expired[i])
             { native.ClearBall(i); ball.Active = false; }
         }
+        if (avatar.Health < healthBefore) Events |= ShmupEvents.PlayerDamaged;
+        if (avatar.Health == 0) Events |= ShmupEvents.Defeat;
     }
     private void Publish()
     {
