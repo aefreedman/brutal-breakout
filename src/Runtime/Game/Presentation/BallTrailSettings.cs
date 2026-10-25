@@ -14,7 +14,7 @@ public sealed record BallTrailSettings
     {
         if (maxPointsPerBall < 2 || maxPointsPerBall > 1048576) throw new ArgumentOutOfRangeException(nameof(maxPointsPerBall));
         if (!double.IsFinite(durationSeconds) || durationSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(durationSeconds));
-        if (!double.IsFinite(widthRadiusRatio) || widthRadiusRatio <= 0 || widthRadiusRatio > 16) throw new ArgumentOutOfRangeException(nameof(widthRadiusRatio));
+        if (!double.IsFinite(widthRadiusRatio) || widthRadiusRatio <= 0 || (float)widthRadiusRatio == 0 || widthRadiusRatio > 16) throw new ArgumentOutOfRangeException(nameof(widthRadiusRatio));
         if (!double.IsFinite(opacity) || opacity < 0 || opacity > 1) throw new ArgumentOutOfRangeException(nameof(opacity));
         if (maxRenderedSegments < 1 || maxRenderedSegments > 16384) throw new ArgumentOutOfRangeException(nameof(maxRenderedSegments));
         (Enabled, MaxPointsPerBall, DurationSeconds, WidthRadiusRatio, Opacity, MaxRenderedSegments) =

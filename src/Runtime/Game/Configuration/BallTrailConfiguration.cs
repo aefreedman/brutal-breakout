@@ -13,6 +13,14 @@ public static class BallTrailConfiguration
             new(d.Enabled, d.MaxPointsPerBall, d.DurationSeconds, d.WidthRadiusRatio, d.Opacity, d.MaxRenderedSegments));
         return new(loaded.Path, loaded.Settings);
     }
+    public static void ValidateCapacity(LoadedBallTrailConfiguration trails, LoadedShmupConfiguration shmup)
+    {
+        try { trails.Settings.ValidateCapacity(shmup.Settings.Capacity.MaxBalls); }
+        catch (ArgumentException error)
+        {
+            throw new InvalidDataException($"Incompatible trails configuration '{trails.Path}' and shmup configuration '{shmup.Path}': {error.Message}", error);
+        }
+    }
     public static LoadedBallTrailConfiguration? LoadForMode(IReadOnlyList<string> args, bool needed,
         string baseDirectory, string currentDirectory)
     {
