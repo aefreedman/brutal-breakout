@@ -43,6 +43,7 @@ LoadedPhysicsConfiguration? physics;
 LoadedExecutionConfiguration? execution;
 LoadedGameplayConfiguration? gameplay;
 LoadedShmupConfiguration? shmup;
+LoadedBallTrailConfiguration? trails;
 LoadedInputConfiguration? input;
 LoadedColorSchemeConfiguration? colors;
 LoadedPresentationStyleConfiguration? style;
@@ -58,6 +59,8 @@ try
     execution = ExecutionConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     gameplay = GameplayConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     shmup = ShmupConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    trails = BallTrailConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    if (trails is not null && shmup is not null) BallTrailConfiguration.ValidateCapacity(trails, shmup);
     input = InputConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     colors = ColorSchemeConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     style = PresentationStyleConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
@@ -83,6 +86,7 @@ try
     if (execution is not null) Console.WriteLine(execution.Describe());
     if (gameplay is not null) Console.WriteLine(gameplay.Describe());
     if (shmup is not null) Console.WriteLine(shmup.Describe());
+    if (trails is not null) Console.WriteLine($"Trail configuration: enabled={trails.Settings.Enabled}; maxPointsPerBall={trails.Settings.MaxPointsPerBall}; durationSeconds={trails.Settings.DurationSeconds}; path={trails.Path}");
     if (input is not null) Console.WriteLine(input.Describe());
     if (colors is not null) Console.WriteLine(colors.Describe());
     if (style is not null) Console.WriteLine(style.Describe());
@@ -153,7 +157,7 @@ try
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
             "Breakout: leave the lower zone, hit something, return below the line to catch; release/repress to relaunch. R restarts. See README.");
         using var modes = !gallery && !gameplaySmokeTest ? new GameplaySessionHost(physics!.Settings, gameplay!.Settings,
-            shmup!.Settings, input!.Settings, execution!.Settings, startShmup ? GameplayMode.Shmup : GameplayMode.Breakout) : null;
+            shmup!.Settings, input!.Settings, execution!.Settings, startShmup ? GameplayMode.Shmup : GameplayMode.Breakout, trails!.Settings) : null;
         if (modes?.Mode == GameplayMode.Shmup) Console.WriteLine(ShmupPresentation.Controls);
         // Hidden/showcase paths never create an audio device, even with enabled audio.json.
         string? audioDiagnostic = null;
@@ -173,7 +177,7 @@ try
         var shmupFrames = 0;
         var shmupSmokeStage = 0;
         var shmupViewports = new HashSet<(int Width, int Height)>();
-        bool shmupSawBalls = false, shmupSawBricks = false;
+        bool shmupSawBalls = false, shmupSawBricks = false, shmupSawAim = false, shmupSawTrails = false;
         var staleFrameRegressionPassed = false;
         var resizeRequested = false;
         var lastElapsed = TimeSpan.Zero;
@@ -240,9 +244,9 @@ try
                     if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered)
                         throw new InvalidOperationException("Shmup smoke did not recover and redraw after the inspector callback failure.");
 #endif
-                    if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks)
+                    if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks || !shmupSawAim || (trails!.Settings.Enabled && !shmupSawTrails))
                         throw new InvalidOperationException("Shmup smoke missing resized, fired-ball or spawned-brick geometry.");
-                    Console.WriteLine("Shmup smoke PASS: hidden input, widening, resize, isolated mode switches, fresh reset and indexed presentation.");
+                    Console.WriteLine($"Shmup smoke PASS: hidden input, widening, resize, isolated mode switches, fresh reset and indexed presentation; aim={shmupSawAim}; trails={shmupSawTrails}.");
                     break;
                 }
             }
@@ -384,13 +388,14 @@ try
             var framebuffer = window.FramebufferSize;
             ShapeFrame? frame = null;
             BallSandbox.GeometryEvidence gameplayGeometry = default;
+            ShmupPresentation.GeometryEvidence shmupGeometry = default;
             ShapeShowcase.DecorativeEvidence decorative = default;
             var injectStaleFrame = gameplayScript is not null && !staleFrameRegressionPassed;
             if (!wasIconified && framebuffer.X > 0 && framebuffer.Y > 0)
             {
                 frame = gallery ? ShapeShowcase.Build(shapes, framebuffer.X, framebuffer.Y, out decorative) :
                     shmupSession is not null ? ShmupPresentation.Build(shapes, shmupSession.Simulation.Snapshot, shmupSession.Settings,
-                        colors!.Settings, style!.Settings, framebuffer.X, framebuffer.Y) :
+                        colors!.Settings, style!.Settings, framebuffer.X, framebuffer.Y, out shmupGeometry, shmupSession.Trails) :
                     BallSandbox.Build(shapes, (gameplayScript?.Session ?? session!).Simulation, colors!.Settings, style!.Settings, now.TotalSeconds,
                         framebuffer.X + (injectStaleFrame ? 1 : 0), framebuffer.Y, out gameplayGeometry);
                 if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
@@ -442,8 +447,10 @@ try
             {
                 if (frame.Value.Indices.Length == 0) throw new InvalidOperationException("Shmup smoke presented empty geometry.");
                 shmupFrames++;
+                shmupSawAim |= shmupGeometry.AimIndices > 0;
+                shmupSawTrails |= shmupGeometry.TrailIndices > 0;
                 if (shmupViewports.Add((framebuffer.X, framebuffer.Y)))
-                    Console.WriteLine($"Shmup viewport: {framebuffer.X}x{framebuffer.Y}; vertices={frame.Value.Vertices.Length}; indices={frame.Value.Indices.Length}.");
+                    Console.WriteLine($"Shmup viewport: {framebuffer.X}x{framebuffer.Y}; vertices={frame.Value.Vertices.Length}; indices={frame.Value.Indices.Length}; aimIndices={shmupGeometry.AimIndices}; trailIndices={shmupGeometry.TrailIndices}; historyPoints={shmupSession?.Trails?.PointCount ?? 0}.");
                 shmupSawBalls |= shmupSession?.Simulation.Snapshot.Balls.Length > 0;
                 shmupSawBricks |= shmupSession?.Simulation.Snapshot.Bricks.Length > 0;
             }
