@@ -63,25 +63,9 @@ public static class BallSandbox
         if (playing && state.Phase == BallPhase.Aiming)
         {
             var hit = simulation.Preview();
-            float aimWidth = (float)(radius * style.AimWidthRadiusRatio);
-            var start = state.Position + state.AimDirection * radius;
-            if (hit.HasHit)
-            {
-                if (hit.Distance > 2 * radius)
-                    draw.StrokeSegment(Point(start), Point(hit.Position - state.AimDirection * radius), aimWidth, LineCap.Butt, colors.Aim);
-                draw.StrokeCircle(Point(hit.Position), radius, (float)(radius * style.ImpactRingWidthRadiusRatio), colors.Aim);
-                // Query-only separation from native cast slop; never moves the ball or creates a hit.
-                const double secondaryQuerySkin = 1;
-                var next = simulation.Query(hit.Position + hit.Normal * secondaryQuerySkin, hit.ReflectedDirection);
-                double endDistance = radius * (1 + style.ReflectedLengthRadiusRatio);
-                if (next.HasHit) endDistance = Math.Min(endDistance, next.Distance);
-                if (endDistance > radius)
-                    draw.StrokeSegment(Point(hit.Position + hit.ReflectedDirection * radius),
-                        Point(hit.Position + hit.ReflectedDirection * endDistance), aimWidth, LineCap.Butt, colors.Aim);
-            }
-            else
-                draw.StrokeSegment(Point(start), Point(start + state.AimDirection * (radius * style.FallbackAimLengthRadiusRatio)),
-                    aimWidth, LineCap.Butt, colors.Aim);
+            // Preserve the original query-only native slop separation and second-query geometry.
+            var next = hit.HasHit ? simulation.Query(hit.Position + hit.Normal * 1, hit.ReflectedDirection) : default;
+            AimGeometry.Draw(draw, state.Position, state.AimDirection, radius, hit, next, style, colors.Aim);
         }
         int aimEnd = draw.IndexCount;
         if (playing) draw.FillDisc(center, radius, colors.Ball);
