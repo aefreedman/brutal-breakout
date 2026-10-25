@@ -1,0 +1,47 @@
+{
+  "arena": {
+    "width": 1280,
+    "height": 720,
+    "initialPlayAreaWidth": 432
+  },
+  "avatar": {
+    "radius": 10.8,
+    "moveSpeed": 252,
+    "health": 100,
+    "contactDamage": 10,
+    "invulnerabilitySeconds": 0.75
+  },
+  "ball": {
+    "radius": 2.52,
+    "speed": 576,
+    "fireRate": 12,
+    "damage": 10,
+    "bounceOnBricks": true,
+    "maxWallHits": 20
+  },
+  "brick": {
+    "size": 28.8,
+    "columnPitch": 36,
+    "health": 100,
+    "escapeDamage": 10
+  },
+  "difficulty": {
+    "rowInterval": 1.5,
+    "minimumRowInterval": 0.35,
+    "descentSpeed": 21.6,
+    "maximumDescentSpeed": 86.4,
+    "rampSeconds": 60,
+    "intervalMultiplier": 0.9,
+    "speedMultiplier": 1.1
+  },
+  "noise": {
+    "seed": 1,
+    "columnScale": 0.25,
+    "rowScale": 0.2,
+    "gapThreshold": 0.35
+  },
+  "capacity": {
+    "maxBalls": 512,
+    "maxBricks": 2048
+  }
+}
