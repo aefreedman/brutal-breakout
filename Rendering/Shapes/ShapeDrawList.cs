@@ -273,7 +273,7 @@ public sealed partial class ShapeDrawList : IDisposable
         if (path.Count < 2 || width == 0) return;
         StrokeOpenPath(width, color);
     }
-    private void StrokeOpenPath(double width, LinearColor color, LineCap cap = LineCap.Butt, bool framebuffer = false)
+    private void StrokeOpenPath(double width, LinearColor color, LineCap cap = LineCap.Butt, bool framebuffer = false, bool quantizedEars = false)
     {
         left.Clear();
         right.Clear();
@@ -316,7 +316,7 @@ public sealed partial class ShapeDrawList : IDisposable
         if (cap == LineCap.Round) PatternCap(path[^1], Unit(path[^1] - path[^2]), r, framebuffer);
         for (int i = right.Count - 1; i >= 0; i--) polygon.Add(right[i]);
         if (cap == LineCap.Round) PatternCap(path[0], Unit(path[0] - path[1]), r, framebuffer);
-        SimpleTriangulate();
+        SimpleTriangulate(framebuffer, quantizedEars);
         Emit(color, validateOutline: true, framebuffer: framebuffer);
     }
     private bool NoOutput(LinearColor color) => color.A == 0 || clips[^1].IsEmpty || Singular(local) || Singular(world);
@@ -418,13 +418,31 @@ public sealed partial class ShapeDrawList : IDisposable
             if (Intersects(outline[i], outline[(i + 1) % n], outline[j], outline[(j + 1) % n])) throw new ArgumentException(message);
         }
     }
-    private void SimpleTriangulate()
+    private void SimpleTriangulate(bool framebuffer = false, bool quantizedEars = false)
     {
         CleanOutline(polygon);
         ValidateSimpleOutline(polygon, "Self-intersecting/overlapping stroke outline.");
-        EarTriangulate();
+        double orientation = 1;
+        if (quantizedEars)
+        {
+            // Animated pattern cuts can leave an arbitrarily short edge beside a sampled corner.
+            // Triangulate the same unmoved outline using ears valid in BOTH source and FLOAT32 output.
+            // This avoids ill-conditioned diagonals; Emit still rejects inverted tiles/invalid outlines.
+            scratch.Clear();
+            foreach (var p in polygon)
+            {
+                var q = framebuffer ? p : Pixel(p);
+                if (!double.IsFinite(q.X) || !double.IsFinite(q.Y) || Math.Abs(q.X) > 1048576 || Math.Abs(q.Y) > 1048576)
+                    throw new ArgumentException("Framebuffer coordinate envelope exceeded.");
+                scratch.Add(new((float)q.X, (float)q.Y));
+            }
+            if (!framebuffer)
+                orientation = Math.Sign((double)local.M11 * local.M22 - (double)local.M12 * local.M21) *
+                    Math.Sign((double)world.M11 * world.M22 - (double)world.M12 * world.M21);
+        }
+        EarTriangulate(quantized: quantizedEars ? scratch : null, orientation: orientation);
     }
-    private void EarTriangulate(bool hole = false)
+    private void EarTriangulate(bool hole = false, List<P>? quantized = null, double orientation = 1)
     {
         int n = polygon.Count;
         double area = 0;
@@ -440,7 +458,7 @@ public sealed partial class ShapeDrawList : IDisposable
         }
         // An existing ear remains an ear when unrelated vertices disappear. Only the
         // two neighbors of a removed ear need recomputing: bounded quadratic work.
-        for (int i = 0; i < n; i++) UpdateEar(i, n, sign, hole);
+        for (int i = 0; i < n; i++) UpdateEar(i, n, sign, hole, quantized, sign * orientation);
         int remaining = n;
         while (remaining > 3)
         {
@@ -452,15 +470,18 @@ public sealed partial class ShapeDrawList : IDisposable
             int a = previous[b], c = next[b];
             Tri(a, b, c); live[b] = false; ear[b] = false;
             next[a] = c; previous[c] = a; remaining--;
-            UpdateEar(a, n, sign, hole); UpdateEar(c, n, sign, hole);
+            UpdateEar(a, n, sign, hole, quantized, sign * orientation); UpdateEar(c, n, sign, hole, quantized, sign * orientation);
         }
         for (int i = 0; i < n; i++) if (live[i]) { Tri(previous[i], i, next[i]); break; }
     }
-    private void UpdateEar(int b, int n, double sign, bool hole = false)
+    private void UpdateEar(int b, int n, double sign, bool hole = false, List<P>? quantized = null, double outputSign = 1)
     {
         int a = previous[b], c = next[b];
         ear[b] = false;
         if (sign * Cross(polygon[b] - polygon[a], polygon[c] - polygon[b]) <= 0) return;
+        // Zero-area output ears remain removable (Emit already drops them); inverted ears do not.
+        double outputArea = quantized is null ? 0 : outputSign * Cross(quantized[b] - quantized[a], quantized[c] - quantized[a]);
+        if (outputArea < 0) return;
         for (int j = 0; j < n; j++)
         {
             if (!live[j] || j == a || j == b || j == c) continue;
@@ -468,6 +489,10 @@ public sealed partial class ShapeDrawList : IDisposable
             if (sign * Cross(polygon[b] - polygon[a], polygon[j] - polygon[a]) >= 0 &&
                 sign * Cross(polygon[c] - polygon[b], polygon[j] - polygon[b]) >= 0 &&
                 sign * Cross(polygon[a] - polygon[c], polygon[j] - polygon[c]) >= 0) return;
+            if (quantized is not null && outputArea > 0 &&
+                outputSign * Cross(quantized[b] - quantized[a], quantized[j] - quantized[a]) >= 0 &&
+                outputSign * Cross(quantized[c] - quantized[b], quantized[j] - quantized[b]) >= 0 &&
+                outputSign * Cross(quantized[a] - quantized[c], quantized[j] - quantized[c]) >= 0) return;
         }
         ear[b] = true; candidates.Enqueue(b);
     }

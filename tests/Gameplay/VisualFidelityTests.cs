@@ -54,6 +54,27 @@ public class VisualFidelityTests
         Assert.Equal(new float2(0), frame.Vertices.Span[0].Position);
     }
 
+    [Theory]
+    [InlineData(1280, 720)] [InlineData(960, 540)] [InlineData(2000, 1800)] [InlineData(720, 1280)]
+    public void RealHeldRingProducerSurvivesPreviouslyCrashingAnimationTimeAndResize(int w, int h)
+    {
+        using var sim = new BallSimulation(TestSettings.Baseline, TestSettings.Gameplay);
+        using var draw = new ShapeDrawList();
+        var before = sim.State;
+        const double failedTime = 0.058823029411764705;
+        foreach (double time in new[] { failedTime - 1e-8, failedTime, failedTime + 1e-8, failedTime + .5, failedTime + 65536 })
+        {
+            var frame = BallSandbox.Build(draw, sim, TestSettings.Colors, TestSettings.Style, time, w, h, out var e);
+            Assert.True(e.HeldRingIndices > 0);
+            Assert.Equal(frame.Indices.Length, e.ArenaIndices + e.BallIndices + e.AimIndices + e.BrickIndices +
+                e.CatchLineIndices + e.HudIndices + e.BackgroundIndices + e.HeldRingIndices);
+            Assert.All(frame.Indices.ToArray(), id => Assert.InRange(id, 0u, (uint)frame.Vertices.Length - 1));
+            Assert.Equal(before.Position, sim.State.Position);
+            Assert.Equal(before.Phase, sim.State.Phase);
+            Assert.Equal(before.Velocity, sim.State.Velocity);
+        }
+    }
+
     [Fact]
     public void FlyingBallIsOnlyConfiguredDiscWithNoHaloOrReadyRecolor()
     {

@@ -178,7 +178,7 @@ public sealed partial class ShapeDrawList
                 BuildPatternFragment(centerline, distances, interval.Start, interval.End);
                 polygon.Clear(); triangles.Clear();
                 int firstVertex = vc, firstIndex = ic;
-                StrokeOpenPath(width, color, cap, space == StrokeSpace.Framebuffer);
+                StrokeOpenPath(width, color, cap, space == StrokeSpace.Framebuffer, quantizedEars: true);
                 AddPatternTile(fragments, firstVertex, firstIndex);
             }
             ValidatePatternTiles(fragments);
