@@ -4,7 +4,8 @@ param([ValidateSet('Debug', 'Release')][string] $Configuration = 'Debug',
       [string] $PhysicsConfig,
       [string] $GameplayConfig,
       [string] $InputConfig,
-      [string] $ColorsConfig)
+      [string] $ColorsConfig,
+      [string] $StyleConfig)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Requires Windows/PowerShell 7.' }
@@ -33,8 +34,10 @@ if ($Mode -eq 'Gameplay') {
     $inputExpected = [IO.File]::ReadAllText($inputPath) | ConvertFrom-Json
     $colorsPath = if ([string]::IsNullOrWhiteSpace($ColorsConfig)) { Join-Path $root 'tests/Gameplay/Fixtures/colors-unity.json' } else { [IO.Path]::GetFullPath($ColorsConfig) }
     $colorsExpected = [IO.File]::ReadAllText($colorsPath) | ConvertFrom-Json
+    $stylePath = if ([string]::IsNullOrWhiteSpace($StyleConfig)) { Join-Path $root 'style.json' } else { [IO.Path]::GetFullPath($StyleConfig) }
+    $styleExpected = [IO.File]::ReadAllText($stylePath) | ConvertFrom-Json
 } elseif (-not [string]::IsNullOrWhiteSpace($PhysicsConfig) -or
-          -not [string]::IsNullOrWhiteSpace($GameplayConfig) -or -not [string]::IsNullOrWhiteSpace($InputConfig) -or -not [string]::IsNullOrWhiteSpace($ColorsConfig)) {
+          -not [string]::IsNullOrWhiteSpace($GameplayConfig) -or -not [string]::IsNullOrWhiteSpace($InputConfig) -or -not [string]::IsNullOrWhiteSpace($ColorsConfig) -or -not [string]::IsNullOrWhiteSpace($StyleConfig)) {
     throw 'Configuration overrides apply only to -Mode Gameplay.'
 }
 Add-Type @'
@@ -78,6 +81,8 @@ try {
         $start.ArgumentList.Add($inputPath)
         $start.ArgumentList.Add('--colors-config')
         $start.ArgumentList.Add($colorsPath)
+        $start.ArgumentList.Add('--style-config')
+        $start.ArgumentList.Add($stylePath)
     }
     $start.WorkingDirectory = $root
     $start.UseShellExecute = $false
@@ -198,6 +203,13 @@ try {
             }
         }
         Write-Output "Verified color scheme: $($colorsExpected.name); all semantic linear RGB roles match; path=$colorsPath."
+        $loadedStyle = [regex]::Match($output, 'Style configuration: path=([^;]+); ([^\r\n]+)')
+        if (-not $loadedStyle.Success -or $loadedStyle.Groups[1].Value -ne $stylePath) { throw 'Wrong loaded style/path.' }
+        foreach ($property in $styleExpected.PSObject.Properties) {
+            $actual = [regex]::Match($loadedStyle.Groups[2].Value, '(?:^|; )' + [regex]::Escape($property.Name) + '=([^;]+)', 'IgnoreCase')
+            if (-not $actual.Success -or [double]::Parse($actual.Groups[1].Value, $culture) -ne [double]$property.Value) { throw "Style mismatch: $($property.Name)" }
+        }
+        Write-Output "Verified presentation style: all required dimensions match; path=$stylePath."
         $reset = [regex]::Match($output, 'Gameplay stage: Reset; ticks=\d+; phase=Aiming; eligible=False; position=([^,;]+),([^;]+);')
         if (-not $reset.Success -or [double]::Parse($reset.Groups[1].Value, $culture) -ne [double]$b.spawnX -or
             [double]::Parse($reset.Groups[2].Value, $culture) -ne [double]$b.spawnY) {
@@ -217,7 +229,7 @@ try {
                 throw "Missing presented gameplay stage: $stage"
             }
         }
-        $viewports = [regex]::Matches($output, 'Gameplay viewport: (\d+)x(\d+); indices=(\d+); arenaIndices=(\d+); ballIndices=(\d+); aimIndices=(\d+); brickIndices=(\d+); catchLineIndices=(\d+); hudIndices=(\d+)\.')
+        $viewports = [regex]::Matches($output, 'Gameplay viewport: (\d+)x(\d+); indices=(\d+); arenaIndices=(\d+); ballIndices=(\d+); aimIndices=(\d+); brickIndices=(\d+); catchLineIndices=(\d+); hudIndices=(\d+); backgroundIndices=(\d+); heldRingIndices=(\d+)\.')
         $sizes = [Collections.Generic.HashSet[string]]::new()
         foreach ($viewport in $viewports) {
             if ([int]$viewport.Groups[3].Value -le 0 -or [int]$viewport.Groups[4].Value -le 0 -or
@@ -225,6 +237,10 @@ try {
                 [int]$viewport.Groups[7].Value -le 0 -or [int]$viewport.Groups[8].Value -le 0 -or [int]$viewport.Groups[9].Value -le 0) {
                 throw 'Missing actual arena/ball/aim indexed geometry.'
             }
+            if ([int]$viewport.Groups[10].Value -ne 6 -or [int]$viewport.Groups[11].Value -le 0) { throw 'Missing full-frame background/held-ring geometry.' }
+            $sum = 0
+            foreach ($i in 4..11) { $sum += [int]$viewport.Groups[$i].Value }
+            if ($sum -ne [int]$viewport.Groups[3].Value) { throw 'Category index receipts do not sum to actual indices.' }
             [void]$sizes.Add("$($viewport.Groups[1].Value)x$($viewport.Groups[2].Value)")
         }
         $result = [regex]::Match($output, 'Gameplay: launch wall catch hold release relaunch reset passed; ticks=(\d+); nonemptyPresentedFrames=(\d+); hidden resize and resumed presentation passed\.')
