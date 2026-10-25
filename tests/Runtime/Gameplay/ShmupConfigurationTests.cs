@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using BrutalBreakout.Configuration;
+using BrutalBreakout.Simulation;
 using Xunit;
 
 public sealed class ShmupConfigurationTests
@@ -17,6 +18,8 @@ public sealed class ShmupConfigurationTests
         Assert.Equal(100, settings.Avatar.Health);
         Assert.Equal(20, settings.Ball.MaxWallHits);
         Assert.True(settings.Ball.BounceOnBricks);
+        Assert.Equal(Enum.GetValues<ShmupBrickShape>(), settings.Brick.Shapes.ToArray());
+        Assert.Equal(new[] { 0, 1, 2, 3 }, settings.Brick.QuarterTurns.ToArray());
     }
     [Fact]
     public void EveryFieldIsRequiredAndEverySectionRejectsUnknownsAndNull()
@@ -68,6 +71,41 @@ public sealed class ShmupConfigurationTests
         var shmup = ShmupConfiguration.Load(files.Put(node.ToJsonString()));
         var physics = PhysicsConfiguration.Load(files.Put(GameplayConfigurationTests.Physics, "physics.json"));
         Assert.Throws<InvalidDataException>(() => ShmupConfiguration.ValidatePhysics(shmup, physics));
+    }
+    [Theory]
+    [InlineData("shapes", "null")]
+    [InlineData("shapes", "[]")]
+    [InlineData("shapes", "[null]")]
+    [InlineData("shapes", "[1]")]
+    [InlineData("shapes", "[\"Square\"]")]
+    [InlineData("shapes", "[\"triangle\"]")]
+    [InlineData("shapes", "[\"square\",\"square\"]")]
+    [InlineData("quarterTurns", "null")]
+    [InlineData("quarterTurns", "[]")]
+    [InlineData("quarterTurns", "[null]")]
+    [InlineData("quarterTurns", "[0.5]")]
+    [InlineData("quarterTurns", "[\"1\"]")]
+    [InlineData("quarterTurns", "[-1]")]
+    [InlineData("quarterTurns", "[4]")]
+    [InlineData("quarterTurns", "[0,0]")]
+    public void InvalidShapeAndRotationChoicesRejectWithFilePath(string field, string value)
+    {
+        var node = JsonNode.Parse(DefaultJson)!;
+        node["brick"]![field] = JsonNode.Parse(value);
+        Reject(node.ToJsonString());
+    }
+    [Fact]
+    public void ExplicitSubsetPreservesOrderAndNestedDuplicatePropertiesReject()
+    {
+        var node = JsonNode.Parse(DefaultJson)!;
+        node["brick"]!["shapes"] = JsonNode.Parse("[\"t\",\"2x1\"]"u8);
+        node["brick"]!["quarterTurns"] = JsonNode.Parse("[3,1]"u8);
+        using var files = new GameplayConfigurationTests.Files();
+        var settings = ShmupConfiguration.Load(files.Put(node.ToJsonString())).Settings;
+        Assert.Equal(new[] { ShmupBrickShape.T, ShmupBrickShape.TwoByOne }, settings.Brick.Shapes.ToArray());
+        Assert.Equal(new[] { 3, 1 }, settings.Brick.QuarterTurns.ToArray());
+        Reject(DefaultJson.Replace("\"shapes\":", "\"shapes\": [], \"shapes\":"));
+        Reject(DefaultJson.Replace("\"quarterTurns\":", "\"quarterTurns\": [], \"quarterTurns\":"));
     }
     private static void Reject(string json)
     {

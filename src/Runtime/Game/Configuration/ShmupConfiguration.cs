@@ -14,7 +14,8 @@ public static class ShmupConfiguration
     private sealed record ArenaFile(double Width, double Height, double InitialPlayAreaWidth);
     private sealed record AvatarFile(double Radius, double MoveSpeed, int Health, int ContactDamage, double InvulnerabilitySeconds);
     private sealed record BallFile(double Radius, double Speed, double FireRate, int Damage, bool BounceOnBricks, int MaxWallHits);
-    private sealed record BrickFile(double Size, double ColumnPitch, int Health, int EscapeDamage);
+    private sealed record BrickFile(double Size, double ColumnPitch, int Health, int EscapeDamage,
+        string[] Shapes, int[] QuarterTurns);
     private sealed record DifficultyFile(double RowInterval, double MinimumRowInterval, double DescentSpeed,
         double MaximumDescentSpeed, double RampSeconds, double IntervalMultiplier, double SpeedMultiplier);
     private sealed record NoiseFile(int Seed, double ColumnScale, double RowScale, double GapThreshold);
@@ -35,13 +36,27 @@ public static class ShmupConfiguration
             return new(new(a.Width, a.Height, a.InitialPlayAreaWidth),
                 new(v.Radius, v.MoveSpeed, v.Health, v.ContactDamage, v.InvulnerabilitySeconds),
                 new(b.Radius, b.Speed, b.FireRate, b.Damage, b.BounceOnBricks, b.MaxWallHits),
-                new(r.Size, r.ColumnPitch, r.Health, r.EscapeDamage),
+                new(r.Size, r.ColumnPitch, r.Health, r.EscapeDamage, ParseShapes(r.Shapes), r.QuarterTurns),
                 new(d.RowInterval, d.MinimumRowInterval, d.DescentSpeed, d.MaximumDescentSpeed,
                     d.RampSeconds, d.IntervalMultiplier, d.SpeedMultiplier),
                 new(n.Seed, n.ColumnScale, n.RowScale, n.GapThreshold), new(c.MaxBalls, c.MaxBricks));
         });
         return new(loaded.Path, loaded.Settings);
     }
+    private static ShmupBrickShape[] ParseShapes(string[] names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        return names.Select(name => name switch
+        {
+            "square" => ShmupBrickShape.Square,
+            "2x1" => ShmupBrickShape.TwoByOne,
+            "2x2" => ShmupBrickShape.TwoByTwo,
+            "l" => ShmupBrickShape.L,
+            "t" => ShmupBrickShape.T,
+            _ => throw new ArgumentException($"Unknown brick shape '{name ?? "<null>"}'.", nameof(names))
+        }).ToArray();
+    }
+
     public static LoadedShmupConfiguration? LoadForMode(IReadOnlyList<string> args, bool needed,
         string baseDirectory, string currentDirectory)
     {

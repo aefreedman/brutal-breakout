@@ -23,7 +23,9 @@
     "size": 28.8,
     "columnPitch": 36,
     "health": 100,
-    "escapeDamage": 10
+    "escapeDamage": 10,
+    "shapes": ["square", "2x1", "2x2", "l", "t"],
+    "quarterTurns": [0, 1, 2, 3]
   },
   "difficulty": {
     "rowInterval": 1.5,

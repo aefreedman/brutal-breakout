@@ -32,9 +32,18 @@ public static class ShmupPresentation
         draw.FillRect(new(left, 0), new(wall, h), colors.Walls);
         draw.FillRect(new(right - wall, 0), new(wall, h), colors.Walls);
         foreach (var brick in snapshot.Bricks)
-            draw.FillRect(new((float)brick.Position.X - (float)brick.Size / 2, (float)brick.Position.Y - (float)brick.Size / 2),
-                new((float)brick.Size),
-                brick.Health * 2 > settings.Brick.Health ? colors.BrickPrimary : colors.BrickAccent);
+        {
+            var color = brick.Health * 2 > settings.Brick.Health ? colors.BrickPrimary : colors.BrickAccent;
+            foreach (var rectangle in ShmupBrickGeometry.Rectangles(brick.Shape, brick.QuarterTurns))
+            {
+                var minimum = brick.Position + (rectangle.Center - rectangle.HalfExtents) * brick.Size;
+                var maximum = brick.Position + (rectangle.Center + rectangle.HalfExtents) * brick.Size;
+                // Convert shared endpoints before subtracting so adjacent parts retain exactly coincident edges.
+                var start = new float2((float)minimum.X, (float)minimum.Y);
+                var end = new float2((float)maximum.X, (float)maximum.Y);
+                draw.FillRect(start, end - start, color);
+            }
+        }
         int aimStart = draw.IndexCount;
         if (!snapshot.IsDefeated)
             AimGeometry.Draw(draw, snapshot.PlayerPosition, snapshot.AimDirection, settings.Ball.Radius,

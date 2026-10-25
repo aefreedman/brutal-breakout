@@ -113,7 +113,7 @@ public sealed class ShmupSessionTests
             new(1280, 720, 1280, 720, new(1280, 720, 432))));
     }
     [Fact]
-    public void BricksUsePlainSquareGeometryRegardlessOfBreakoutCornerStyle()
+    public void BricksUseSharedCompoundGeometryRegardlessOfBreakoutCornerStyle()
     {
         var settings = Settings(); using var session = Session(settings);
         for (int i = 0; i < 180; i++) session.Simulation.Step();
@@ -123,8 +123,14 @@ public sealed class ShmupSessionTests
         var frame = ShmupPresentation.Build(draw, snapshot, settings, TestSettings.Colors, TestSettings.Style, 1280, 720);
         using var expected = new ShapeDrawList(); expected.BeginFrame(1280, 720);
         foreach (var brick in snapshot.Bricks)
-            expected.FillRect(new((float)brick.Position.X - (float)brick.Size / 2, (float)brick.Position.Y - (float)brick.Size / 2),
-                new((float)brick.Size), TestSettings.Colors.BrickPrimary);
+            foreach (var rectangle in ShmupBrickGeometry.Rectangles(brick.Shape, brick.QuarterTurns))
+            {
+                var minimum = brick.Position + (rectangle.Center - rectangle.HalfExtents) * brick.Size;
+                var maximum = brick.Position + (rectangle.Center + rectangle.HalfExtents) * brick.Size;
+                var start = new float2((float)minimum.X, (float)minimum.Y);
+                var end = new float2((float)maximum.X, (float)maximum.Y);
+                expected.FillRect(start, end - start, TestSettings.Colors.BrickPrimary);
+            }
         var reference = expected.Finish();
         var color = TestSettings.Colors.BrickPrimary;
         var actualVertices = frame.Indices.ToArray().Select(i => frame.Vertices.Span[(int)i])
