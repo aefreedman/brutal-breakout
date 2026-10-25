@@ -100,7 +100,7 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
             QueueCount = 1,
             QueuePriorities = &priority,
         };
-        _device = _physicalDevice.CreateDevice(new Device.CreateInfo
+        _device = _physicalDevice.CreateDevice(new DeviceEx.CreateInfo
         {
             Extensions = ["VK_KHR_swapchain"],
             QueueCreateInfos = new ReadOnlySpan<VkDeviceQueueCreateInfo>(&queueInfo, 1),
@@ -221,7 +221,10 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
         if (acquired == VkResult.SuboptimalKHR)
             _recreate = true;
         if (presented is VkResult.Success or VkResult.SuboptimalKHR)
+        {
             PresentedFrames++;
+            CountOverlayPresentation();
+        }
         return geometryRecorded && presented is VkResult.Success or VkResult.SuboptimalKHR;
     }
 
@@ -293,6 +296,7 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
         for (var i = 0; i < _presentReady.Length; i++)
             _presentReady[i] = device.CreateSemaphore(new VkSemaphoreCreateInfo(), null);
         CreateAttachments(format.Format);
+        _swapchainGeneration++;
         _recreate = false;
         Console.WriteLine($"Swapchain: {_extent.Width}x{_extent.Height}, {_images.Length} images, {format.Format}, FIFO.");
     }
@@ -315,6 +319,7 @@ internal sealed unsafe partial class VulkanRenderer : IDisposable
         if (device != null)
         {
             releases.Add(device.WaitIdle);
+            releases.Add(DisposeOverlay);
             releases.AddRange(SwapchainReleases());
             if (!_vertices.IsNull()) releases.Add(_vertices.Dispose);
             if (!_indices.IsNull()) releases.Add(_indices.Dispose);

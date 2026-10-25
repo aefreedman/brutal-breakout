@@ -1,0 +1,1 @@
+debug.png: authored for Brutal Breakout, 2026. Dedicated to the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/). No third-party image content. 16x16 RGBA checker with transparent edge, generated from literal pixels.

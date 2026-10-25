@@ -1,0 +1,5 @@
+debug.png is project-authored, not downloaded. License: CC0 1.0 (see LICENSE.txt).
+16x16 PNG, non-interlaced 8-bit RGBA. At integer (x,y) in [0,15]:
+R = 255 if (x//4+y//4)%2 else 32; G = 128; B = 255; A = 255 if x<12 else 80.
+Rows use PNG filter 0; zlib-compressed IDAT; standard PNG IHDR/IEND and CRC32 chunks.
+SHA256 89555c14b6bf39cafeb0cfb53aa6229bd8b275dcf4194b248798bc90ff95758d

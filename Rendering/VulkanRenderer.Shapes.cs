@@ -277,6 +277,7 @@ internal sealed unsafe partial class VulkanRenderer
         Check(api.vkResetCommandBuffer.Invoke(_command, 0), "Reset command buffer");
         var begin = new VkCommandBufferBeginInfo { Flags = VkCommandBufferUsageFlags.OneTimeSubmitBit };
         Check(api.vkBeginCommandBuffer.Invoke(_command, &begin), "Begin command buffer");
+        PrepareOverlay();
         var clear = new VkClearValue { Color = new VkClearColorValue { Float32 = new float4(background.R, background.G, background.B, background.A) } };
         var pass = new VkRenderPassBeginInfo
         {
@@ -309,6 +310,7 @@ internal sealed unsafe partial class VulkanRenderer
                 geometryRecorded = true;
             }
         }
+        RecordOverlay();
         api.vkCmdEndRenderPass.Invoke(_command);
         Check(api.vkEndCommandBuffer.Invoke(_command), "End command buffer");
         return geometryRecorded;
@@ -317,7 +319,7 @@ internal sealed unsafe partial class VulkanRenderer
     private List<Action> SwapchainReleases()
     {
         var device = _device!;
-        List<Action> releases = [];
+        List<Action> releases = [ReleaseOverlaySwapchain];
         foreach (var framebuffer in _framebuffers)
             if (!framebuffer.IsNull()) releases.Add(() => device.DestroyFramebuffer(framebuffer, null));
         if (!_pipeline.IsNull()) { var pipeline = _pipeline; releases.Add(() => device.DestroyPipeline(pipeline, null)); }

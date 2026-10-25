@@ -1,0 +1,6 @@
+Abel Regular, Google Fonts upstream; SIL Open Font License 1.1.
+Downloaded pinned upstream files (not OS fonts).
+https://raw.githubusercontent.com/google/fonts/9437b806936896fa1a8c812e561067a5f30f5933/ofl/abel/Abel-Regular.ttf
+SHA256 8809dcad25318225052f88333e208c5aad4adcb7b2c934c135735ec19aa410b4
+https://raw.githubusercontent.com/google/fonts/9437b806936896fa1a8c812e561067a5f30f5933/ofl/abel/OFL.txt
+SHA256 4f4bc3806a1e55789c6ef75ca5fc628297b05292f74966474dc0d40324abc609
