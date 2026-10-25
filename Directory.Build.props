@@ -4,7 +4,7 @@
     <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
     <!-- Isolate both restore intermediates and binaries for the editor-free app. -->
     <ArtifactsProjectName Condition="'$(MSBuildProjectName)' == 'BrutalBreakout.App' and '$(EnableEditor)' == 'false'">$(MSBuildProjectName).shipping</ArtifactsProjectName>
-    <CrushKitVersion>0.1.0-preview.5</CrushKitVersion>
+    <CrushKitVersion>0.1.0-preview.6</CrushKitVersion>
     <CrushKitRoot Condition="'$(CrushKitRoot)' == ''">$(MSBuildThisFileDirectory)../../crushkit-brutal</CrushKitRoot>
   </PropertyGroup>
 </Project>

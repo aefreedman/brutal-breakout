@@ -4,9 +4,9 @@
     "net10.0": {
       "CrushKit.Brutal.Audio": {
         "type": "Direct",
-        "requested": "[0.1.0-preview.5, )",
-        "resolved": "0.1.0-preview.5",
-        "contentHash": "e3DQUZPtwOPHCBbCv1Uq49xjOOpldSMn/VZCkwpbhOM050boaVWNS9ThBdh32Bn0gAJUoPL4ID292gCfOMx50A==",
+        "requested": "[0.1.0-preview.6, )",
+        "resolved": "0.1.0-preview.6",
+        "contentHash": "y9vziOYsoxDUPAdRnwAhBQNqhH4nHNhGFrLoEI+tgmYTnC9THUkid/eHtlWAA3L6z9OOOwF9KKER2B2W145XVw==",
         "dependencies": {
           "Ahwoo.BRUTAL.Sdl.Mixer": "[2026.10.3]"
         }
@@ -168,8 +168,8 @@
       },
       "CrushKit.Brutal.Ecs": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.5",
-        "contentHash": "CQaK+lpp6XY1nDP71kS67f0bFU6o2qpMDAr2RpFUnXAkUV6Lq29gKul2Oz0Es3RE+e0zalnqnYlsD0MhB3CHaw==",
+        "resolved": "0.1.0-preview.6",
+        "contentHash": "I4a2YCGW1G0fFaLN05OneBSRhDQ/Y8vjnzOAMCdxcWm1cjWgNh73JSes0tb/x/MbGhmKYwndFe7AvLnVmEQjJA==",
         "dependencies": {
           "Arch": "[2.1.0]",
           "ZeroAllocJobScheduler": "[1.1.2]"
@@ -177,8 +177,8 @@
       },
       "CrushKit.Brutal.Physics": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.5",
-        "contentHash": "MooDG+V/8OmZt4pnQ6aAVYjfaLwFRmgKfB5p9F/OzLZQUaElKfYEthVZqAqRW5FoM7Hu03RQSRbaIgy3NOJSgA==",
+        "resolved": "0.1.0-preview.6",
+        "contentHash": "pb35BSAcT0JT/1VrF2VuWVUndjDhRaijHcBaJT4zTXXz2Mc08rJu2erGoRttJhidi9amCSUv30A4fVJ3VrdvWQ==",
         "dependencies": {
           "Ahwoo.BRUTAL.Box2D": "[2026.10.2]",
           "ZeroAllocJobScheduler": "[1.1.2]"
@@ -307,8 +307,8 @@
       "brutalbreakout.simulation": {
         "type": "Project",
         "dependencies": {
-          "CrushKit.Brutal.Ecs": "[0.1.0-preview.5, )",
-          "CrushKit.Brutal.Physics": "[0.1.0-preview.5, )"
+          "CrushKit.Brutal.Ecs": "[0.1.0-preview.6, )",
+          "CrushKit.Brutal.Physics": "[0.1.0-preview.6, )"
         }
       }
     }
