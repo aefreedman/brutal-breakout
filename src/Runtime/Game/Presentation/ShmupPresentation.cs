@@ -26,8 +26,8 @@ public static class ShmupPresentation
         draw.FillRect(new(left, 0), new(wall, h), colors.Walls);
         draw.FillRect(new(right - wall, 0), new(wall, h), colors.Walls);
         foreach (var brick in snapshot.Bricks)
-            draw.FillRoundedRect(new((float)brick.Position.X - (float)brick.Size / 2, (float)brick.Position.Y - (float)brick.Size / 2),
-                new((float)brick.Size), (float)(brick.Size * style.BrickCornerFraction),
+            draw.FillRect(new((float)brick.Position.X - (float)brick.Size / 2, (float)brick.Position.Y - (float)brick.Size / 2),
+                new((float)brick.Size),
                 brick.Health * 2 > settings.Brick.Health ? colors.BrickPrimary : colors.BrickAccent);
         foreach (var ball in snapshot.Balls)
             draw.FillDisc(new((float)ball.Position.X, (float)ball.Position.Y), (float)ball.Radius, colors.Ball);

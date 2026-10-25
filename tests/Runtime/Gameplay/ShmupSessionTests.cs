@@ -113,6 +113,26 @@ public sealed class ShmupSessionTests
             new(1280, 720, 1280, 720, new(1280, 720, 432))));
     }
     [Fact]
+    public void BricksUsePlainSquareGeometryRegardlessOfBreakoutCornerStyle()
+    {
+        var settings = Settings(); using var session = Session(settings);
+        for (int i = 0; i < 180; i++) session.Simulation.Step();
+        var snapshot = session.Simulation.Snapshot;
+        Assert.NotEmpty(snapshot.Bricks.ToArray());
+        using var draw = new ShapeDrawList();
+        var frame = ShmupPresentation.Build(draw, snapshot, settings, TestSettings.Colors, TestSettings.Style, 1280, 720);
+        using var expected = new ShapeDrawList(); expected.BeginFrame(1280, 720);
+        foreach (var brick in snapshot.Bricks)
+            expected.FillRect(new((float)brick.Position.X - (float)brick.Size / 2, (float)brick.Position.Y - (float)brick.Size / 2),
+                new((float)brick.Size), TestSettings.Colors.BrickPrimary);
+        var reference = expected.Finish();
+        var color = TestSettings.Colors.BrickPrimary;
+        var actualVertices = frame.Indices.ToArray().Select(i => frame.Vertices.Span[(int)i])
+            .Where(v => v.Color == new float4(color.R, color.G, color.B, 1) && v.Position.Y < settings.Arena.Height / 2).ToArray();
+        var expectedVertices = reference.Indices.ToArray().Select(i => reference.Vertices.Span[(int)i]).ToArray();
+        Assert.Equal(expectedVertices, actualVertices);
+    }
+    [Fact]
     public void WidenedGeometryAndHudBuildWithoutGraphicsAndRetainedSnapshotStaysStable()
     {
         var settings = Settings(); using var session = Session(settings); using var draw = new ShapeDrawList();
