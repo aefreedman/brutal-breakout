@@ -20,7 +20,7 @@ Owned snapshot arrays, construction-time bounded buffers, change-triggered valid
 
 Configuration documents own mutable JSON privately, expose cached immutable read views and accept explicit edits. Idle owner updates and repeated status reads do not parse, serialize or revalidate unchanged documents. Invalid attempts retry only after an input/context change. Save remains explicit and conflict-aware.
 
-Shmup reconciles sparse logical contact candidates and resolves only actual hit pairs. Marked entries are cleared instead of complete ball×brick matrices. Publication reuses private staging bounded by configured capacities, then copies active entries into independently owned output arrays in stable ID order. Native ball overlap/sweep callbacks are instance-owned and reused with per-call ball-index context.
+Shmup reconciles sparse logical contact candidates and resolves only actual hit pairs. Marked entries are cleared instead of complete ball×brick matrices. Publication reuses private staging bounded by configured capacities, then copies active entries into independently owned output arrays in stable ID order. Native ball overlap/sweep callbacks are instance-owned and reused with per-call ball-index context. Physics preview.8 submits already-partitioned native ranges as plain scheduler jobs rather than wrapping them in another parallel-loop master; all range handles still complete before native token release.
 
 ## Why hundreds of live balls still cost more
 
@@ -41,7 +41,7 @@ Keep build and validation modes explicit: normal Debug launches enable Vulkan va
 
 Start with source-backed work/ownership reasoning. For uncertain design tradeoffs, compare controlled equal populations/capacities and separate active-work, collision-density, scheduling and quality-budget effects. Label CPU-only synthetic results honestly. Use representative full-frame/tail-latency evidence when the question actually concerns rendering or perceived responsiveness; do not turn every cleanup into a profiling project.
 
-The leading demonstrated opportunity is the [execution/worker interaction](execution.md#controlled-high-population-finding), not blindly lowering caps or physics quality. A controlled 500-ball native-only fixture measured about 1.20 ms/tick with one physics bridge worker versus 16.17 ms with two; that is not a full-frame or universal-threshold claim. A separate instrumented repeat narrowed the worker interaction to delayed completion returns after native callback ranges had exited; the exact internal cause remains unresolved. Keep the combined [physics quality budget](physics.md) as a separate design concern and behavioral correctness separate from throughput comparisons.
+The [execution/worker correction](execution.md#controlled-high-population-finding) addresses the large preview.7 median penalty without lowering caps or physics quality. The equivalent 500-ball native-only comparison fell from 16.17 to 1.53 ms/tick with two workers in preview.8. This is not a full-frame or universal-threshold claim: a retained sample still contained a roughly 102 ms whole-step outlier, with no established cause. Keep residual tail latency and the combined [physics quality budget](physics.md) as separate questions, and behavioral correctness separate from throughput comparisons.
 
 ## Validation
 

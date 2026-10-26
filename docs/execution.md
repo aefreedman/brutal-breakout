@@ -20,7 +20,7 @@ Workers do not make concurrent reads/writes to a stepping world safe. Input/nati
 
 ## Costs and sensible defaults
 
-The physics bridge marshals native task dispatch through a coordinator and executes work on its scheduler workers. Thread dispatch, signaling and joins have a cost, particularly with many small native world steps. A physics worker budget of one still uses the bridge; do not equate it with a scheduling-free native inline path.
+The physics bridge marshals native task dispatch through a coordinator and executes work on its scheduler workers. Since preview.8, each already-partitioned native range uses a plain scheduler `IJob`; the coordinator flushes once and completion waits for every range handle. This avoids an unnecessary parallel-loop master without replacing the scheduler. Thread dispatch, signaling and completion waits still have a cost, particularly with many small native world steps. A physics worker budget of one still uses the bridge; do not equate it with a scheduling-free native inline path.
 
 More workers can help sufficiently large independent tasks, but can also increase synchronization cost or compete with the render thread and other pools. Do not give every pool all cores, infer an optimum from CPU utilization alone or use thread count to compensate for repeated unnecessary work. Small-scene comparisons did not establish an advantage for two physics workers. A controlled 500-ball comparison subsequently found a substantial interaction; see below. Neither result establishes a portable optimum.
 
@@ -28,24 +28,26 @@ The design questions are task granularity, when dispatch should be inline versus
 
 ## Controlled high-population finding
 
-With 500 active bouncing balls, 40 active square bricks, fixed capacities of 1,024 balls/2,048 bricks, 120 Hz and four intervals × four solver substeps, a headless native-arena test measured:
+The preview.7 bridge wrapped already-partitioned native ranges in `IJobParallelFor`. A controlled 500-ball test showed a large two-worker penalty. An instrumented repeat localized long waits after the last native delegate returned and before the owner observed handle completion. Exact ZeroAllocJobScheduler 1.1.2 DLL inspection found a parallel-master subscriber-poll stage before completion publication. The audit did not establish a lost wakeup or particular OS sleep/descheduling cause.
 
-| Physics bridge workers | Median arena-step elapsed time |
-| --- | ---: |
-| 1 | 1.20 ms/tick |
-| 2 | 16.17 ms/tick |
+Preview.8 instead submits those same ranges through existing `Schedule(IJob, ...)`. Partitioning, worker indices, native physics and defaults stay unchanged. Every handle completes before native token/context release; per-task completion is idempotent across Drain/Finish and scheduler-pool reuse. This is not a weaker native-callback-only barrier. Unknown partial submission/flush failures still fail fast, and managed callback faults remain sticky. Upstream scheduler disposal requests shutdown rather than joining worker threads; accepted native work is completed first and the bridge coordinator is joined.
 
-These are medians of three 48-tick sample means after warm-up, Release/.NET 10.0.5 with tiered compilation disabled on one Windows/i9-9900K machine. They exclude setup, spawning, destruction, managed snapshot publication and rendering. The two-worker excess persisted with one/two/four solver substeps and was inside elapsed `world.Step`, which includes native execution, bridge callbacks and waits. It is not established as bridge-only overhead or native compute time.
+### Equivalent package-level comparison
 
-Aggregate hit/contact facts matched across worker choices; changing substeps changed those facts. Aggregate agreement is not full trajectory/lifecycle equivalence. This prioritizes execution investigation before reducing physics quality; it does not establish a universal 500-ball threshold, the cause of a particular live-game slowdown or a shipped-default recommendation.
+With 500 active bouncing balls, 40 active square bricks, fixed capacities of 1,024 balls/2,048 bricks, 120 Hz and four intervals × four solver substeps:
 
-For a reversible stress-session diagnostic, try `physicsWorkerCount: 1` with the required owner reset and unchanged physics settings. Recreate comparable populations/layouts: comparing a fresh reset against an older overloaded run is not a controlled comparison. One worker still uses the bridge, and improved headless time does not guarantee a particular frame rate. The shipped default remains 2.
+| Physics bridge workers | Preview.7 median | Preview.8 median |
+| --- | ---: | ---: |
+| 1 | 1.20 ms/tick | 1.55 ms/tick |
+| 2 | 16.17 ms/tick | 1.53 ms/tick |
 
-A separate instrumented paired repeat of the same 500-ball/four-substep fixture narrowed the excess to completion-return waits **after the last recorded native callback exit**. With two workers, 59 tasks had post-callback tails over 10 ms; with one worker, none exceeded 1 ms. All long tails belonged to two-range tasks. Schedule/Flush and native callback elapsed were not the large bucket in that repeat.
+These measure whole `NativeShmupArena.Step`, not full-game/frame time or engine-only compute. Each median is over three independent 48-tick sample means after warm-up and one predeclared discarded sample. Release/.NET 10.0.5, tiered compilation disabled, one Windows/i9-9900K machine. Setup, spawning, destruction, snapshot publication and rendering are excluded. Versions were measured in separate sessions; the older probe included a few inner timers while the new probe times only the whole step. Thus the ratios are not a pure causal overhead estimate, and the one-worker increase is not hidden.
 
-This is a completion/wakeup-path lead, not proof of a particular race, sleep policy or OS cause. The observation boundary is native callback exit—not completion of all scheduler wrapper/finalization work—and owner descheduling is not excluded. Instrumentation and run variance materially changed absolute time relative to the earlier test; do not mix the two timing sets or add overlapping parallel wall-time buckets as CPU time.
+All new samples matched the saved body/shape/awake/interval counts and aggregate hit/contact facts. Matching aggregates do not establish full trajectory/lifecycle equivalence; separate range/fault/drain and game simulation tests cover those contracts. Lower substeps changed contact facts in the earlier investigation and did not remove its large two-worker penalty, so physics quality was not weakened as the remedy.
 
-The next engineering step is a focused two-range completion-publication/wait regression against the consumed scheduler, followed only by a narrowly evidenced correction. Preserve exact-once ranges, exclusive concurrent worker indices, accepted-work draining and sticky faults; verify prompt completion as well as correct physics/lifetime behavior. Do not lower quality or replace the scheduler to conceal the tail. A native-default-task-fields comparison still requires exact-version creation/step/destruction proof; do not call it single-thread/inline merely because custom callbacks are absent, or invent hybrid worker-zero ownership.
+**Residual tail limitation:** one retained two-worker sample averaged 4.84 ms/tick and contained a 101.98 ms whole-step outlier (three retained ticks exceeded 10 ms). No extra samples were discarded or rerun. There was no inner completion/GC/CPU/OS trace in this new comparison; the remaining spikes cannot be assigned to the old master-poll stage or a particular cause. Do not claim every tick meets 120 Hz, all completion tails disappeared, or a universal 500-ball threshold was removed.
+
+The shipped worker default remains 2. The earlier one-worker override was a reversible preview.7 diagnostic, not a permanent workaround required by preview.8. Compare equivalent recreated workloads when changing execution settings because the required reset changes population/progression. A scheduling-free native-default/inline path is still unproven here; do not infer one merely from a single worker or absent custom callbacks, or invent hybrid worker-zero ownership.
 
 ## Sources
 
