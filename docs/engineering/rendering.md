@@ -2,6 +2,12 @@
 
 Rendering is separate from native physics and managed gameplay. The host may complete several fixed ticks before building one render frame. A simulation tick, CPU geometry build, Vulkan submission, GPU command interval and displayed frame are different units of work. Standalone phase medians are not automatically additive frame-time predictions.
 
+## Presentation controls
+
+Configuration → **WINDOW** exposes live **VSync** and **Frame rate cap (0 unlimited)** controls. The cap commits on Enter; Save persists it. Authoritative `Config/window.json` requires `width`, `height`, boolean `vsync` and integer `frameRateLimit` (0–1000). Defaults remain VSync on with no additional software cap. Custom window files must provide all four fields.
+
+VSync on requests FIFO; off requests supported Immediate, with explicit rejection rather than a silent fallback if unavailable. Changes recreate only the swapchain at the owner boundary, not the gameplay world. The software cap subtracts time already spent doing work or waiting on presentation, then pumps events in bounded waits; it does not add another whole frame interval. Zero cap does not disable VSync. Very low caps can reach the existing fixed-clock catch-up/drop limit without changing physics Hz. See [configuration](../design/configuration.md#initial-window-configuration) for persistence and timing details.
+
 ## Batching and instancing
 
 The shared CrushKit renderer already batches solid shapes. `ShapeDrawList` appends vertices and indices to reusable arrays and merges adjacent ranges with the same framebuffer scissor. Colors are per vertex, so changing ball/brick/trail colors does not require a material draw call. Ordering is retained for premultiplied-alpha blending; different clips can split batches.
@@ -20,7 +26,7 @@ The current Vulkan path has:
 - Full vertex/index/command validation on every `Draw`, including normal Release. This is separate from optional Vulkan validation layers.
 - Host-visible, CPU-preferred vertex/index buffers, mapped/copied/flushed each frame. There is no shape staging-to-device-local upload path or persistent instance buffer.
 - Buffer reuse while capacity suffices, but replacement at the exact new byte requirement when geometry grows. A frozen warmed scene does not measure population-growth reallocations.
-- Four-sample MSAA, sRGB output and premultiplied-alpha blending; FIFO presentation. GPU resources and swapchain are not recreated each ordinary frame.
+- Four-sample MSAA, sRGB output and premultiplied-alpha blending; configurable FIFO/Immediate presentation. GPU resources and swapchain are not recreated each ordinary frame.
 
 After CPU frame validation, the renderer waits its previous submission fence, uploads geometry, acquires an image, records commands, submits and presents. The next host iteration can do CPU work while the preceding GPU submission executes; one in-flight buffer set does not imply zero CPU/GPU overlap. `Draw` wall time may include fence/acquire/presentation pacing and is not GPU execution time.
 
