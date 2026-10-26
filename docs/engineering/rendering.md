@@ -73,6 +73,24 @@ At 2,000 balls/trails at 720p, renderer CPU medians were 0.67 ms full frame vali
 
 Whole `Draw` medians were roughly 11.76 ms even for clear-only controls. Previous-submission fence waits accounted for about 10–11.6 ms, while clear-only GPU spans were 0.011 ms at 720p and 0.019 ms at 1080p. The waiting/pacing is not equivalent to GPU render work. A fence-wait sample refers to the preceding submission, whereas its reported GPU span belongs to its own submitted commands. Adding those phase medians, or adding standalone `Draw` wall time to host simulation time, would misrepresent overlap and pacing.
 
+### Presentation pacing control
+
+A focused follow-up used the same frozen 720p clear/2,000-ball/4,000-ball trail scenes under FIFO, supported-and-selected Immediate, and a no-present diagnostic. Each normal case had sixty warm and 180 measured submissions; three preceding validation-enabled heavy-scene probes passed with zero Vulkan errors and the same three known layer-naming warnings each.
+
+| Scene | FIFO Draw p50 | Immediate Draw p50 | No-present Draw p50 | No-present GPU span p50 |
+| --- | ---: | ---: | ---: | ---: |
+| Clear | 11.73 ms | 0.76 ms | 0.10 ms | 0.011 ms |
+| 2,000 balls + trails | 11.77 ms | 3.07 ms | 1.14 ms | 0.76 ms |
+| 4,000 balls + trails | 11.74 ms | 3.43 ms | 1.54 ms | 1.04 ms |
+
+The large FIFO prior-submission fence wait disappeared in these controls. **The roughly 11.76 ms interval was presentation-associated pacing, not equivalent GPU rendering cost.** Immediate still spent CPU time in presentation; it is not proof that every compositor/driver/global limiter was absent. Monitor refresh and GPU clocks/power were not sampled, so the precise mechanism or display frequency is not established.
+
+The no-present mode acquired one swapchain image during setup and retained it, reusing its framebuffer after each submission fence. Warm/measured loops made no further acquire or present calls and signaled no unconsumed presentation semaphores. Every such process had 241 GPU submissions/query pairs, one acquisition and zero presentations. This is rendering to a held acquired image, **not** a surface-free offscreen renderer or a production execution mode. Validation, uploads, shaders, render pass, MSAA and geometry remained unchanged. Its 4,000-ball GPU p99/max were 3.59/4.72 ms; outliers were retained.
+
+The independent CPU geometry study creates no Vulkan device or swapchain: its 4.25 ms geometry cost cannot be a vsync wait. The earlier roughly 209 ms headless simulation-step outlier likewise contained no Vulkan presentation loop and remains a separate unresolved tail. None of these controls changes production vsync defaults or establishes full-game frame rate, input latency, or an instancing benefit.
+
+### Coverage limits
+
 Requested 3840×2160 hidden-window geometry could not be tested: the actual surface was 3840×1581, and the unchanged renderer correctly rejected the mismatched frame. That process's extent failure was retained, and the other 2160 GPU cases were not attempted. CPU 2160 geometry results do not fill this GPU evidence gap. No resizing workaround or visible-window test was used.
 
 Two preceding hidden validation-enabled probes, at 500 and 4,000 balls, completed with zero Vulkan errors and the three known upstream GalaxyOverlayVkLayer naming warnings each. No visible process windows were sampled. One validation probe observed unrelated foreground-window changes, so its nonactivation evidence is inconclusive; hidden metadata sampling is not a universal focus-disturbance guarantee. Normal performance samples themselves do not establish validation-layer cleanliness.
