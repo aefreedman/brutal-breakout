@@ -15,42 +15,126 @@ public sealed class ConfigurationWorkspace
         public string Section { get; }
         public string Path { get; }
         public bool Runtime { get; }
-        public JsonObject Draft { get; private set; }
-        internal string Source, Applied;
-        internal Func<string, object> Load;
-        internal Document(string section, string path, bool runtime, Func<string, object> load)
+        private JsonObject draft;
+        private JsonObject sourceNode, appliedNode;
+        private string source, applied;
+        private string? text;
+        private JsonElement? view;
+        private bool? unsaved, pending;
+        private readonly Action changed;
+        private static readonly JsonSerializerOptions TextOptions = new() { WriteIndented = true };
+        public long Revision { get; private set; }
+        internal int SerializationCount { get; private set; }
+        internal int ParseCount { get; private set; }
+        public JsonElement Draft
         {
-            Section = section; Path = System.IO.Path.GetFullPath(path); Runtime = runtime; Load = load;
-            Source = File.ReadAllText(Path); load(Source); Applied = Source; Draft = Parse(Source);
+            get
+            {
+                if (view is null)
+                {
+                    using var document = JsonDocument.Parse(Text); ParseCount++;
+                    view = document.RootElement.Clone();
+                }
+                return view.Value;
+            }
         }
-        public string Text => Draft.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        public bool Unsaved => !Equivalent(Text, Source);
-        public bool Pending => !Equivalent(Text, Applied);
-        internal void Discard() => Draft = Parse(Source);
-        internal void Reload(string text) { Source = text; Draft = Parse(text); }
-        private static JsonObject Parse(string text) => JsonNode.Parse(text)!.AsObject();
+        internal string Source
+        {
+            get => source;
+            set { if (source == value) return; source = value; sourceNode = Parse(value); unsaved = null; changed(); }
+        }
+        internal string Applied
+        {
+            get => applied;
+            set { if (applied == value) return; applied = value; appliedNode = Parse(value); pending = null; changed(); }
+        }
+        internal Func<string, object> Load;
+        internal Document(string section, string path, bool runtime, Func<string, object> load, Action changed)
+        {
+            Section = section; Path = System.IO.Path.GetFullPath(path); Runtime = runtime; Load = load; this.changed = changed;
+            source = File.ReadAllText(Path); load(source); applied = source;
+            draft = Parse(source); sourceNode = Parse(source); appliedNode = Parse(source);
+        }
+        public string Text
+        {
+            get { if (text is null) { text = draft.ToJsonString(TextOptions); SerializationCount++; } return text; }
+        }
+        public bool Unsaved => unsaved ??= !JsonNode.DeepEquals(draft, sourceNode);
+        public bool Pending => pending ??= !JsonNode.DeepEquals(draft, appliedNode);
+        /// <summary>Edits a section-relative dot path (including array indices). Inputs are detached before commitment.</summary>
+        public bool Set(string path, JsonNode? value)
+        {
+            var keys = path.Split('.');
+            JsonNode parent = draft;
+            foreach (var key in keys.SkipLast(1)) parent = Child(parent, key) ?? throw new ArgumentException("Unknown path: " + path);
+            string last = keys[^1];
+            if (JsonNode.DeepEquals(Child(parent, last), value)) return false;
+            var owned = value?.DeepClone();
+            if (parent is JsonArray array) array[int.Parse(last, System.Globalization.CultureInfo.InvariantCulture)] = owned;
+            else parent[last] = owned;
+            Invalidate(); return true;
+        }
+        public bool Set(string path, JsonElement value) => Set(path, JsonNode.Parse(value.GetRawText()));
+        private static JsonNode? Child(JsonNode node, string key) => node is JsonArray array
+            ? array[int.Parse(key, System.Globalization.CultureInfo.InvariantCulture)] : node[key];
+        private void Invalidate() { Revision++; text = null; view = null; unsaved = pending = null; changed(); }
+        internal void Discard()
+        {
+            if (JsonNode.DeepEquals(draft, sourceNode)) return;
+            draft = (JsonObject)sourceNode.DeepClone(); Invalidate();
+        }
+        internal void Reload(string text) { Source = text; Discard(); }
+        internal string Merged(bool reset)
+        {
+            if (!Pending) return Applied;
+            var target = (JsonObject)appliedNode.DeepClone();
+            ConfigurationImpact.Merge(target, draft, Section, reset);
+            return JsonNode.DeepEquals(target, appliedNode) ? Applied : target.ToJsonString();
+        }
+        internal IEnumerable<string> PendingFields(ConfigurationEffect effect) => ConfigurationImpact.Fields(draft, Section)
+            .Where(f => ConfigurationImpact.For(f.Path).Effect == effect &&
+                !JsonNode.DeepEquals(f.Value, Find(appliedNode, f.Path.Split('.').Skip(1))))
+            .Select(f => f.Path + ": " + ConfigurationImpact.For(f.Path).Reason);
+        private JsonObject Parse(string text) { ParseCount++; return JsonNode.Parse(text)!.AsObject(); }
     }
     public IReadOnlyList<Document> Documents => documents;
     private readonly List<Document> documents = [];
     private ConfigurationAction request;
     private Candidate? appliedCandidate;
     public string Status { get; private set; } = "Valid safe edits apply automatically. Save and structural reset are separate.";
-    private string? lastAttempt;
-    public string? InactiveModeSection { get; set; }
-    public string? LiveContextRevision { get; set; }
-    public Action<Candidate>? PreflightLive { get; set; }
+    private long revision, lastAttempt = -1;
+    private string? inactiveModeSection, liveContextRevision;
+    private Action<Candidate>? preflightLive;
+    private object? contextOwner;
+    private double contextWidth;
+    public void SetLiveContext(object? owner, double width)
+    {
+        if (ReferenceEquals(contextOwner, owner) && contextWidth == width) return;
+        contextOwner = owner; contextWidth = width; Changed();
+    }
+    private IReadOnlyList<string>? pendingResetFields, pendingRelaunchFields;
+    internal int ValidationCount { get; private set; }
+    internal int MergeCount { get; private set; }
+    internal int PendingBuildCount { get; private set; }
+    internal long ChangeRevision => revision;
+    private void Changed() { revision++; pendingResetFields = pendingRelaunchFields = null; }
+    public string? InactiveModeSection { get => inactiveModeSection; set { if (inactiveModeSection == value) return; inactiveModeSection = value; Changed(); } }
+    public string? LiveContextRevision { get => liveContextRevision; set { if (liveContextRevision == value) return; liveContextRevision = value; Changed(); } }
+    public Action<Candidate>? PreflightLive { get => preflightLive; set { if (preflightLive == value) return; preflightLive = value; Changed(); } }
     private Candidate ValidateLive(Dictionary<string, string> texts)
     {
         var candidate = Validate(texts);
         PreflightLive?.Invoke(candidate);
         return candidate;
     }
-    public IReadOnlyList<string> PendingResetFields => PendingFields(ConfigurationEffect.Reset);
-    public IReadOnlyList<string> PendingRelaunchFields => PendingFields(ConfigurationEffect.Relaunch);
-    private string[] PendingFields(ConfigurationEffect effect) => documents.SelectMany(d =>
-        ConfigurationImpact.Fields(d.Draft, d.Section).Where(f => !(effect == ConfigurationEffect.Reset && d.Section == InactiveModeSection) && ConfigurationImpact.For(f.Path).Effect == effect &&
-            !JsonNode.DeepEquals(f.Value, Find(JsonNode.Parse(d.Applied), f.Path.Split('.').Skip(1))))
-            .Select(f => f.Path + ": " + ConfigurationImpact.For(f.Path).Reason)).ToArray();
+    public IReadOnlyList<string> PendingResetFields => pendingResetFields ??= PendingFields(ConfigurationEffect.Reset);
+    public IReadOnlyList<string> PendingRelaunchFields => pendingRelaunchFields ??= PendingFields(ConfigurationEffect.Relaunch);
+    private IReadOnlyList<string> PendingFields(ConfigurationEffect effect)
+    {
+        PendingBuildCount++;
+        return Array.AsReadOnly(documents.Where(d => !(effect == ConfigurationEffect.Reset && d.Section == InactiveModeSection))
+            .SelectMany(d => d.PendingFields(effect)).ToArray());
+    }
     private static JsonNode? Find(JsonNode? node, IEnumerable<string> keys)
     { foreach (var key in keys) node = node?[key]; return node; }
     public bool RuntimeAvailable { get; }
@@ -78,11 +162,11 @@ public sealed class ConfigurationWorkspace
                 "inspector" => text => InspectorConfiguration.Load(path, text),
                 _ => throw new ArgumentException($"Unknown configuration section {section}.")
             };
-            documents.Add(new(section, path, section is not ("window" or "overlay" or "inspector"), load));
+            documents.Add(new(section, path, section is not ("window" or "overlay" or "inspector"), load, Changed));
         }
         appliedCandidate = Validate(Capture(false));
     }
-    internal static bool Equivalent(string a, string b) => JsonNode.DeepEquals(JsonNode.Parse(a), JsonNode.Parse(b));
+    internal static bool Equivalent(string a, string b) => a == b || JsonNode.DeepEquals(JsonNode.Parse(a), JsonNode.Parse(b));
     public void Request(ConfigurationAction action) => request = action;
     public bool IsChanged(Candidate candidate, string section) =>
         documents.Any(d => d.Section == section && !Equivalent(d.Applied, candidate.Texts[section]));
@@ -100,6 +184,7 @@ public sealed class ConfigurationWorkspace
     }
     private Candidate Validate(Dictionary<string, string> texts, bool reuseApplied = true)
     {
+        ValidationCount++;
         var candidate = new Candidate(documents.ToDictionary(d => d.Section, d =>
             reuseApplied && appliedCandidate is not null && Equivalent(appliedCandidate.Texts[d.Section], texts[d.Section])
                 ? appliedCandidate.loaded[d.Section] : d.Load(texts[d.Section])), texts);
@@ -151,12 +236,8 @@ public sealed class ConfigurationWorkspace
     }
     private Dictionary<string, string> Merged(bool reset)
     {
-        return documents.ToDictionary(d => d.Section, d =>
-        {
-            var target = JsonNode.Parse(d.Applied)!.AsObject();
-            ConfigurationImpact.Merge(target, d.Draft, d.Section, reset || d.Section == InactiveModeSection);
-            return target.ToJsonString();
-        });
+        MergeCount++;
+        return documents.ToDictionary(d => d.Section, d => d.Merged(reset || d.Section == InactiveModeSection));
     }
     private void Commit(Candidate candidate)
     {
@@ -166,7 +247,6 @@ public sealed class ConfigurationWorkspace
     private void AutoApply(Action<Candidate> apply)
     {
         if (!RuntimeAvailable) return;
-        string revision = LiveContextRevision + InactiveModeSection + string.Join("\n", documents.Select(d => d.Text + "\n" + d.Applied));
         if (revision == lastAttempt) return;
         lastAttempt = revision; // Includes invalid attempts: unchanged invalid frames do not parse/load/allocate again.
         var texts = Merged(false);
@@ -215,7 +295,7 @@ public sealed class ConfigurationWorkspace
             Commit(candidate);
             Status = pending is null ? "Runtime applied live; run retained. Save/reset/relaunch are separate."
                 : "Rejected: some live values remain pending against current structural settings: " + pending + ". Other valid live edits applied.";
-            lastAttempt = LiveContextRevision + InactiveModeSection + string.Join("\n", documents.Select(d => d.Text + "\n" + d.Applied));
+            lastAttempt = revision;
         }
         catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException) { ReportFailure(error); }
     }

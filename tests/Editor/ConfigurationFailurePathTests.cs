@@ -18,10 +18,10 @@ public sealed class ConfigurationFailurePathTests
     public void CommittedRetirementFailureCompletesLoadedAndAppliedPublication(GameplayMode mode)
     {
         var workspace = ConfigurationWorkspaceTests.Create();
-        ConfigurationWorkspaceTests.Doc(workspace, "shmup").Draft["capacity"]!["maxBalls"] = 16;
-        ConfigurationWorkspaceTests.Doc(workspace, "shmup").Draft["capacity"]!["maxBricks"] = 32;
-        ConfigurationWorkspaceTests.Doc(workspace, "execution").Draft["workerCount"] = 1;
-        ConfigurationWorkspaceTests.Doc(workspace, "execution").Draft["physicsWorkerCount"] = 1;
+        ConfigurationWorkspaceTests.Doc(workspace, "shmup").Set("capacity.maxBalls", 16);
+        ConfigurationWorkspaceTests.Doc(workspace, "shmup").Set("capacity.maxBricks", 32);
+        ConfigurationWorkspaceTests.Doc(workspace, "execution").Set("workerCount", 1);
+        ConfigurationWorkspaceTests.Doc(workspace, "execution").Set("physicsWorkerCount", 1);
         GameplaySessionHost? created = null;
         LoadedGameplayConfiguration? publishedGameplay = null;
         LoadedShmupConfiguration? publishedShmup = null;
@@ -49,8 +49,8 @@ public sealed class ConfigurationFailurePathTests
         };
         var gameplay = ConfigurationWorkspaceTests.Doc(workspace, "gameplay");
         var shmup = ConfigurationWorkspaceTests.Doc(workspace, "shmup");
-        gameplay.Draft["ball"]!["speed"] = publishedGameplay!.Settings.Ball.Speed + 1;
-        shmup.Draft["ball"]!["speed"] = 600.5;
+        gameplay.Set("ball.speed", publishedGameplay!.Settings.Ball.Speed + 1);
+        shmup.Set("ball.speed", 600.5);
         workspace.Request(ConfigurationAction.Apply);
         workspace.Process(candidate =>
         {
@@ -93,9 +93,9 @@ public sealed class ConfigurationFailurePathTests
         ConfigurationWorkspaceTests.WithCopy(root =>
         {
             var workspace = new ConfigurationWorkspace(ConfigurationWorkspaceTests.Paths(root), true);
-            var input = ConfigurationWorkspaceTests.Doc(workspace, "input"); input.Draft["stickDeadzone"] = .23;
-            ConfigurationWorkspaceTests.Doc(workspace, "trails").Draft["opacity"] = .31;
-            ConfigurationWorkspaceTests.Doc(workspace, "colors").Draft["name"] = "Changed palette";
+            var input = ConfigurationWorkspaceTests.Doc(workspace, "input"); input.Set("stickDeadzone", .23);
+            ConfigurationWorkspaceTests.Doc(workspace, "trails").Set("opacity", .31);
+            ConfigurationWorkspaceTests.Doc(workspace, "colors").Set("name", "Changed palette");
             int replacements = 0;
             workspace.ReplaceFile = (temp, target) =>
             {
@@ -128,8 +128,8 @@ public sealed class ConfigurationFailurePathTests
         ConfigurationWorkspaceTests.WithCopy(root =>
         {
             var workspace = new ConfigurationWorkspace(ConfigurationWorkspaceTests.Paths(root), true);
-            var input = ConfigurationWorkspaceTests.Doc(workspace, "input"); input.Draft["stickDeadzone"] = .23;
-            var trails = ConfigurationWorkspaceTests.Doc(workspace, "trails"); trails.Draft["opacity"] = .31;
+            var input = ConfigurationWorkspaceTests.Doc(workspace, "input"); input.Set("stickDeadzone", .23);
+            var trails = ConfigurationWorkspaceTests.Doc(workspace, "trails"); trails.Set("opacity", .31);
             var attempted = new List<string>();
             workspace.DeleteTemporaryFile = path =>
             {
@@ -153,8 +153,8 @@ public sealed class ConfigurationFailurePathTests
         {
             var workspace = new ConfigurationWorkspace(ConfigurationWorkspaceTests.Paths(root), true);
             var input = ConfigurationWorkspaceTests.Doc(workspace, "input"); string original = File.ReadAllText(input.Path);
-            input.Draft["stickDeadzone"] = .23;
-            ConfigurationWorkspaceTests.Doc(workspace, "trails").Draft["opacity"] = .31;
+            input.Set("stickDeadzone", .23);
+            ConfigurationWorkspaceTests.Doc(workspace, "trails").Set("opacity", .31);
             int replacements = 0, deletes = 0;
             workspace.ReplaceFile = (temp, target) =>
             {

@@ -51,14 +51,14 @@ public sealed class ConfigurationLiveTests
             host.TogglePause();
             var before = simulation.Snapshot; int points = history.PointCount, ticks = session.TotalTicks;
             var shmup = Doc(w, "shmup");
-            shmup.Draft["ball"]!["speed"] = 800;
-            shmup.Draft["capacity"]!["maxBalls"] = 10;
-            shmup.Draft["avatar"]!["health"] = 50;
-            shmup.Draft["arena"]!["initialPlayAreaWidth"] = 500;
-            Doc(w, "trails").Draft["widthRadiusRatio"] = 2;
-            Doc(w, "input").Draft["stickDeadzone"] = .3;
-            Doc(w, "overlay").Draft["fontSize"] = 23;
-            Doc(w, "window").Draft["width"] = 960;
+            shmup.Set("ball.speed", 800);
+            shmup.Set("capacity.maxBalls", 10);
+            shmup.Set("avatar.health", 50);
+            shmup.Set("arena.initialPlayAreaWidth", 500);
+            Doc(w, "trails").Set("widthRadiusRatio", 2);
+            Doc(w, "input").Set("stickDeadzone", .3);
+            Doc(w, "overlay").Set("fontSize", 23);
+            Doc(w, "window").Set("width", 960);
             ConfigurationWorkspace.Candidate? candidate = null;
             w.Process(c => { candidate = c; Apply(host, c); });
             Assert.NotNull(candidate); Assert.False(candidate.ResetRequired);
@@ -90,10 +90,10 @@ public sealed class ConfigurationLiveTests
         WithHost((w, host) =>
         {
             var session = host.Shmup; double speed = session!.Settings.Ball.Speed;
-            Doc(w, "shmup").Draft["ball"]!["speed"] = -1;
-            Doc(w, "shmup").Draft["ball"]!["fireRate"] = 15;
-            Doc(w, "shmup").Draft["brick"]!["size"] = 100;
-            Doc(w, "trails").Draft["opacity"] = .25;
+            Doc(w, "shmup").Set("ball.speed", -1);
+            Doc(w, "shmup").Set("ball.fireRate", 15);
+            Doc(w, "shmup").Set("brick.size", 100);
+            Doc(w, "trails").Set("opacity", .25);
             int calls = 0, loads = 0;
             var doc = Doc(w, "shmup"); var load = doc.Load;
             doc.Load = text => { loads++; return load(text); };
@@ -105,7 +105,7 @@ public sealed class ConfigurationLiveTests
             int attemptedLoads = loads;
             for (int frame = 0; frame < 20; frame++) w.Process(_ => calls++);
             Assert.Equal(attemptedLoads, loads); Assert.Equal(1, calls);
-            doc.Draft["ball"]!["speed"] = 700;
+            doc.Set("ball.speed", 700);
             w.Process(c => Apply(host, c));
             Assert.Equal(700, session.Settings.Ball.Speed); Assert.Single(w.PendingResetFields);
         });
@@ -117,9 +117,9 @@ public sealed class ConfigurationLiveTests
         WithHost((w, host) =>
         {
             var session = host.Shmup!;
-            Doc(w, "shmup").Draft["arena"]!["initialPlayAreaWidth"] = 800;
-            Doc(w, "shmup").Draft["avatar"]!["radius"] = 250;
-            Doc(w, "trails").Draft["opacity"] = .2;
+            Doc(w, "shmup").Set("arena.initialPlayAreaWidth", 800);
+            Doc(w, "shmup").Set("avatar.radius", 250);
+            Doc(w, "trails").Set("opacity", .2);
             w.Process(c => Apply(host, c));
             Assert.Same(session, host.Shmup); Assert.Equal(10.8, session.Settings.Avatar.Radius);
             Assert.Equal(.2, session.Trails!.Settings.Opacity);
@@ -138,7 +138,7 @@ public sealed class ConfigurationLiveTests
         {
             var session = host.Shmup; var publication = session!.Simulation.Snapshot;
             w.InactiveModeSection = "gameplay";
-            Doc(w, "gameplay").Draft["arena"]!["wallThickness"] = 18;
+            Doc(w, "gameplay").Set("arena.wallThickness", 18);
             w.Process(c => { Assert.False(c.ResetRequired); Apply(host, c); });
             Assert.Same(session, host.Shmup); Assert.Equal(publication.Tick, session.Simulation.Snapshot.Tick);
             Assert.False(Doc(w, "gameplay").Pending); Assert.Empty(w.PendingResetFields);
@@ -153,11 +153,11 @@ public sealed class ConfigurationLiveTests
         WithHost((w, host) =>
         {
             var session = host.Shmup!;
-            Doc(w, "shmup").Draft["ball"]!["speed"] = 700;
+            Doc(w, "shmup").Set("ball.speed", 700);
             w.Process(c => Apply(host, c)); Assert.Equal(700, session.Settings.Ball.Speed);
             w.Request(ConfigurationAction.Discard); w.Process(c => Apply(host, c));
             Assert.Equal(576, session.Settings.Ball.Speed); Assert.Same(session, host.Shmup);
-            Doc(w, "shmup").Draft["capacity"]!["maxBalls"] = 10;
+            Doc(w, "shmup").Set("capacity.maxBalls", 10);
             w.Request(ConfigurationAction.Save); w.Process(c => Apply(host, c));
             Assert.Same(session, host.Shmup); Assert.Equal(8, session.Settings.Capacity.MaxBalls);
             Assert.False(Doc(w, "shmup").Unsaved); Assert.True(Doc(w, "shmup").Pending);

@@ -22,7 +22,7 @@ public sealed class ConfigurationWorkspaceTests
         var workspace = Create(); var shmup = Doc(workspace, "shmup");
         Assert.All(workspace.Documents, d => { Assert.False(d.Pending); Assert.False(d.Unsaved); Assert.True(Path.IsPathFullyQualified(d.Path)); });
         string source = File.ReadAllText(shmup.Path);
-        shmup.Draft["ball"]!["speed"] = 600.5; // lexical integer in the source is really a double schema field
+        shmup.Set("ball.speed", 600.5); // lexical integer in the source is really a double schema field
         Assert.True(shmup.Pending); Assert.True(shmup.Unsaved);
         ConfigurationWorkspace.Candidate? captured = null;
         workspace.Request(ConfigurationAction.Apply);
@@ -31,7 +31,7 @@ public sealed class ConfigurationWorkspaceTests
         Assert.Equal(600.5, captured!.Get<LoadedShmupConfiguration>("shmup")!.Settings.Ball.Speed);
         Assert.False(shmup.Pending); Assert.True(shmup.Unsaved);
         Assert.Equal(source, File.ReadAllText(shmup.Path));
-        shmup.Draft["ball"]!["speed"] = 610.5;
+        shmup.Set("ball.speed", 610.5);
         Assert.Equal(600.5, captured.Get<LoadedShmupConfiguration>("shmup")!.Settings.Ball.Speed);
         Process(workspace, ConfigurationAction.Discard, _ => { });
         Assert.False(shmup.Unsaved); Assert.False(shmup.Pending); // valid source live values apply without a reset
@@ -41,7 +41,7 @@ public sealed class ConfigurationWorkspaceTests
     [InlineData("speed", -1)] [InlineData("damage", 1.5)]
     public void InvalidDraftNeverCallsApplyAndRemainsDirty(string key, double value)
     {
-        var workspace = Create(); var d = Doc(workspace, "shmup"); d.Draft["ball"]![key] = value;
+        var workspace = Create(); var d = Doc(workspace, "shmup"); d.Set("ball." + key, value);
         Process(workspace, ConfigurationAction.Apply);
         Assert.StartsWith("Rejected:", workspace.Status); Assert.True(d.Pending); Assert.True(d.Unsaved);
     }
@@ -50,11 +50,11 @@ public sealed class ConfigurationWorkspaceTests
     public void CrossFileTrailCapacityAndPhysicsValidationAreIdenticalToStartup()
     {
         var workspace = Create();
-        Doc(workspace, "trails").Draft["maxRenderedSegments"] = 1;
+        Doc(workspace, "trails").Set("maxRenderedSegments", 1);
         Process(workspace, ConfigurationAction.Apply);
         Assert.StartsWith("Rejected:", workspace.Status);
         Process(workspace, ConfigurationAction.Discard);
-        Doc(workspace, "physics").Draft["updateHz"] = 1;
+        Doc(workspace, "physics").Set("updateHz", 1);
         Process(workspace, ConfigurationAction.Apply);
         Assert.StartsWith("Rejected:", workspace.Status);
     }
@@ -63,7 +63,7 @@ public sealed class ConfigurationWorkspaceTests
     public void RelaunchOnlyDraftsAreNotReportedAppliedAndDoNotLeakIntoRuntimeCandidate()
     {
         var workspace = Create(); var overlay = Doc(workspace, "overlay");
-        double original = overlay.Draft["fontSize"]!.GetValue<double>(); overlay.Draft["fontSize"] = original + 1;
+        double original = overlay.Draft.GetProperty("fontSize"u8).GetDouble(); overlay.Set("fontSize", original + 1);
         Process(workspace, ConfigurationAction.Apply, c => Assert.Equal(original, c.Get<LoadedOverlayConfiguration>("overlay")!.Settings.FontSize));
         Assert.True(overlay.Pending); Assert.True(overlay.Unsaved); Assert.Contains("NOT applied", workspace.Status);
     }
@@ -71,7 +71,7 @@ public sealed class ConfigurationWorkspaceTests
     [Fact]
     public void CandidatePrepareFailureLeavesAppliedSnapshotsUntouched()
     {
-        var workspace = Create(); var d = Doc(workspace, "shmup"); d.Draft["ball"]!["fireRate"] = 13;
+        var workspace = Create(); var d = Doc(workspace, "shmup"); d.Set("ball.fireRate", 13);
         Process(workspace, ConfigurationAction.Apply, _ => throw new InvalidOperationException("injected prepare failure"));
         Assert.Contains("injected prepare failure", workspace.Status); Assert.True(d.Pending);
     }
@@ -94,9 +94,9 @@ public sealed class ConfigurationWorkspaceTests
         WithCopy(root =>
         {
             var workspace = new ConfigurationWorkspace(Paths(root), true);
-            var audio = Doc(workspace, "audio"); string originalCue = audio.Draft["cues"]!["launch"]!.GetValue<string>();
-            audio.Draft["masterGain"] = .31;
-            var input = Doc(workspace, "input"); input.Draft["stickDeadzone"] = .23;
+            var audio = Doc(workspace, "audio"); string originalCue = audio.Draft.GetProperty("cues"u8).GetProperty("launch"u8).GetString()!;
+            audio.Set("masterGain", .31);
+            var input = Doc(workspace, "input"); input.Set("stickDeadzone", .23);
             Process(workspace, ConfigurationAction.Save);
             Assert.StartsWith("Saved", workspace.Status);
             Assert.All(workspace.Documents, d => Assert.False(d.Unsaved));
@@ -113,13 +113,13 @@ public sealed class ConfigurationWorkspaceTests
         WithCopy(root =>
         {
             var workspace = new ConfigurationWorkspace(Paths(root), true); var input = Doc(workspace, "input");
-            input.Draft["stickDeadzone"] = .23;
+            input.Set("stickDeadzone", .23);
             File.WriteAllText(input.Path, "{\"stickDeadzone\":0.24}");
             Process(workspace, ConfigurationAction.Save);
             Assert.Contains("changed externally", workspace.Status); Assert.True(input.Unsaved);
             Assert.Equal(.24f, InputConfiguration.Load(input.Path).Settings.StickDeadzone);
             Process(workspace, ConfigurationAction.Reload, _ => { });
-            Assert.False(input.Unsaved); Assert.False(input.Pending); Assert.Equal(.24, input.Draft["stickDeadzone"]!.GetValue<double>());
+            Assert.False(input.Unsaved); Assert.False(input.Pending); Assert.Equal(.24, input.Draft.GetProperty("stickDeadzone"u8).GetDouble());
         });
     }
 
@@ -130,8 +130,8 @@ public sealed class ConfigurationWorkspaceTests
         {
             var workspace = new ConfigurationWorkspace(Paths(root), true);
             var original = workspace.Documents.ToDictionary(d => d.Path, d => File.ReadAllText(d.Path));
-            Doc(workspace, "input").Draft["stickDeadzone"] = .23;
-            Doc(workspace, "physics").Draft["updateHz"] = 1;
+            Doc(workspace, "input").Set("stickDeadzone", .23);
+            Doc(workspace, "physics").Set("updateHz", 1);
             Process(workspace, ConfigurationAction.Save);
             Assert.StartsWith("Rejected:", workspace.Status);
             Assert.All(original, p => Assert.Equal(p.Value, File.ReadAllText(p.Key)));
@@ -145,8 +145,8 @@ public sealed class ConfigurationWorkspaceTests
         {
             var workspace = new ConfigurationWorkspace(Paths(root), true);
             var original = workspace.Documents.ToDictionary(d => d.Path, d => File.ReadAllText(d.Path));
-            Doc(workspace, "input").Draft["stickDeadzone"] = .23;
-            Doc(workspace, "trails").Draft["opacity"] = .31;
+            Doc(workspace, "input").Set("stickDeadzone", .23);
+            Doc(workspace, "trails").Set("opacity", .31);
             using (File.Open(Doc(workspace, "trails").Path, FileMode.Open, FileAccess.Read, FileShare.Read))
                 Process(workspace, ConfigurationAction.Save);
             Assert.StartsWith("Rejected:", workspace.Status);
@@ -163,7 +163,7 @@ public sealed class ConfigurationWorkspaceTests
         {
             var workspace = new ConfigurationWorkspace(Paths(root), true);
             foreach (var d in workspace.Documents) File.Delete(d.Path);
-            Doc(workspace, "shmup").Draft["ball"]!["speed"] = 600.5;
+            Doc(workspace, "shmup").Set("ball.speed", 600.5);
             bool applied = false; Process(workspace, ConfigurationAction.Apply, _ => applied = true);
             Assert.True(applied); Assert.Empty(Directory.GetFiles(Path.Combine(root, "Config")));
         });
@@ -175,10 +175,10 @@ public sealed class ConfigurationWorkspaceTests
         WithCopy(root =>
         {
             var workspace = new ConfigurationWorkspace(Paths(root), true);
-            var input = Doc(workspace, "input"); input.Draft["stickDeadzone"] = .23;
+            var input = Doc(workspace, "input"); input.Set("stickDeadzone", .23);
             File.WriteAllText(input.Path, "{}");
             Process(workspace, ConfigurationAction.Reload);
-            Assert.StartsWith("Rejected:", workspace.Status); Assert.Equal(.23, input.Draft["stickDeadzone"]!.GetValue<double>());
+            Assert.StartsWith("Rejected:", workspace.Status); Assert.Equal(.23, input.Draft.GetProperty("stickDeadzone"u8).GetDouble());
         });
     }
 

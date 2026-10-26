@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Brutal.ImGuiApi;
 using Brutal.Numerics;
@@ -98,27 +99,30 @@ public sealed class ConfigurationControls
                 if (!Group(document.Section, document.Section.ToUpperInvariant() + " [" + state + "]")) continue;
                 if (Group(document.Section + ".$source", "Selected source path")) Ui.TextWrapped(Bytes(document.Path));
                 Ui.TextWrapped("Per-field effects below; saved/source state is independent of runtime."u8);
-                DrawObject(document.Draft, document.Section);
+                DrawObject(document, document.Draft, document.Section);
             }
         }
         finally { Ui.End(); }
     }
-    private void DrawObject(JsonObject obj, string path)
+    private void Set(ConfigurationWorkspace.Document document, string path, JsonNode? value) =>
+        document.Set(path[(document.Section.Length + 1)..], value);
+    private void DrawObject(ConfigurationWorkspace.Document document, JsonElement obj, string path)
     {
-        foreach (var key in obj.Select(p => p.Key).ToArray())
+        foreach (var property in obj.EnumerateObject())
         {
-            string id = path + "." + key;
-            var node = obj[key];
-            if (node is JsonObject child)
+            string key = property.Name, id = path + "." + key;
+            var node = property.Value;
+            if (node.ValueKind == JsonValueKind.Object)
             {
-                if (Group(id, Label(key))) { Ui.Indent(); try { DrawObject(child, id); } finally { Ui.Unindent(); } }
+                if (Group(id, Label(key))) { Ui.Indent(); try { DrawObject(document, node, id); } finally { Ui.Unindent(); } }
             }
-            else if (node is JsonArray array)
+            else if (node.ValueKind == JsonValueKind.Array)
             {
-                if (Group(id, Label(key))) DrawArray(array, id, key);
+                if (Group(id, Label(key))) DrawArray(document, node, id, key);
             }
-            else if (path == "colors.roles" && node is JsonValue role && role.TryGetValue<string>(out var selected))
+            else if (path == "colors.roles" && node.ValueKind == JsonValueKind.String)
             {
+                string selected = node.GetString()!;
                 Ui.TextWrapped(Bytes(Label(key) + " [LIVE]"));
                 Ui.SetItemTooltip(Bytes(ConfigurationImpact.For(id).Reason));
                 Ui.SetNextItemWidth(-1);
@@ -126,17 +130,18 @@ public sealed class ConfigurationControls
                 {
                     try
                     {
-                        var palette = Workspace.Documents.First(d => d.Section == "colors").Draft["palette"]!.AsObject();
-                        foreach (var name in palette.Select(p => p.Key))
-                            if (Ui.Selectable(Bytes(name), name == selected, ImGuiSelectableFlags.None, default)) obj[key] = name;
+                        var palette = document.Draft.GetProperty("palette"u8);
+                        foreach (var entry in palette.EnumerateObject())
+                            if (Ui.Selectable(Bytes(entry.Name), entry.Name == selected, ImGuiSelectableFlags.None, default))
+                                Set(document, id, JsonValue.Create(entry.Name));
                     }
                     finally { Ui.EndCombo(); }
                 }
             }
-            else DrawValue(node, id, Label(key), value => obj[key] = value);
+            else DrawValue(node, id, Label(key), value => Set(document, id, value));
         }
     }
-    private void DrawArray(JsonArray array, string path, string key)
+    private void DrawArray(ConfigurationWorkspace.Document document, JsonElement array, string path, string key)
     {
         var impact = ConfigurationImpact.For(path);
         Ui.TextWrapped(Bytes(impact.Effect.ToString().ToUpperInvariant() + ": " + impact.Reason));
@@ -145,48 +150,51 @@ public sealed class ConfigurationControls
             string[] options = key == "shapes" ? ["square", "2x1", "2x2", "l", "t"] : ["0", "1", "2", "3"];
             foreach (var option in options)
             {
-                bool selected = array.Any(n => n!.ToString() == option);
+                bool selected = array.EnumerateArray().Any(n => n.ToString() == option);
                 if (Ui.Checkbox(Bytes(option + "##" + path + "." + option), ref selected))
                 {
-                    var values = array.Select(n => n!.ToString()).ToHashSet(StringComparer.Ordinal);
+                    // Re-read after an earlier checkbox edit in this draw; the traversal view is immutable.
+                    var current = document.Draft.GetProperty("brick"u8).GetProperty(key);
+                    var values = current.EnumerateArray().Select(n => n.ToString()).ToHashSet(StringComparer.Ordinal);
                     if (selected) values.Add(option); else values.Remove(option);
-                    array.Clear();
+                    var replacement = new JsonArray();
                     foreach (var value in options.Where(values.Contains))
-                        array.Add(key == "shapes" ? JsonValue.Create(value) : JsonValue.Create(int.Parse(value, CultureInfo.InvariantCulture)));
+                        replacement.Add(key == "shapes" ? JsonValue.Create(value) : JsonValue.Create(int.Parse(value, CultureInfo.InvariantCulture)));
+                    Set(document, path, replacement);
                 }
             }
             return;
         }
-        for (int i = 0; i < array.Count; i++)
+        for (int i = 0; i < array.GetArrayLength(); i++)
         {
-            int index = i; string id = path + "." + index;
-            if (array[i] is JsonObject child)
+            string id = path + "." + i;
+            if (array[i].ValueKind == JsonValueKind.Object)
             {
-                if (Group(id, $"Item {i + 1}")) DrawObject(child, id);
+                if (Group(id, $"Item {i + 1}")) DrawObject(document, array[i], id);
             }
-            else DrawValue(array[i], id, $"Item {i + 1}", value => array[index] = value);
+            else DrawValue(array[i], id, $"Item {i + 1}", value => Set(document, id, value));
         }
         Ui.TextWrapped("Array entries are edited in place; list length is preserved."u8);
     }
-    private void DrawValue(JsonNode? node, string id, string label, Action<JsonNode> set)
+    private void DrawValue(JsonElement value, string id, string label, Action<JsonNode> set)
     {
-        if (node is not JsonValue value) return;
+        if (value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) return;
         ScalarDrawCount++;
         var impact = ConfigurationImpact.For(id);
         Ui.TextWrapped(Bytes(label + " [" + impact.Effect.ToString().ToUpperInvariant() + "]"));
         Ui.SetItemTooltip(Bytes(impact.Reason));
         var widget = Bytes("##" + id);
         Ui.SetNextItemWidth(-1);
-        switch (value.GetValueKind())
+        switch (value.ValueKind)
         {
             case System.Text.Json.JsonValueKind.True:
             case System.Text.Json.JsonValueKind.False:
-                bool boolean = value.GetValue<bool>();
+                bool boolean = value.GetBoolean();
                 if (Ui.Checkbox(widget, ref boolean)) set(JsonValue.Create(boolean)!);
                 break;
             case System.Text.Json.JsonValueKind.Number:
                 // Never infer integral schema types from lexical JSON values (e.g. speed: 576).
-                double number = value.GetValue<double>();
+                double number = value.GetDouble();
                 if (Ui.InputDouble(widget, ref number, 0, 0, "%.8g"u8,
                     id is "window.width" or "window.height" ? ImGuiInputTextFlags.EnterReturnsTrue : ImGuiInputTextFlags.None))
                 {
@@ -197,7 +205,7 @@ public sealed class ConfigurationControls
                 if (widgetErrors.TryGetValue(id, out var error)) Ui.TextWrapped(Bytes(error));
                 return;
             case System.Text.Json.JsonValueKind.String:
-                string text = value.GetValue<string>();
+                string text = value.GetString()!;
                 if (id.StartsWith("colors.palette.", StringComparison.Ordinal) && text.Length == 7 && text[0] == '#' &&
                     int.TryParse(text.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgb))
                 {

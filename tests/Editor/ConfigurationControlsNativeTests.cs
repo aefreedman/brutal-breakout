@@ -33,6 +33,8 @@ public sealed class ConfigurationControlsNativeTests
             Assert.True(Frame(controls).ScrollMax > 0);
             Frame(controls, () => Ui.SetWindowSize(new float2(300, 360))); Frame(controls);
         });
+        var jsonWork = workspace.Documents.Select(d => (d.SerializationCount, d.ParseCount, d.Revision)).ToArray();
+        int pendingBuilds = workspace.PendingBuildCount;
         Context(width, height, scale, () =>
         {
             var recreated = Frame(controls); Frame(controls);
@@ -40,6 +42,8 @@ public sealed class ConfigurationControlsNativeTests
             Assert.InRange(Math.Abs(recreated.Position.X * scale - 90), 0, scale);
             Assert.True(Frame(controls).ScrollMax > 0); // managed group choices also survived context retirement
         });
+        Assert.Equal(jsonWork, workspace.Documents.Select(d => (d.SerializationCount, d.ParseCount, d.Revision)).ToArray());
+        Assert.Equal(pendingBuilds, workspace.PendingBuildCount);
         Assert.All(workspace.Documents, d => { Assert.False(d.Pending); Assert.False(d.Unsaved); });
     }
 
@@ -86,7 +90,7 @@ public sealed class ConfigurationControlsNativeTests
                     var io = Ui.GetIO(); io.AddMousePosEvent(48, y); Frame(controls);
                     io.AddMouseButtonEvent(0, true); Frame(controls);
                     io.AddMouseButtonEvent(0, false); Frame(controls);
-                    if (document.Draft["brick"]![key]!.AsArray().Count < count) return true;
+                    if (document.Draft.GetProperty("brick"u8).GetProperty(key).GetArrayLength() < count) return true;
                 }
                 return false;
             }
@@ -96,17 +100,17 @@ public sealed class ConfigurationControlsNativeTests
         });
     }
 
-    private static void OpenChildren(ConfigurationControls controls, System.Text.Json.Nodes.JsonNode node, string path)
+    private static void OpenChildren(ConfigurationControls controls, System.Text.Json.JsonElement node, string path)
     {
-        if (node is System.Text.Json.Nodes.JsonObject obj)
-            foreach (var (key, child) in obj)
+        if (node.ValueKind == System.Text.Json.JsonValueKind.Object)
+            foreach (var property in node.EnumerateObject())
             {
-                if (child is System.Text.Json.Nodes.JsonObject or System.Text.Json.Nodes.JsonArray)
-                { controls.SetGroupOpen(path + "." + key, true); OpenChildren(controls, child, path + "." + key); }
+                if (property.Value.ValueKind is System.Text.Json.JsonValueKind.Object or System.Text.Json.JsonValueKind.Array)
+                { controls.SetGroupOpen(path + "." + property.Name, true); OpenChildren(controls, property.Value, path + "." + property.Name); }
             }
-        else if (node is System.Text.Json.Nodes.JsonArray array)
-            for (int i = 0; i < array.Count; i++)
-                if (array[i] is { } child) { controls.SetGroupOpen(path + "." + i, true); OpenChildren(controls, child, path + "." + i); }
+        else if (node.ValueKind == System.Text.Json.JsonValueKind.Array)
+            for (int i = 0; i < node.GetArrayLength(); i++)
+            { controls.SetGroupOpen(path + "." + i, true); OpenChildren(controls, node[i], path + "." + i); }
     }
     private static (float2 Position, float2 Size, float ScrollMax) Frame(ConfigurationControls controls, Action? edit = null)
     {

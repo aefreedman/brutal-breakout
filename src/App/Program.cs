@@ -192,6 +192,16 @@ try
         var shmupTrailViewports = new HashSet<(int Width, int Height)>();
         bool shmupSawBalls = false, shmupSawBricks = false, shmupSawAim = false, shmupSawTrails = false;
 #if BREAKOUT_EDITOR
+configurationWorkspace.PreflightLive = candidate =>
+            {
+                if (modes is null) return;
+                modes.ValidateTuning(candidate.Get<LoadedPhysicsConfiguration>("physics")!.Settings,
+                    candidate.Get<LoadedGameplayConfiguration>("gameplay")!.Settings,
+                    candidate.Get<LoadedShmupConfiguration>("shmup")!.Settings,
+                    candidate.Get<LoadedInputConfiguration>("input")!.Settings,
+                    candidate.Get<LoadedExecutionConfiguration>("execution")!.Settings,
+                    candidate.Get<LoadedBallTrailConfiguration>("trails")!.Settings);
+            };
         ShmupSession? configurationSmokeOldRun = null;
         BrutalBreakout.Simulation.ShmupSnapshot? configurationSmokeSnapshot = null;
         bool configurationSmokeReset = false;
@@ -245,31 +255,19 @@ try
                 configurationSmokeOldRun = modes!.Shmup;
                 configurationSmokeSnapshot = modes.Shmup!.Simulation.Snapshot;
                 configurationSmokePaused = modes.Paused;
-                configurationWorkspace.Documents.Single(d => d.Section == "shmup").Draft["ball"]!["speed"] =
-                    shmupFrames == 16 ? 600.5 : -1;
+                configurationWorkspace.Documents.Single(d => d.Section == "shmup").Set("ball.speed",
+                    shmupFrames == 16 ? 600.5 : -1);
             }
             if (shmupSmokeTest && shmupFrames == 19) configurationWorkspace.Request(ConfigurationAction.Discard);
             if (shmupSmokeTest && shmupFrames == 20)
             {
                 configurationSmokeOldRun = modes!.Shmup;
-                var capacity = configurationWorkspace.Documents.Single(d => d.Section == "shmup").Draft["capacity"]!;
-                capacity["maxBalls"] = shmup!.Settings.Capacity.MaxBalls + 1;
+                configurationWorkspace.Documents.Single(d => d.Section == "shmup").Set("capacity.maxBalls", shmup!.Settings.Capacity.MaxBalls + 1);
                 configurationWorkspace.Request(ConfigurationAction.Apply);
             }
             configurationWorkspace.InactiveModeSection = modes?.Mode == GameplayMode.Shmup ? "gameplay" : modes?.Mode == GameplayMode.Breakout ? "shmup" : null;
-            configurationWorkspace.LiveContextRevision = modes?.Shmup is { } liveRun
-                ? $"{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(liveRun)}:{liveRun.Simulation.Snapshot.Width}"
-                : modes?.Breakout is { } classicRun ? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(classicRun).ToString() : null;
-            configurationWorkspace.PreflightLive = candidate =>
-            {
-                if (modes is null) return;
-                modes.ValidateTuning(candidate.Get<LoadedPhysicsConfiguration>("physics")!.Settings,
-                    candidate.Get<LoadedGameplayConfiguration>("gameplay")!.Settings,
-                    candidate.Get<LoadedShmupConfiguration>("shmup")!.Settings,
-                    candidate.Get<LoadedInputConfiguration>("input")!.Settings,
-                    candidate.Get<LoadedExecutionConfiguration>("execution")!.Settings,
-                    candidate.Get<LoadedBallTrailConfiguration>("trails")!.Settings);
-            };
+            configurationWorkspace.SetLiveContext((object?)modes?.Shmup ?? modes?.Breakout,
+                modes?.Shmup?.Simulation.Snapshot.Width ?? 0);
             configurationWorkspace.Process(candidate =>
             {
                 if (modes is null) throw new InvalidOperationException("No runtime host.");
