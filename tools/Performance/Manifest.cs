@@ -13,6 +13,7 @@ internal sealed record Policy
     public required double WarmSeconds { get; init; }
     public required double MeasureSeconds { get; init; }
     public required double CaseWallSeconds { get; init; }
+    public required double CleanupReserveSeconds { get; init; }
     public required double CampaignWallSeconds { get; init; }
     public required long PrivateBytes { get; init; }
     public required long HeadroomBytes { get; init; }
@@ -31,6 +32,7 @@ internal sealed record Policy
         if (!double.IsFinite(WarmSeconds) || WarmSeconds < 0 || WarmSeconds > 2 ||
             !double.IsFinite(MeasureSeconds) || MeasureSeconds <= 0 || MeasureSeconds > 20 ||
             !double.IsFinite(CaseWallSeconds) || CaseWallSeconds <= 0 || CaseWallSeconds > 30 ||
+            !double.IsFinite(CleanupReserveSeconds) || CleanupReserveSeconds is < 0 or > 2 || CleanupReserveSeconds >= CaseWallSeconds ||
             !double.IsFinite(CampaignWallSeconds) || CampaignWallSeconds <= 0 || CampaignWallSeconds > 1200 ||
             PrivateBytes <= 0 || PrivateBytes > 1L << 30 || HeadroomBytes < 0 || MaxTicks is < 1 or > 4800 ||
             BallSlots != 4096 || BrickSlots != 1024 || Bricks != 40 || Width != 1280 || Height != 720 ||

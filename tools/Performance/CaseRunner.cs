@@ -192,7 +192,8 @@ internal static class CaseRunner
         int SourceFrame(int sequence) => sequence < c.WarmTicks ? sequence : clockFrames?[sequence - c.WarmTicks] ?? sequence;
         bool CanContinue()
         {
-            if ((budgetElapsedSeconds?.Invoke() ?? wall.Elapsed.TotalSeconds) >= c.Policy.CaseWallSeconds) { result.Status = phase + "-truncation-wall"; return false; }
+            if ((budgetElapsedSeconds?.Invoke() ?? wall.Elapsed.TotalSeconds) >= c.Policy.CaseWallSeconds - c.Policy.CleanupReserveSeconds)
+            { result.Status = phase + "-truncation-work-budget"; return false; }
             if (!memoryOkay) { result.Status = phase + "-truncation-memory"; return false; }
             return true;
         }

@@ -32,6 +32,8 @@ public sealed class StudyContractTests
     {
         var manifest = Manifest;
         Assert.Equal(28, manifest.Cases.Count);
+        Assert.Equal(2, manifest.Policy.CleanupReserveSeconds);
+        Assert.Throws<InvalidDataException>(() => (manifest.Policy with { CleanupReserveSeconds = 3 }).Validate());
         Assert.Equal("native-0500", manifest.Cases[0].Id);
         Assert.Equal("catchup-8", manifest.Cases[^1].Id);
         foreach (var spec in manifest.Cases)
@@ -123,8 +125,8 @@ public sealed class StudyContractTests
         var c = Small() with { Smoke = false, WarmTicks = 2, MeasureTicks = 3 };
         int checks = 0;
         var run = CaseRunner.Run(c, (settings, _) => new StudyController(settings, SmallLayout(settings)),
-            () => new(0, 16ul * 1024 * 1024 * 1024, 10), () => ++checks == 1 ? 0 : 31);
-        Assert.Equal("warm-truncation-wall", run.Result.Status);
+            () => new(0, 16ul * 1024 * 1024 * 1024, 10), () => ++checks == 1 ? 0 : c.Policy.CaseWallSeconds - c.Policy.CleanupReserveSeconds);
+        Assert.Equal("warm-truncation-work-budget", run.Result.Status);
         Assert.Equal(1, run.Result.WarmCompleted); Assert.Equal(0, run.Result.MeasuredCompleted);
         Assert.False(run.Result.SteadyStatisticsAvailable); Assert.Null(run.Result.Step);
         Assert.Equal(1, run.Result.Work.Presented);

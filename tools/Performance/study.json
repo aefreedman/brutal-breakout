@@ -4,6 +4,7 @@
     "warmSeconds": 2,
     "measureSeconds": 20,
     "caseWallSeconds": 30,
+    "cleanupReserveSeconds": 2,
     "campaignWallSeconds": 1200,
     "privateBytes": 1073741824,
     "headroomBytes": 268435456,
