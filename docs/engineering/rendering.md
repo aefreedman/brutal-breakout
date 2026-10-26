@@ -14,13 +14,13 @@ The shared CrushKit renderer already batches solid shapes. `ShapeDrawList` appen
 
 The frozen Shmup scenes tested at 500/1,000/2,000/4,000 balls produced **one shape command and one indexed shape draw per frame**. This is not one draw per ball. Letterboxing/nested clips can produce more commands. HUD and inspector commands are separate from these shape counts.
 
-**Shape instancing is not implemented:** the vertex binding is per vertex, and `vkCmdDrawIndexed` uses instance count one. Balls are CPU-expanded tessellated discs; trail segments become CPU-expanded quads. Since preview.10, `DiskMeshAdapter` retains its last generated unit-disk resolution as well as native storage. Consecutive same-resolution calls reuse the exact generated/welded mesh; a resolution transition regenerates it. This is instance-owned one-entry reuse, not a global mesh cache.
+**The shipping/default path remains cached triangles:** its vertex binding is per vertex, and `vkCmdDrawIndexed` uses instance count one. Balls are CPU-expanded tessellated discs; trail segments become CPU-expanded quads. Since preview.10, `DiskMeshAdapter` retains its last generated unit-disk resolution as well as native storage. Consecutive same-resolution calls reuse the exact generated/welded mesh; a resolution transition regenerates it. This is instance-owned one-entry reuse, not a global mesh cache.
 
-Instancing would primarily target CPU expansion and vertex/index upload volume, not reduce an already single shape draw. An instance path would also need to retain curve precision, clipping, alpha order, framebuffer scaling and ownership contracts. Unit-mesh reuse and instance generation are distinct: the former is implemented and measured below; the latter remains experimental.
+The unreleased baked-mesh comparison below targets CPU expansion and vertex/index upload volume, not an already single shape draw. An instance path would also need to retain curve precision, clipping, alpha order, framebuffer scaling and ownership contracts. Unit-mesh reuse and instance generation are distinct: the former is implemented and measured below; the latter remains experimental.
 
 ## Submission and synchronization
 
-The current Vulkan path has:
+The default triangle Vulkan path has:
 
 - One shared submission fence, command buffer and shape vertex/index buffer set; presentation semaphores are indexed by acquired swapchain image.
 - Full vertex/index/command validation on every `Draw`, including normal Release. This is separate from optional Vulkan validation layers.
@@ -83,7 +83,21 @@ The prototype conservatively reconstructs reference disc vertices/triangles and 
 
 CPU contracts and hidden Vulkan validation passed with unchanged selected trail counts and no Vulkan errors. GPU image/readback equivalence, translucent edges/seams and overlay pixel overlap were not established. **Instancing remains unpromoted** because this implementation regressed CPU cost and lacks image-quality acceptance. Its complete source and negative-result evidence are retained outside maintained documentation for future investigation.
 
+### Baked-mesh source alternative: not enabled by default
+
+An unreleased explicit API/internal comparison path now retains immutable local ball and Shmup brick meshes with compact dynamic instances. Brick variants come from the same immutable pitch-aware geometry, including quarter-turns and open L/T cutouts. Movement/health/tint changes reuse geometry; relevant geometry revisions or physical-radius LOD changes select/rebuild only affected keys. CPU ownership, selection/revision storage and GPU residency are bounded. The narrow positive-uniform-scale/translation fast path uses cached invariants plus per-instance precision checks; unsupported/uncertain cases retain ordered triangle fallback. Dynamic trails use the existing traversal/fading/budgets. Rounded Breakout bricks remain dynamic. There is **no production selector or new JSON/default policy** yet; ordinary presentation still chooses triangles.
+
+Independent precision/lifetime review and matching-target hidden GPU readback preceded performance. Eight 1280x720 sRGB/4x-MSAA A/B/A scenes, including translucent overlaps, cutouts, clips, fallback placement and HUD/ImGui, were byte-identical. Resize, instance growth/shrink/reuse, VSync recreation and disposal passed with zero Vulkan errors; known upstream layer-name warnings were recorded separately. This is evidence for those fixtures/device, not universal visible-window, 4K or driver-fault acceptance.
+
+A single matched CPU pass compared cached triangles, baked balls/bricks with dynamic trails, and the recovered conservative balls/trails prototype on the same owned inputs. Direct preparation-plus-validation medians at 2k trails were 4.3083/3.1350/5.3246 ms; at 4k, 6.1099/3.7044/7.9964 ms. The conservative control is contemporaneous here; the older negative-control numbers above remain historical. All 27 CPU cells retained 400 measurements after 200 warm calls. The 500/no-trails candidate showed little combined gain and worse packing p95; finite warm-up/tiering is an unprofiled uncertainty, not grounds for a selective rerun.
+
+A separate 18-cell, same-binary hidden held-image comparison used one setup, 60 warm and 180 measured submissions per cell, with capture off and ordinary CPU guards on. Directly measured preparation-to-submit medians at 2k/4k trails improved 4.8498→3.4205 and 6.6804→3.9708 ms. Median GPU command spans improved 0.7624→0.3834 and 1.0532→0.4024 ms; payload bytes fell 3,441,252→2,004,132 and 4,953,252→2,084,132. Measured mesh rebuild/upload and buffer replacement counts were zero. Each cell actually acquired once, submitted/read 241 query pairs and never presented or signaled an unused presentation semaphore; final queries drained after their protecting fence.
+
+These gains are **not uniform adoption evidence**: 1k/2k no-trails integrated medians regressed (0.9933→1.2578 and 1.8373→2.1334 ms), and several individual phase p95s regressed, including recording and prior-submission fence waits. Primary combined CPU/GPU-span p95 endpoints stayed within the proposed 5% bound, but a blanket all-phase gate is not met. All original maxima and the repeated anchor were retained; no whole-game FPS or sums of independent medians are inferred. Keep the alternate unpromoted pending integration/default policy and independent final review. Measurement-only query/held-image hooks are separate internal diagnostics, not a game presentation mode.
+
 ## GPU and presentation evidence
+
+The following historical renderer-only/pacing study is separate from the newer baked-mesh comparison above; its capture and extent limitations are not claims that the newer matching-target images were unavailable.
 
 GPU timing requires actual device timestamps, not subtracting CPU geometry from `Draw` or calling presentation waits shader work. Renderer-only experiments consume the frozen frames without physics stepping or CPU tessellation. A hidden window can validate commands and measure that environment's GPU interval; it does not establish visible desktop frame rate, compositor latency, image quality or input-to-display latency.
 
