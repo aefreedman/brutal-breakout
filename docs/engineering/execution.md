@@ -47,6 +47,14 @@ All new samples matched the saved body/shape/awake/interval counts and aggregate
 
 The shipped worker default remains 2. The earlier one-worker override was a reversible preview.7 diagnostic, not a permanent workaround required by preview.8. Changing execution settings resets the owning world and therefore changes population/progression unless the workload is recreated. The current bridge uses its coordinator and scheduler at either worker budget; these comparisons do not measure a scheduling-free native-default or inline path.
 
+## Study-only dedicated-owner protocol
+
+The opt-in [CPU study](performance.md#opt-in-cpu-physics-study-tool) compares direct stepping, a dedicated owner with immediate observation (dispatch-overhead control), and a synthetic one-tick overlap pipeline. Its app-local BCL thread/monitor protocol is not a shared executor or replacement for Classic `StepAsync`. Construction, tuning if used, stepping, diagnostics and disposal stay on the constructing owner thread. There is **one total accepted unit**, running or pending observation—not one running plus one queued. Further admission is rejected until observation. Initialization/step faults wake waiting consumers; disposal drains accepted work and joins the owner rather than disposing native state from another thread.
+
+Every completion carries command sequence/enqueue/start/publication timestamps, that tick's owned immutable snapshot, copied event flags and owner-copied diagnostics. Consumer history captures each completion in order. Overlap presents the previous completed snapshot while one next command runs, explicitly recording input-sequence age, wall snapshot age and backpressure. Initial fill and final drain are included, with one capture/presentation for every completed whole command, including command zero and the final command. A borrowed `ShapeFrame` remains a synchronous consumer-local draw-list view; it never crosses threads or survives reuse as a publication.
+
+This is **not** proof of a real 120 Hz simulation/60 Hz host loop or lower input latency. The separate catch-up experiment uses `FixedStepClock` with an explicit 60 Hz frame/input tape and known stalls, records dropped offered wall time separately from command completion, and does not count less simulated time as faster execution. Production execution policy and existing Classic source are unchanged.
+
 ## Sources
 
 - [`ExecutionSettings`](../../src/Runtime/Simulation/ExecutionSettings.cs) and [`ExecutionConfiguration`](../../src/Runtime/Game/Configuration/ExecutionConfiguration.cs)

@@ -37,6 +37,16 @@ Tick rate, application intervals and solver substeps jointly determine Shmup's q
 
 Breakout's interval/substep behavior supports compound seam deduplication, genuine reentry, piercing sweeps, moving-brick contacts, chronological wall expiry, same-interval brick precedence, earlier hits surviving later expiry and fixed-tick events/trails. Box2D owns collision response. Throughput measurements alone do not establish that these gameplay behaviors are unchanged.
 
+## Study quality and GPU feasibility
+
+The [CPU study tool](performance.md#opt-in-cpu-physics-study-tool) varies tick/solver/contact/worker budgets without changing production defaults or response code. Its higher-speed interval-pressure case exercises the existing adaptive interval formula. Interval and solver work are reported per completed simulated duration. Changed trajectories under different quality budgets are not automatically failures; throughput is not evidence of quality equivalence. Required CCD, compound seam/reentry, chronological expiry/brick precedence, fixed-tick event/trail and immutable-publication contracts must pass separately before interpreting any configuration as a safe alternative. Small deterministic native fixtures and scheduler gates are correctness tests, not a 4,000-ball benchmark or exact timing/byte gates.
+
+GPU feasibility is conceptual, **not measured**. [Box2D's 3.0 release description](https://box2d.org/posts/2024/08/releasing-box2d-3.0/) describes CPU multithreading, graph coloring and SIMD/AVX2. The current CPU Box2D integration has no selected GPU backend. Independent projectile work could suit a GPU-resident implementation, but that alone does not preserve Breakout's collision/expiry chronology, compound queries or CPU publication latency.
+
+[PhysX 5.5.1 GPU simulation](https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/GPURigidBodies.html) is a different CUDA-based SDK with supported-hardware/platform and fixed-buffer constraints. Its documentation distinguishes GPU broad phase/contact/body/solver work from CPU facilities including CCD and triggers. [Direct GPU API](https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/DirectGPUAPI.html) can remove automatic exposed-state CPU copies; CPU poses may then be stale, and CPU contact reporting, pose-dependent queries and sweep CCD have limitations. Readback, synchronization, aim queries and snapshot ownership are design costs, not free compatibility. A device model name (including RTX 5070 Ti) is not SDK compatibility proof.
+
+Selecting another SDK or custom Vulkan compute would require an explicit backend/CCD/compound/contact chronology/query/readback/latency/portability decision and applicable quality tests. The study adds no GPU solver, shader, backend, SDK dependency, GPU test or throughput claim.
+
 ## Sources
 
 - [`PhysicsSettings`](../../src/Runtime/Simulation/PhysicsSettings.cs), [`FixedStepClock`](../../src/Runtime/Simulation/FixedStepClock.cs)

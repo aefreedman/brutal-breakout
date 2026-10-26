@@ -22,5 +22,7 @@
   </Folder>
   <Folder Name="/Tools/">
     <Project Path="tools/Showcase/BrutalBreakout.Showcase.csproj" />
+    <Project Path="tools/Performance/BrutalBreakout.Performance.csproj" />
+    <Project Path="tests/Performance/BrutalBreakout.Performance.Tests.csproj" />
   </Folder>
 </Solution>

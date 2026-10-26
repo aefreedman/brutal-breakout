@@ -12,5 +12,6 @@
     <ProjectReference Include="$(CrushKitRoot)/src/CrushKit.Brutal.Ecs/CrushKit.Brutal.Ecs.csproj" Condition="'$(UseCrushKitProjects)' == 'true'" />
     <ProjectReference Include="$(CrushKitRoot)/src/CrushKit.Brutal.Physics/CrushKit.Brutal.Physics.csproj" Condition="'$(UseCrushKitProjects)' == 'true'" />
     <InternalsVisibleTo Include="Simulation.Tests" />
+    <InternalsVisibleTo Include="BrutalBreakout.Performance" />
   </ItemGroup>
 </Project>

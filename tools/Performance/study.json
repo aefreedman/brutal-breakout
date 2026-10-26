@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "policy": {
+    "warmSeconds": 2,
+    "measureSeconds": 20,
+    "caseWallSeconds": 30,
+    "campaignWallSeconds": 1200,
+    "privateBytes": 1073741824,
+    "headroomBytes": 268435456,
+    "maxTicks": 4800,
+    "seed": 173,
+    "ballSlots": 4096,
+    "brickSlots": 1024,
+    "bricks": 40,
+    "width": 1280,
+    "height": 720,
+    "health": 1000000000,
+    "wallHits": 1000000000,
+    "naturalFireHz": 60
+  },
+  "cases": [
+    {
+      "id": "native-0500",
+      "scope": "native",
+      "target": 500
+    },
+    {
+      "id": "native-1000",
+      "scope": "native",
+      "target": 1000
+    },
+    {
+      "id": "native-2000",
+      "scope": "native",
+      "target": 2000
+    },
+    {
+      "id": "native-4000",
+      "scope": "native",
+      "target": 4000
+    },
+    {
+      "id": "whole-0500",
+      "scope": "whole",
+      "target": 500
+    },
+    {
+      "id": "whole-1000",
+      "scope": "whole",
+      "target": 1000
+    },
+    {
+      "id": "whole-2000",
+      "scope": "whole",
+      "target": 2000
+    },
+    {
+      "id": "whole-4000",
+      "scope": "whole",
+      "target": 4000
+    },
+    {
+      "id": "piercing-2000",
+      "bounce": false
+    },
+    {
+      "id": "spawn-reuse",
+      "natural": true,
+      "target": 4000
+    },
+    {
+      "id": "worker-1",
+      "workers": 1
+    },
+    {
+      "id": "worker-4",
+      "workers": 4
+    },
+    {
+      "id": "worker-8",
+      "workers": 8
+    },
+    {
+      "id": "hz-60",
+      "hz": 60
+    },
+    {
+      "id": "hz-240",
+      "hz": 240
+    },
+    {
+      "id": "substeps-1",
+      "substeps": 1
+    },
+    {
+      "id": "substeps-2",
+      "substeps": 2
+    },
+    {
+      "id": "contact-soft",
+      "contactHertz": 60,
+      "contactDamping": 0.7
+    },
+    {
+      "id": "interval-pressure",
+      "speedMultiplier": 4
+    },
+    {
+      "id": "trails-absent",
+      "trails": "absent"
+    },
+    {
+      "id": "trails-draw-disabled",
+      "trails": "draw-disabled"
+    },
+    {
+      "id": "owner-immediate",
+      "execution": "immediate"
+    },
+    {
+      "id": "owner-overlap",
+      "execution": "overlap"
+    },
+    {
+      "id": "recreated-0500",
+      "target": 500,
+      "recreate": true
+    },
+    {
+      "id": "whole-2000-repeat-end"
+    },
+    {
+      "id": "catchup-1",
+      "catchup": 1
+    },
+    {
+      "id": "catchup-4",
+      "catchup": 4
+    },
+    {
+      "id": "catchup-8",
+      "catchup": 8
+    }
+  ]
+}

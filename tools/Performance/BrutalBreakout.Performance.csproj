@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Runtime/Game/BrutalBreakout.Runtime.csproj" />
+    <InternalsVisibleTo Include="BrutalBreakout.Performance.Tests" />
+    <None Include="study.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
