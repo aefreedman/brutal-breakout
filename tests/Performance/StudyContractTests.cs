@@ -100,6 +100,70 @@ public sealed class StudyContractTests
         Assert.Throws<InvalidOperationException>(() => work.Validate(true)); work.Present(); work.Validate(true);
         Assert.Throws<InvalidOperationException>(() => work.Complete(0));
     }
+    [Fact]
+    public void ActualCommandsAndRawFramesUseOne60HzTapeAcrossRatesAndWarmup()
+    {
+        var manifest = Manifest;
+        var runs = new List<(int Hz, CaseRun Run, List<StudyCommand> Commands)>();
+        foreach (int hz in new[] { 60, 120, 240 })
+        {
+            var spec = manifest.Cases.Single(c => c.Id == "native-2000") with { Hz = hz };
+            var c = ResolvedCase.Load(spec, manifest.Policy, Config);
+            var recorder = new CommandRecorder();
+            // Protocol-only controller: full tape coverage without native stepping or timing gates.
+            var run = CaseRunner.Run(c, (_, _) => recorder,
+                () => new(0, 16ul * 1024 * 1024 * 1024, 10), () => 0);
+            Assert.Equal("completed", run.Result.Status);
+            Assert.Equal(2 * hz, run.Result.WarmCompleted);
+            Assert.Equal(20 * hz, run.Result.MeasuredCompleted);
+            Assert.Equal(20, run.Result.CompletedSimulationSeconds);
+            Assert.Equal(22 * hz, recorder.Commands.Count);
+            for (int sequence = 0; sequence < recorder.Commands.Count; sequence++)
+            {
+                int frame = sequence * 60 / hz;
+                Assert.Equal(sequence, recorder.Commands[sequence].Sequence);
+                Assert.Equal(sequence, run.Raw[sequence].Sequence);
+                Assert.Equal(frame, run.Raw[sequence].SourceInputFrame);
+                Assert.Equal(sequence < 2 * hz, run.Raw[sequence].Warm);
+                Assert.Equal(new ShmupCommand(default, new(Math.Sin(frame / 60.0 * .2), -Math.Cos(frame / 60.0 * .2))),
+                    recorder.Commands[sequence].Input);
+            }
+            Assert.Equal(120, run.Raw[2 * hz].SourceInputFrame); // Warm/measure boundary has no tape reset.
+            Assert.Equal(1319, run.Raw[^1].SourceInputFrame); // Final interval of 2 warm + 20 measured seconds.
+            runs.Add((hz, run, recorder.Commands));
+        }
+        // Every shared 60Hz instant, including t=1, t=2 and the final measured second,
+        // has the same actual submitted aim, not merely the same helper result.
+        for (int frame = 0; frame < 22 * 60; frame++)
+            foreach (var run in runs)
+                Assert.Equal(runs[0].Commands[frame].Input, run.Commands[frame * run.Hz / 60].Input);
+    }
+    [Fact]
+    public void ScriptedMeasuredFramesRemainClockTapeIdentitiesWhileWarmupUsesSimulatedTime()
+    {
+        var manifest = Manifest;
+        var c = ResolvedCase.Load(manifest.Cases.Single(s => s.Id == "catchup-4"), manifest.Policy, Config);
+        var tape = ClockTape.Build(c.Physics, 1200, 20);
+        Assert.Equal(60, CaseRunner.InputAt(c, 120, tape.InputFrames).SourceFrame);
+        for (int i = 0; i < tape.InputFrames.Length; i++)
+        {
+            var input = CaseRunner.InputAt(c, c.WarmTicks + i, tape.InputFrames);
+            int frame = tape.InputFrames[i];
+            Assert.Equal(frame, input.SourceFrame);
+            Assert.Equal(new ShmupCommand(default, new(Math.Sin(frame / 60.0 * .2), -Math.Cos(frame / 60.0 * .2))), input.Command);
+        }
+        Assert.Equal(0, CaseRunner.InputAt(c, c.WarmTicks, tape.InputFrames).SourceFrame);
+    }
+    private sealed class CommandRecorder : IStudyController
+    {
+        public List<StudyCommand> Commands { get; } = new();
+        public Publication Execute(StudyCommand command)
+        {
+            Commands.Add(command);
+            return new(null, ShmupEvents.None, default(TickFacts) with { TickAdvanced = true });
+        }
+        public void Dispose() { }
+    }
     [Theory]
     [InlineData("direct")]
     [InlineData("immediate")]

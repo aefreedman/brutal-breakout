@@ -63,6 +63,16 @@ internal static class CaseRunner
         synthetic = "high HP/wall limit, noise threshold1, bounded validated refill; natural case starts near cap then firing/lives determine population",
         limits = "refill at most4000 ball probes and40 brick probes/tick; current geometry/avatar/circle checks; failed placements remain population deficits"
     };
+    internal static (int SourceFrame, ShmupCommand Command) InputAt(ResolvedCase c, int sequence, int[]? clockFrames)
+    {
+        // Ordinary input is sampled from one 60Hz tape at command-start simulated time,
+        // including warmup. Sequence remains the independent command-order identity.
+        int frame = sequence >= c.WarmTicks && clockFrames is not null
+            ? clockFrames[sequence - c.WarmTicks]
+            : checked((int)Math.Floor(sequence * 60.0 / c.Physics.UpdateHz));
+        double angle = frame / 60.0 * .2;
+        return (frame, new(default, new(Math.Sin(angle), -Math.Cos(angle)), c.Spec.Natural));
+    }
     public static CaseRun Run(ResolvedCase c, Func<ResolvedCase, Layout, IStudyController>? factory = null,
         Func<MemoryPressure>? memoryProvider = null, Func<double>? budgetElapsedSeconds = null)
     {
@@ -121,17 +131,17 @@ internal static class CaseRunner
                     result.WarmElapsedMs = StudyController.Milliseconds(measureStart - warmStart);
                 }
                 if (!CanContinue()) break;
-                var input = Command(sequence);
+                var input = InputAt(c, sequence, clockFrames);
                 Completion completed;
                 if (owner is null)
                 {
                     long enqueued = Stopwatch.GetTimestamp(); result.Work.Accept();
-                    long start = Stopwatch.GetTimestamp(); var publication = direct!.Execute(new(sequence, input, enqueued));
+                    long start = Stopwatch.GetTimestamp(); var publication = direct!.Execute(new(sequence, input.Command, enqueued));
                     completed = new(sequence, enqueued, start, Stopwatch.GetTimestamp(), publication);
                 }
                 else
                 {
-                    if (!owner.TrySubmit(sequence, input)) { result.Work.Backpressure++; throw new InvalidOperationException("Unexpected outstanding work at admission."); }
+                    if (!owner.TrySubmit(sequence, input.Command)) { result.Work.Backpressure++; throw new InvalidOperationException("Unexpected outstanding work at admission."); }
                     result.Work.Accept();
                     // CPU presentation of last immutable state overlaps ONLY this one accepted unit.
                     if (last is not null) { Display(last, sequence); last = null; }
@@ -146,7 +156,7 @@ internal static class CaseRunner
                 }
                 long captureEnd = Stopwatch.GetTimestamp();
                 bool warm = sequence < c.WarmTicks;
-                raw[n++] = new(sequence, SourceFrame(sequence), warm, completed.Enqueued, completed.Started, completed.Published, observed, 0,
+                raw[n++] = new(sequence, input.SourceFrame, warm, completed.Enqueued, completed.Started, completed.Published, observed, 0,
                     StudyController.Milliseconds(captureEnd - captureStart), 0, 0, 0, trails?.PointCount ?? 0,
                     completed.Publication.Events, completed.Publication.Facts,
                     GC.GetTotalAllocatedBytes(false), GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2), GC.GetTotalPauseDuration().TotalMilliseconds);
@@ -181,15 +191,6 @@ internal static class CaseRunner
         }
         return Finish();
 
-        ShmupCommand Command(int sequence)
-        {
-            // Fixed input tape is independent of measured execution speed. Same geometry/speed/commands
-            // across one-factor cases. Natural firing is the sole declared spawn/reuse exception.
-            int frame = SourceFrame(sequence);
-            double angle = frame / 60.0 * .2;
-            return new(default, new(Math.Sin(angle), -Math.Cos(angle)), c.Spec.Natural);
-        }
-        int SourceFrame(int sequence) => sequence < c.WarmTicks ? sequence : clockFrames?[sequence - c.WarmTicks] ?? sequence;
         bool CanContinue()
         {
             if ((budgetElapsedSeconds?.Invoke() ?? wall.Elapsed.TotalSeconds) >= c.Policy.CaseWallSeconds - c.Policy.CleanupReserveSeconds)
