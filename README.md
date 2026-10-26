@@ -150,7 +150,7 @@ The inspector has independent movable/resizable Gameplay and Diagnostics windows
 | --- | --- | --- |
 | Gameplay | `(16, 16)`, `360×420` | Running/Paused, Pause/Resume and Restart; selected-mode radios; Shmup widening |
 | Diagnostics | `(392, 16)`, `440×480` | Aligned state/run facts/frame-time readings, preview and expandable technical readings |
-| Configuration | `(392, 16)`, `560×500` | Staged settings, Apply & restart, Save changed, Discard and Reload |
+| Configuration | `(392, 16)`, `560×500` | Live tuning, explicit structural reset, Save changed, Discard and Reload |
 
 Gameplay and Diagnostics fit without overlapping at both 960×540 and 1280×720. Configuration opens over Diagnostics while tuning; move/resize it as needed. Preview starts open; Rendering, Text cache and Font start closed. Labels, values and help wrap rather than forming one large text block. Shmup reports its actual timing, geometry, HP/counts and pause state. Widening is disabled while paused or at maximum width; its stable range cannot narrow the current run.
 
@@ -162,14 +162,20 @@ CPU/native ImGui and hidden GPU checks verify layout mechanics and real geometry
 
 Open **F1 / Select / Share → Gameplay → Configuration...**. Expand file/section groups to edit numeric values, toggles and text. Brick shapes/quarter turns have checkboxes; palette colors have native color editors and semantic roles have palette selectors. Values originate from the selected JSON files, not a second set of UI defaults. Input arrays other than shape/rotation choices currently retain their entry counts.
 
-| Groups | Apply behavior |
+Valid live edits take effect automatically at the next owner update, outside ImGui drawing. A whole file is no longer treated as requiring a restart: each field shows its effect and any reset/relaunch reason.
+
+| Field effect | Behavior |
 | --- | --- |
-| Shmup, Breakout/gameplay, physics, execution, input, trails, colors, style, audio | **Apply & restart** validates the complete compatible runtime bundle, starts a fresh run and retains selected mode/manual pause. Temporary changes are not saved. |
-| Window, overlay, inspector | Editable and savable, but **application relaunch required**. Runtime Apply does not claim these drafts were applied. |
+| Live | Updates the running settings without replacing the session/world or resetting time, progression, entities, pause, input latches or unrelated trail history. Colors/style, input, audio and ordinary gameplay tuning do not need a new run. |
+| Future spawns/defaults | Stores new choices/defaults without rewriting existing lives; for example, brick health and shape choices apply to newly spawned bricks. |
+| Reset required | Tick frequency/catch-up capacity, execution workers, logical arena/brick topology, pool capacities, brick size/grid pitch and Shmup bounce/sensor mode. **Reset & apply pending** intentionally starts a fresh run and retains mode/manual pause. Inactive-mode geometry can become next-mode settings without resetting the current mode. |
+| Relaunch required | Renderer-owned overlay/inspector resource settings remain pending; the current package exposes startup-only configuration. |
 
-Pending Apply/relaunch and unsaved markers are independent. Invalid drafts report errors and leave the running settings unchanged. Numeric fields use game units, units/second, seconds or their named ratios; integer-only schema fields reject fractional values. Applying settings clears old run/input/trail debt; audio changes use the existing silent-output diagnostic if a device is unavailable. Unrelated settings do not reopen audio devices.
+Live coverage includes ball speed/radius/damage/rate/wall limits, avatar movement/radius/contact tuning, difficulty/noise, input deadzone, audio, all colors/style/trails, physical window dimensions, and physics substeps/contact stiffness/damping. Current brick health/shape/rotation and appearance remain per-life when spawn defaults change. Lowering avatar health clamps current maximum/HP; raising it never heals or resurrects.
 
-**Save changed** is explicit and does not apply settings. It validates all staged files, preserves relative asset-path spellings, checks for external edits and atomically replaces each changed file. Multi-file failures attempt rollback and report any partial save; this is not a filesystem-wide transaction. **Reload** discards drafts, validates disk files and resolves conflicts without changing the live run. **Discard** returns to the last loaded/saved source, also without changing the live run. No automatic settings or layout writes occur.
+Pending reset/relaunch and unsaved markers are independent. Live candidates merge onto the currently applied structural settings, so pending geometry/resource edits cannot leak into the running world or force an unrelated reset. Invalid intermediate edits retain previous valid settings and report errors. Numeric fields use game units, units/second, seconds or their named ratios; integer-only schema fields reject fractional values. Press **Enter** to commit physical window width/height; intermediate typed digits do not resize the window. Audio changes use the existing silent-output diagnostic if a device is unavailable; unrelated edits do not reopen audio devices.
+
+**Save changed** only persists the staged JSON; it does not reset the run or apply pending structural/relaunch fields. It validates all staged files, preserves relative asset-path spellings, checks for external edits and atomically replaces each changed file. Multi-file failures attempt rollback and report any partial save; this is not a filesystem-wide transaction. **Reload** discards drafts and validates disk files; **Discard** returns to the last loaded/saved source. Their valid live values take effect automatically, while structural/relaunch changes still wait for the appropriate explicit action. No automatic settings or layout writes occur.
 
 The selected absolute paths are shown in the panel. Direct application launches normally select executable-directory `Config/` copies; saving those copies is not durable across clean/redeployment. From the project directory, **`--project-configs`** selects source `Config/` files for implicit paths. The coordination workspace's **`play.cmd`** supplies this flag automatically. Explicit per-file `--*-config <path>` overrides still win and saves target exactly those files. Apply uses in-memory production parsing/cross-validation and does not need write access to the source directory.
 
