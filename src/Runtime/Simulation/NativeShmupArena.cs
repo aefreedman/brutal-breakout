@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Brutal.Box2DApi;
 using Brutal.Numerics;
 using CrushKit.Brutal.Physics;
@@ -25,6 +26,15 @@ internal sealed class NativeShmupArena : IDisposable
     private readonly bool[,] overlaps;
     private readonly bool[,] intervalBrickHits;
     private readonly int[] intervalWallHits;
+    // Matrices are O(1) lookup only. Each list has unique marked pairs and is bounded
+    // by MaxBalls * MaxBricks, retaining at most peak actual interaction capacity.
+    private readonly bool[,] tracked;
+    private readonly List<(int Ball, int Brick)> pairs = new(), overlapPairs = new(), intervalHits = new(), tickHits = new();
+    private readonly List<int> activeBalls = new(), activeBricks = new();
+    private readonly bool[] ballEnabled, brickEnabled, brickInteraction;
+    internal ReadOnlySpan<(int Ball, int Brick)> HitPairs => CollectionsMarshal.AsSpan(tickHits);
+    internal int ReconcileVisits { get; private set; }
+    internal int TrackedPairCount => pairs.Count;
     private bool disposed;
     private readonly int owner = Environment.CurrentManagedThreadId;
     internal int[,] BrickHits { get; }
@@ -42,6 +52,8 @@ internal sealed class NativeShmupArena : IDisposable
         balls = new B2Body[settings.Capacity.MaxBalls]; bricks = new B2Body[settings.Capacity.MaxBricks];
         brickFixtures = new B2Shape[bricks.Length, ShmupBrickGeometry.MaximumRectangles];
         contactFixtures = new byte[balls.Length, bricks.Length];
+        tracked = new bool[balls.Length, bricks.Length];
+        ballEnabled = new bool[balls.Length]; brickEnabled = new bool[bricks.Length]; brickInteraction = new bool[balls.Length];
         touching = new bool[balls.Length, bricks.Length]; overlaps = new bool[balls.Length, bricks.Length];
         wallTouching = new bool[balls.Length, 2]; BrickHits = new int[balls.Length, bricks.Length]; WallHits = new int[balls.Length];
         intervalBrickHits = new bool[balls.Length, bricks.Length]; intervalWallHits = new int[balls.Length];
@@ -136,7 +148,7 @@ internal sealed class NativeShmupArena : IDisposable
         }
         if (this.settings.Ball.Speed != settings.Ball.Speed)
             for (int i = 0; i < balls.Length; i++)
-                if (balls[i].IsEnabled() && !Expired[i])
+                if (ballEnabled[i] && !Expired[i])
                 {
                     var velocity = BallVelocity(i);
                     if (velocity.X != 0 || velocity.Y != 0)
@@ -149,6 +161,7 @@ internal sealed class NativeShmupArena : IDisposable
         Guard(); ClearBall(id);
         balls[id].SetTransform(Native(position), B2Rot.Identity);
         balls[id].Enable(); balls[id].SetLinearVelocity(Native(direction * settings.Ball.Speed));
+        ballEnabled[id] = true; activeBalls.Add(id);
     }
     internal void ActivateBrick(int id, double2 position, ShmupBrickShape shape = ShmupBrickShape.Square, int quarterTurns = 0)
     {
@@ -167,33 +180,61 @@ internal sealed class NativeShmupArena : IDisposable
             brickFixtures[id, slot].SetPolygon(in polygon);
         }
         bricks[id].SetTransform(Native(position), B2Rot.Identity); bricks[id].SetLinearVelocity(default); bricks[id].Enable();
+        brickEnabled[id] = true; activeBricks.Add(id);
     }
     internal void ClearBall(int id)
     {
         balls[id].Disable(); balls[id].SetLinearVelocity(default);
-        for (int j = 0; j < bricks.Length; j++)
-        {
-            touching[id, j] = overlaps[id, j] = intervalBrickHits[id, j] = false;
-            BrickHits[id, j] = 0; contactFixtures[id, j] = 0;
-        }
+        ballEnabled[id] = false; activeBalls.Remove(id);
+        ClearPairs(id, true);
         for (int j = 0; j < 2; j++) wallTouching[id, j] = false;
-        WallHits[id] = intervalWallHits[id] = WallStreak[id] = 0; Expired[id] = false;
+        WallHits[id] = intervalWallHits[id] = WallStreak[id] = 0; Expired[id] = brickInteraction[id] = false;
     }
     internal void ClearBrick(int id)
     {
         bricks[id].Disable(); bricks[id].SetLinearVelocity(default);
-        for (int i = 0; i < balls.Length; i++)
-        {
-            touching[i, id] = overlaps[i, id] = intervalBrickHits[i, id] = false;
-            BrickHits[i, id] = 0; contactFixtures[i, id] = 0;
-        }
+        brickEnabled[id] = false; activeBricks.Remove(id);
+        ClearPairs(id, false);
+    }
+    private void ClearPairs(int id, bool ball)
+    {
+        // Lifecycle edits happen outside native buffer traversal. Include hit-only swept pairs
+        // which may already have left the persistent touching union.
+        bool Match((int Ball, int Brick) p) => ball ? p.Ball == id : p.Brick == id;
+        foreach (var p in pairs)
+            if (Match(p))
+            {
+                tracked[p.Ball, p.Brick] = touching[p.Ball, p.Brick] = false;
+                contactFixtures[p.Ball, p.Brick] = 0;
+            }
+        foreach (var p in overlapPairs) if (Match(p)) overlaps[p.Ball, p.Brick] = false;
+        foreach (var p in intervalHits) if (Match(p)) intervalBrickHits[p.Ball, p.Brick] = false;
+        foreach (var p in tickHits) if (Match(p)) BrickHits[p.Ball, p.Brick] = 0;
+        pairs.RemoveAll(p => Match(p)); overlapPairs.RemoveAll(p => Match(p));
+        intervalHits.RemoveAll(p => Match(p)); tickHits.RemoveAll(p => Match(p));
+    }
+    private void Track(int ball, int brick)
+    {
+        if (tracked[ball, brick]) return;
+        tracked[ball, brick] = true; pairs.Add((ball, brick));
+    }
+    private void Hit(int ball, int brick)
+    {
+        Track(ball, brick);
+        if (intervalBrickHits[ball, brick]) return;
+        intervalBrickHits[ball, brick] = true; intervalHits.Add((ball, brick));
+    }
+    private void ClearOverlaps()
+    {
+        foreach (var p in overlapPairs) overlaps[p.Ball, p.Brick] = false;
+        overlapPairs.Clear();
     }
     internal void Reset()
     {
         Guard();
         for (int i = 0; i < balls.Length; i++) ClearBall(i);
         for (int i = 0; i < bricks.Length; i++) ClearBrick(i);
-        AvatarContact = false; LastIntervalCount = 0;
+        AvatarContact = false; LastIntervalCount = ReconcileVisits = 0;
     }
     private void Contact(B2Shape a, B2Shape b, bool end)
     {
@@ -202,20 +243,23 @@ internal sealed class NativeShmupArena : IDisposable
             if (!ballIds.TryGetValue(b, out ball)) return;
             (a, b) = (b, a);
         }
-        if (!balls[ball].IsEnabled()) return;
+        if (!ballEnabled[ball]) return;
         if (wallIds.TryGetValue(b, out int wall))
         {
             if (end) wallTouching[ball, wall] = false;
             else if (!wallTouching[ball, wall]) { WallHits[ball]++; intervalWallHits[ball]++; wallTouching[ball, wall] = true; }
         }
-        else if (settings.Ball.BounceOnBricks && brickIds.TryGetValue(b, out int brick) && bricks[brick].IsEnabled())
+        else if (settings.Ball.BounceOnBricks && brickIds.TryGetValue(b, out int brick) && brickEnabled[brick])
         {
+            Track(ball, brick);
             byte bit = (byte)(1 << fixtureSlots[b]);
+            // Do not clear logical touching here: another fixture can begin in the same
+            // native buffer batch. Only the final post-query union can end the interaction.
             if (end) contactFixtures[ball, brick] &= (byte)~bit;
             else
             {
                 contactFixtures[ball, brick] |= bit;
-                if (!touching[ball, brick]) intervalBrickHits[ball, brick] = true;
+                if (!touching[ball, brick]) Hit(ball, brick);
                 touching[ball, brick] = true;
             }
         }
@@ -234,10 +278,11 @@ internal sealed class NativeShmupArena : IDisposable
         var proxy = Circle(BallPosition(ball), settings.Ball.Radius);
         B2OverlapResultFcn callback = (shape, context) =>
         {
-            if (brickIds.TryGetValue(shape, out int brick) && bricks[brick].IsEnabled())
+            if (brickIds.TryGetValue(shape, out int brick) && brickEnabled[brick])
             {
-                overlaps[ball, brick] = true;
-                if (recordHits && !touching[ball, brick]) intervalBrickHits[ball, brick] = true;
+                Track(ball, brick);
+                if (!overlaps[ball, brick]) { overlaps[ball, brick] = true; overlapPairs.Add((ball, brick)); }
+                if (recordHits && !touching[ball, brick]) Hit(ball, brick);
             }
             return true;
         };
@@ -250,8 +295,8 @@ internal sealed class NativeShmupArena : IDisposable
         double2 v = BallVelocity(ball) - new double2(0, descentSpeed);
         B2CastResultFcn callback = (shape, point, normal, fraction, context) =>
         {
-            if (brickIds.TryGetValue(shape, out int brick) && bricks[brick].IsEnabled() && !touching[ball, brick])
-                intervalBrickHits[ball, brick] = true;
+            if (brickIds.TryGetValue(shape, out int brick) && brickEnabled[brick] && !touching[ball, brick])
+                Hit(ball, brick);
             return 1;
         };
         world.CastShape(in proxy, Native(v * dt), BrickFilter(), callback, nint.Zero); GC.KeepAlive(callback);
@@ -272,7 +317,7 @@ internal sealed class NativeShmupArena : IDisposable
         var filter = B2QueryFilter.Default;
         filter.CategoryBits = 2; filter.MaskBits = settings.Ball.BounceOnBricks ? 1UL | 4UL : 1UL;
         bool Obstacle(B2Shape shape) => wallIds.ContainsKey(shape) ||
-            (settings.Ball.BounceOnBricks && brickIds.TryGetValue(shape, out int id) && bricks[id].IsEnabled());
+            (settings.Ball.BounceOnBricks && brickIds.TryGetValue(shape, out int id) && brickEnabled[id]);
         // Shape casts omit initial overlaps. Do not misreport those as a clear path or a later hit.
         bool overlap = false;
         B2OverlapResultFcn callback = (shape, context) => { if (Obstacle(shape)) overlap = true; return true; };
@@ -294,24 +339,26 @@ internal sealed class NativeShmupArena : IDisposable
     }
     internal unsafe void Step(double descentSpeed, double2 previousAvatar, double2 avatar)
     {
-        Guard(); Array.Clear(BrickHits); Array.Clear(WallHits);
-        AvatarContact = false;
+        Guard();
+        foreach (var p in tickHits) BrickHits[p.Ball, p.Brick] = 0;
+        tickHits.Clear(); Array.Clear(WallHits);
+        AvatarContact = false; ReconcileVisits = 0;
         var previousPlayer = Circle(previousAvatar, settings.Avatar.Radius);
         B2OverlapResultFcn playerOverlap = (shape, context) =>
         {
-            if (brickIds.TryGetValue(shape, out int brick) && bricks[brick].IsEnabled()) AvatarContact = true;
+            if (brickIds.TryGetValue(shape, out int brick) && brickEnabled[brick]) AvatarContact = true;
             return true;
         };
         B2CastResultFcn playerSweep = (shape, point, normal, fraction, context) =>
         {
-            if (brickIds.TryGetValue(shape, out int brick) && bricks[brick].IsEnabled()) AvatarContact = true;
+            if (brickIds.TryGetValue(shape, out int brick) && brickEnabled[brick]) AvatarContact = true;
             return 1;
         };
         world.OverlapShape(in previousPlayer, BrickFilter(), playerOverlap, nint.Zero);
         world.CastShape(in previousPlayer, Native(avatar - previousAvatar - new double2(0, descentSpeed * physics.StepSeconds)),
             BrickFilter(), playerSweep, nint.Zero);
         GC.KeepAlive(playerSweep);
-        for (int j = 0; j < bricks.Length; j++) if (bricks[j].IsEnabled()) bricks[j].SetLinearVelocity(Native(new(0, descentSpeed)));
+        foreach (int j in activeBricks) bricks[j].SetLinearVelocity(Native(new(0, descentSpeed)));
         // Small native intervals keep post-wall piercing paths within a circle overlap. Native sweeps
         // still detect arbitrarily thin crossed bricks, including relative kinematic movement.
         int intervals = (int)Math.Ceiling(
@@ -320,11 +367,12 @@ internal sealed class NativeShmupArena : IDisposable
         double dt = physics.StepSeconds / LastIntervalCount;
         for (int step = 0; step < Math.Max(1, intervals); step++)
         {
-            Array.Clear(intervalBrickHits); Array.Clear(intervalWallHits);
+            foreach (var p in intervalHits) intervalBrickHits[p.Ball, p.Brick] = false;
+            intervalHits.Clear(); Array.Clear(intervalWallHits); Array.Clear(brickInteraction);
             if (!settings.Ball.BounceOnBricks)
             {
-                Array.Clear(overlaps);
-                for (int i = 0; i < balls.Length; i++) if (balls[i].IsEnabled()) { OverlapBall(i, true); SweepBall(i, dt, descentSpeed); }
+                ClearOverlaps();
+                foreach (int i in activeBalls) { OverlapBall(i, true); SweepBall(i, dt, descentSpeed); }
             }
             world.Step((float)dt, physics.Substeps); tasks.ThrowIfFaulted();
             var events = world.GetContactEvents();
@@ -332,29 +380,39 @@ internal sealed class NativeShmupArena : IDisposable
             for (int i = 0; i < events.EndCount; i++) { var e = events.EndEvents[i]; Contact(e.ShapeIdA, e.ShapeIdB, true); }
             for (int i = 0; i < events.BeginCount; i++) { var e = events.BeginEvents[i]; Contact(e.ShapeIdA, e.ShapeIdB, false); }
             for (int i = 0; i < events.HitCount; i++) { var e = events.HitEvents[i]; Contact(e.ShapeIdA, e.ShapeIdB, false); }
-            Array.Clear(overlaps);
-            for (int i = 0; i < balls.Length; i++)
+            ClearOverlaps();
+            foreach (int i in activeBalls) OverlapBall(i, true);
+            // Union of prior touching, mask changes and pre/post query candidates. Drop false
+            // pairs immediately so quiet-space work cannot grow with past interactions.
+            for (int index = pairs.Count - 1; index >= 0; index--)
             {
-                if (!balls[i].IsEnabled()) continue; // Inactive rows are cleared before each new life.
-                OverlapBall(i, true);
-                for (int j = 0; j < bricks.Length; j++)
-                    touching[i, j] = overlaps[i, j] || (settings.Ball.BounceOnBricks && contactFixtures[i, j] != 0);
+                var p = pairs[index]; ReconcileVisits++;
+                bool now = ballEnabled[p.Ball] && brickEnabled[p.Brick] &&
+                    (overlaps[p.Ball, p.Brick] || (settings.Ball.BounceOnBricks && contactFixtures[p.Ball, p.Brick] != 0));
+                touching[p.Ball, p.Brick] = now;
+                if (now) continue;
+                tracked[p.Ball, p.Brick] = false; contactFixtures[p.Ball, p.Brick] = 0;
+                pairs[index] = pairs[^1]; pairs.RemoveAt(pairs.Count - 1);
             }
             // Deduplicate overlap/sweep/begin/hit within this interval, not the entire tick.
             // Touch state survives intervals, so a later exit/reentry is a distinct damage event.
             // Buffer traversal is complete before any disable. Expiry prevents later intervals
             // from producing brick damage or resetting an already-expired wall streak.
-            for (int i = 0; i < balls.Length; i++) if (balls[i].IsEnabled())
+            foreach (var p in intervalHits)
             {
-                bool brickInteraction = false;
-                for (int j = 0; j < bricks.Length; j++) if (intervalBrickHits[i, j])
-                {
-                    BrickHits[i, j]++; brickInteraction = true;
-                }
-                WallStreak[i] = brickInteraction ? 0 : (int)Math.Min(int.MaxValue, (long)WallStreak[i] + intervalWallHits[i]);
+                if (!ballEnabled[p.Ball] || !brickEnabled[p.Brick]) continue;
+                if (BrickHits[p.Ball, p.Brick] == 0) tickHits.Add(p);
+                BrickHits[p.Ball, p.Brick]++; brickInteraction[p.Ball] = true;
+            }
+            for (int index = activeBalls.Count - 1; index >= 0; index--)
+            {
+                int i = activeBalls[index];
+                WallStreak[i] = brickInteraction[i] ? 0 : (int)Math.Min(int.MaxValue, (long)WallStreak[i] + intervalWallHits[i]);
                 if (WallStreak[i] >= settings.Ball.MaxWallHits)
                 {
                     Expired[i] = true; balls[i].Disable(); balls[i].SetLinearVelocity(default);
+                    ballEnabled[i] = false;
+                    activeBalls[index] = activeBalls[^1]; activeBalls.RemoveAt(activeBalls.Count - 1);
                 }
                 else
                 {

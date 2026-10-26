@@ -25,6 +25,7 @@ public sealed class ShmupSimulation : IDisposable
     public ShmupSnapshot Snapshot => Volatile.Read(ref snapshot);
     /// <summary>Facts from the last command; cleared even when a defeated run cannot advance.</summary>
     public ShmupEvents Events { get; private set; }
+    internal int DamagePairVisits { get; private set; }
     private double DescentSpeed => Math.Min(Settings.Difficulty.MaximumDescentSpeed,
         Settings.Difficulty.DescentSpeed * Math.Pow(Settings.Difficulty.SpeedMultiplier, time / Settings.Difficulty.RampSeconds));
     private double RowInterval => Math.Max(Settings.Difficulty.MinimumRowInterval,
@@ -73,7 +74,7 @@ public sealed class ShmupSimulation : IDisposable
     public void Restart() { lock (gate) { Guard(); Reset(); Events = ShmupEvents.Restart; } }
     private void Reset()
     {
-        Events = ShmupEvents.None;
+        Events = ShmupEvents.None; DamagePairVisits = 0;
         native.Reset();
         // Retain generations across restart: a retained publication never aliases another life.
         for (int i = 0; i < balls.Length; i++) { long generation = Ball(i).Generation; Ball(i) = new() { Generation = generation }; }
@@ -198,19 +199,24 @@ public sealed class ShmupSimulation : IDisposable
     private void Resolve()
     {
         int healthBefore = avatar.Health;
+        DamagePairVisits = 0;
         // First gather every pair's damage without disabling/reusing resources. Brick interaction wins
         // over simultaneous wall contacts and resets the consecutive wall streak deterministically.
+        foreach (var pair in native.HitPairs)
+        {
+            DamagePairVisits++;
+            // A ball may have expired in a later native interval. Its earlier legitimate
+            // hits still apply while its ECS life remains active until the disposal pass.
+            if (!Ball(pair.Ball).Active) continue;
+            ref var brick = ref Brick(pair.Brick);
+            if (!brick.Active) continue;
+            int hits = native.BrickHits[pair.Ball, pair.Brick];
+            Events |= ShmupEvents.BrickHit;
+            brick.Health = (int)Math.Max(0L, (long)brick.Health - (long)Settings.Ball.Damage * hits);
+        }
         for (int i = 0; i < balls.Length; i++)
         {
             ref var ball = ref Ball(i); if (!ball.Active) continue;
-            for (int j = 0; j < bricks.Length; j++)
-            {
-                ref var brick = ref Brick(j);
-                int hits = native.BrickHits[i, j];
-                if (!brick.Active || hits == 0) continue;
-                Events |= ShmupEvents.BrickHit;
-                brick.Health = (int)Math.Max(0L, (long)brick.Health - (long)Settings.Ball.Damage * hits);
-            }
             // Native interval chronology owns the streak; ECS mirrors the final owned fact.
             ball.WallHits = native.WallStreak[i];
         }
