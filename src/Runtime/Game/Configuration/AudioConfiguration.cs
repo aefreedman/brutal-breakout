@@ -11,7 +11,9 @@ public static class AudioConfiguration
         string ShmupFire, string ShmupHit, string ShmupDestroy, string ShmupDamage);
     private sealed record AudioFile(bool Enabled, double MasterGain, int MaxVoices, CueFiles Cues);
 
-    public static LoadedAudioConfiguration Load(string path)
+    public static LoadedAudioConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedAudioConfiguration Load(string path, string? jsonText)
     {
         var loaded = ConfigurationFile.Load<AudioFile, AudioSettings>(path, "audio", data =>
         {
@@ -26,7 +28,7 @@ public static class AudioConfiguration
                 [AudioCue.ShmupFire] = Resolve(data.Cues.ShmupFire), [AudioCue.ShmupHit] = Resolve(data.Cues.ShmupHit),
                 [AudioCue.ShmupDestroy] = Resolve(data.Cues.ShmupDestroy), [AudioCue.ShmupDamage] = Resolve(data.Cues.ShmupDamage)
             });
-        });
+        }, jsonText);
         return new(loaded.Path, loaded.Settings);
     }
 

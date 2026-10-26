@@ -14,10 +14,12 @@ public static class PhysicsConfiguration
     private sealed record PhysicsFile(double UpdateHz, int Substeps, int MaxCatchUpSteps,
         double ContactHertz, double ContactDampingRatio);
 
-    public static LoadedPhysicsConfiguration Load(string path)
+    public static LoadedPhysicsConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedPhysicsConfiguration Load(string path, string? jsonText)
     {
         var loaded = ConfigurationFile.Load<PhysicsFile, PhysicsSettings>(path, "physics", data =>
-            new(data.UpdateHz, data.Substeps, data.MaxCatchUpSteps, data.ContactHertz, data.ContactDampingRatio));
+            new(data.UpdateHz, data.Substeps, data.MaxCatchUpSteps, data.ContactHertz, data.ContactDampingRatio), jsonText);
         return new(loaded.Path, loaded.Settings);
     }
 

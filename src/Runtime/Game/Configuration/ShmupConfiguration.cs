@@ -23,7 +23,9 @@ public static class ShmupConfiguration
     private sealed record ShmupFile(ArenaFile Arena, AvatarFile Avatar, BallFile Ball, BrickFile Brick,
         DifficultyFile Difficulty, NoiseFile Noise, CapacityFile Capacity);
 
-    public static LoadedShmupConfiguration Load(string path)
+    public static LoadedShmupConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedShmupConfiguration Load(string path, string? jsonText)
     {
         var loaded = ConfigurationFile.Load<ShmupFile, ShmupSettings>(path, "shmup", data =>
         {
@@ -40,7 +42,7 @@ public static class ShmupConfiguration
                 new(d.RowInterval, d.MinimumRowInterval, d.DescentSpeed, d.MaximumDescentSpeed,
                     d.RampSeconds, d.IntervalMultiplier, d.SpeedMultiplier),
                 new(n.Seed, n.ColumnScale, n.RowScale, n.GapThreshold), new(c.MaxBalls, c.MaxBricks));
-        });
+        }, jsonText);
         return new(loaded.Path, loaded.Settings);
     }
     private static ShmupBrickShape[] ParseShapes(string[] names)

@@ -114,13 +114,14 @@ public enum GameplayMode { Breakout, Shmup }
 /// <summary>Exactly one live gameplay world. Switching disposes the old run and creates a fresh isolated run.</summary>
 public sealed class GameplaySessionHost : IDisposable
 {
-    private readonly PhysicsSettings physics;
-    private readonly GameplaySettings gameplay;
-    private readonly ShmupSettings shmup;
-    private readonly InputSettings input;
-    private readonly ExecutionSettings execution;
-    private readonly BallTrailSettings? trails;
+    private PhysicsSettings physics;
+    private GameplaySettings gameplay;
+    private ShmupSettings shmup;
+    private InputSettings input;
+    private ExecutionSettings execution;
+    private BallTrailSettings? trails;
     private readonly HostControlRouter controls = new();
+    private readonly int owner = Environment.CurrentManagedThreadId;
     private bool restartRequested;
     public bool Paused { get; private set; }
     public GameplayMode Mode { get; private set; }
@@ -160,13 +161,43 @@ public sealed class GameplaySessionHost : IDisposable
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
-        Breakout?.Dispose(); Breakout = null;
-        Shmup?.Dispose(); Shmup = null;
-        Mode = mode;
-        if (mode == GameplayMode.Breakout) Breakout = new(physics, gameplay, input, execution);
-        else Shmup = new(physics, shmup, input, execution, trails);
-        Breakout?.SetPaused(Paused);
-        Shmup?.SetPaused(Paused);
+        Replace(mode, physics, gameplay, shmup, input, execution, trails);
+    }
+
+    /// <summary>Prepare before commit. Raw host-control latches survive replacement (held Start cannot toggle twice).</summary>
+    public void Reconfigure(PhysicsSettings physics, GameplaySettings gameplay, ShmupSettings shmup,
+        InputSettings input, ExecutionSettings execution, BallTrailSettings? trails)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (Environment.CurrentManagedThreadId != owner) throw new InvalidOperationException("Reconfiguration belongs to the host thread.");
+        gameplay.ValidatePhysics(physics);
+        shmup.ValidatePhysics(physics);
+        trails?.ValidateCapacity(shmup.Capacity.MaxBalls);
+        Replace(Mode, physics, gameplay, shmup, input, execution, trails);
+    }
+
+    private void Replace(GameplayMode mode, PhysicsSettings physics, GameplaySettings gameplay, ShmupSettings shmup,
+        InputSettings input, ExecutionSettings execution, BallTrailSettings? trails)
+    {
+        BallSandboxSession? nextBreakout = null;
+        ShmupSession? nextShmup = null;
+        try
+        {
+            if (mode == GameplayMode.Breakout) nextBreakout = new(physics, gameplay, input, execution);
+            else nextShmup = new(physics, shmup, input, execution, trails);
+            nextBreakout?.SetPaused(Paused);
+            nextShmup?.SetPaused(Paused);
+        }
+        catch
+        {
+            nextBreakout?.Dispose(); nextShmup?.Dispose();
+            throw;
+        }
+        var oldBreakout = Breakout; var oldShmup = Shmup;
+        (this.physics, this.gameplay, this.shmup, this.input, this.execution, this.trails) =
+            (physics, gameplay, shmup, input, execution, trails);
+        (Mode, Breakout, Shmup, restartRequested) = (mode, nextBreakout, nextShmup, false);
+        try { oldBreakout?.Dispose(); } finally { oldShmup?.Dispose(); }
     }
     public void Dispose()
     {

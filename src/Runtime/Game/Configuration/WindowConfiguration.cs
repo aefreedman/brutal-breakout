@@ -11,9 +11,11 @@ public static class WindowConfiguration
 {
     private sealed record WindowFile(int Width, int Height);
 
-    public static LoadedWindowConfiguration Load(string path)
+    public static LoadedWindowConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedWindowConfiguration Load(string path, string? jsonText)
     {
-        var loaded = ConfigurationFile.Load<WindowFile, WindowSettings>(path, "window", data => new(data.Width, data.Height));
+        var loaded = ConfigurationFile.Load<WindowFile, WindowSettings>(path, "window", data => new(data.Width, data.Height), jsonText);
         return new(loaded.Path, loaded.Settings);
     }
 

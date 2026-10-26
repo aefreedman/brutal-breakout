@@ -24,7 +24,9 @@ public static class GameplayConfiguration
     private sealed record BreakoutFile(int StartingBalls, double CatchZoneHeightFraction, int MaxBouncesWithoutBrick, BrickFile[] Bricks);
     private sealed record GameplayFile(ArenaFile Arena, BallFile Ball, BreakoutFile Breakout);
 
-    public static LoadedGameplayConfiguration Load(string path)
+    public static LoadedGameplayConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedGameplayConfiguration Load(string path, string? jsonText)
     {
         var loaded = ConfigurationFile.Load<GameplayFile, GameplaySettings>(path, "gameplay", data =>
         {
@@ -39,7 +41,7 @@ public static class GameplayConfiguration
             return new(new(a.Width, a.Height, a.Left, a.Top, a.Right, a.Bottom, a.WallThickness),
                 new(b.Radius, b.Speed, b.SpawnX, b.SpawnY, b.InitialAimX, b.InitialAimY),
                 new(rules.StartingBalls, rules.CatchZoneHeightFraction, rules.MaxBouncesWithoutBrick, bricks));
-        });
+        }, jsonText);
         return new(loaded.Path, loaded.Settings);
     }
 

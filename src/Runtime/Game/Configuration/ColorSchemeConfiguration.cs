@@ -24,7 +24,9 @@ public static class ColorSchemeConfiguration
         string Hud, string Win, string Loss, string BackgroundBottom, string HeldRing, string Trail);
     private sealed record SchemeFile(string Name, Dictionary<string, string> Palette, RolesFile Roles);
 
-    public static LoadedColorSchemeConfiguration Load(string path)
+    public static LoadedColorSchemeConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedColorSchemeConfiguration Load(string path, string? jsonText)
     {
         var loaded = ConfigurationFile.Load<SchemeFile, ColorScheme>(path, "colors", data =>
         {
@@ -51,7 +53,7 @@ public static class ColorSchemeConfiguration
             return new(data.Name, Resolve(r.Background), Resolve(r.Walls), Resolve(r.Ball), Resolve(r.CatchReady),
                 Resolve(r.CatchLine), Resolve(r.Aim), Resolve(r.BrickPrimary), Resolve(r.BrickSecondary),
                 Resolve(r.BrickAccent), Resolve(r.Hud), Resolve(r.Win), Resolve(r.Loss), Resolve(r.BackgroundBottom), Resolve(r.HeldRing), Resolve(r.Trail));
-        });
+        }, jsonText);
         return new(loaded.Path, loaded.Settings);
     }
 

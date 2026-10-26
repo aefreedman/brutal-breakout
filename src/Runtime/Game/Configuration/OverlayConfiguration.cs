@@ -5,14 +5,16 @@ public sealed record LoadedOverlayConfiguration(string Path, OverlaySettings Set
 
 public static class OverlayConfiguration
 {
-    public static LoadedOverlayConfiguration Load(string path)
+    public static LoadedOverlayConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedOverlayConfiguration Load(string path, string? jsonText)
     {
         var loaded = ConfigurationFile.Load<OverlayFile, OverlaySettings>(path, "overlay", d =>
         {
             string directory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path))!;
             return new OverlaySettings(d.Enabled, System.IO.Path.GetFullPath(d.FontPath, directory),
                 d.FontSize, d.Left, d.Top, d.LineSpacing, d.CacheEntries, d.MaxLabelCharacters, d.MaxLabels, d.MaxTextureDimension);
-        });
+        }, jsonText);
         return new(loaded.Path, loaded.Settings);
     }
 

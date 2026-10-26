@@ -13,10 +13,12 @@ public sealed record LoadedPresentationStyleConfiguration(string Path, Presentat
 /// <summary>Strict required startup-only presentation schema.</summary>
 public static class PresentationStyleConfiguration
 {
-    public static LoadedPresentationStyleConfiguration Load(string path)
+    public static LoadedPresentationStyleConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedPresentationStyleConfiguration Load(string path, string? jsonText)
     {
         var loaded = ConfigurationFile.Load<StyleFile, PresentationStyle>(path, "style", data => new(
-            data.HeldRingRadiusScreenFraction, data.HeldRingWidthScreenFraction, data.HeldRingDashCount, data.HeldRingGapFraction, data.HeldRingCyclesPerSecond, data.AimWidthRadiusRatio, data.ImpactRingWidthRadiusRatio, data.ReflectedLengthRadiusRatio, data.FallbackAimLengthRadiusRatio, data.BrickCornerFraction, data.CatchLineWidthScreenFraction, data.CatchLineDashLengthMultiples, data.CatchLineGapMultiples, CreateHud(data.Hud)));
+            data.HeldRingRadiusScreenFraction, data.HeldRingWidthScreenFraction, data.HeldRingDashCount, data.HeldRingGapFraction, data.HeldRingCyclesPerSecond, data.AimWidthRadiusRatio, data.ImpactRingWidthRadiusRatio, data.ReflectedLengthRadiusRatio, data.FallbackAimLengthRadiusRatio, data.BrickCornerFraction, data.CatchLineWidthScreenFraction, data.CatchLineDashLengthMultiples, data.CatchLineGapMultiples, CreateHud(data.Hud)), jsonText);
         return new(loaded.Path, loaded.Settings);
     }
     private sealed record StyleFile(double HeldRingRadiusScreenFraction, double HeldRingWidthScreenFraction, int HeldRingDashCount, double HeldRingGapFraction, double HeldRingCyclesPerSecond, double AimWidthRadiusRatio, double ImpactRingWidthRadiusRatio, double ReflectedLengthRadiusRatio, double FallbackAimLengthRadiusRatio, double BrickCornerFraction, double CatchLineWidthScreenFraction, double CatchLineDashLengthMultiples, double CatchLineGapMultiples, HudFile Hud);

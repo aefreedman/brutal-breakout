@@ -60,7 +60,6 @@ try
     gameplay = GameplayConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     shmup = ShmupConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     trails = BallTrailConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
-    if (trails is not null && shmup is not null) BallTrailConfiguration.ValidateCapacity(trails, shmup);
     input = InputConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     colors = ColorSchemeConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     style = PresentationStyleConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
@@ -70,17 +69,12 @@ try
     inspectorConfiguration = InspectorConfiguration.LoadForMode(args, true, AppContext.BaseDirectory, Environment.CurrentDirectory);
 #endif
     overlays = OverlayConfiguration.LoadForMode(args, true, AppContext.BaseDirectory, Environment.CurrentDirectory);
-    if (overlays is not null) OverlayHost.Validate(overlays.Settings, gameplay?.Settings);
 #if BREAKOUT_EDITOR
     if (overlays is not null) InspectorHost.Validate(overlays.Settings);
 #endif
     if (overlaySmokeTest && overlays?.Settings.Enabled != true)
         throw new ArgumentException("Overlay smoke requires enabled overlays.");
-    if (style is not null && gameplay is not null) style.Settings.Validate(gameplay.Settings);
-    if (physics is not null && gameplay is not null) GameplayConfiguration.ValidatePhysics(gameplay, physics);
-    if (physics is not null && shmup is not null) ShmupConfiguration.ValidatePhysics(shmup, physics);
-    if (overlays is not null && shmup is not null && overlays.Settings.MaxLabelCharacters < ShmupPresentation.Controls.Length)
-        throw new ArgumentException("Overlay maxLabelCharacters cannot fit shmup controls.");
+    ConfigurationValidation.Validate(physics, gameplay, shmup, trails, style, overlays);
     Console.WriteLine(windowConfiguration.Describe());
     if (physics is not null) Console.WriteLine(physics.Describe());
     if (execution is not null) Console.WriteLine(execution.Describe());
@@ -138,11 +132,27 @@ try
     {
 #if BREAKOUT_EDITOR
         var gameplayControls = new GameplayControls(inspectorConfiguration!.GameplayWindow);
+        var configurationPaths = new Dictionary<string, string> { ["window"] = windowConfiguration.Path,
+            ["inspector"] = inspectorConfiguration.Path };
+        if (overlays is not null) configurationPaths["overlay"] = overlays.Path;
+        if (physics is not null) configurationPaths["physics"] = physics.Path;
+        if (execution is not null) configurationPaths["execution"] = execution.Path;
+        if (gameplay is not null) configurationPaths["gameplay"] = gameplay.Path;
+        if (shmup is not null) configurationPaths["shmup"] = shmup.Path;
+        if (input is not null) configurationPaths["input"] = input.Path;
+        if (trails is not null) configurationPaths["trails"] = trails.Path;
+        if (colors is not null) configurationPaths["colors"] = colors.Path;
+        if (style is not null) configurationPaths["style"] = style.Path;
+        if (audioConfiguration is not null) configurationPaths["audio"] = audioConfiguration.Path;
+        var configurationWorkspace = new ConfigurationWorkspace(configurationPaths, !gallery && !gameplaySmokeTest);
+        var configurationControls = new ConfigurationControls(configurationWorkspace, inspectorConfiguration.ConfigurationWindow);
+        gameplayControls.OpenConfiguration = () => configurationControls.Visible = true;
         var callbackFailure = new InvalidOperationException("Injected hidden-smoke inspector callback failure.");
         bool callbackFailureInjected = false, callbackFailureRecovered = false;
         if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, new ImGuiInspector(inspectorConfiguration!.Settings, () =>
         {
             gameplayControls.Draw();
+            configurationControls.Draw();
             if (shmupSmokeTest && !callbackFailureInjected)
             {
                 callbackFailureInjected = true;
@@ -180,6 +190,10 @@ try
         var shmupViewports = new HashSet<(int Width, int Height)>();
         var shmupTrailViewports = new HashSet<(int Width, int Height)>();
         bool shmupSawBalls = false, shmupSawBricks = false, shmupSawAim = false, shmupSawTrails = false;
+#if BREAKOUT_EDITOR
+        ShmupSession? configurationSmokeOldRun = null;
+        bool configurationSmokePaused = false, configurationSmokeApplied = false, configurationSmokeRejected = false;
+#endif
         var staleFrameRegressionPassed = false;
         var resizeRequested = false;
         var lastElapsed = TimeSpan.Zero;
@@ -216,6 +230,62 @@ try
             bool? inspectorOverride = false;
 #endif
 #if BREAKOUT_EDITOR
+            if (shmupSmokeTest && shmupFrames == 15)
+            {
+                configurationControls.Visible = true;
+                configurationControls.SetGroupOpen("shmup", true);
+                configurationControls.SetGroupOpen("shmup.ball", true);
+                configurationControls.SetGroupOpen("shmup.brick", true);
+            }
+            if (shmupSmokeTest && shmupFrames is 16 or 18)
+            {
+                configurationSmokeOldRun = modes!.Shmup;
+                configurationSmokePaused = modes.Paused;
+                configurationWorkspace.Documents.Single(d => d.Section == "shmup").Draft["ball"]!["speed"] =
+                    shmupFrames == 16 ? 600.5 : -1;
+                configurationWorkspace.Request(ConfigurationAction.Apply);
+            }
+            if (shmupSmokeTest && shmupFrames == 19) configurationWorkspace.Request(ConfigurationAction.Discard);
+            configurationWorkspace.Process(candidate =>
+            {
+                if (modes is null) throw new InvalidOperationException("No runtime host.");
+                var nextPhysics = candidate.Get<LoadedPhysicsConfiguration>("physics")!;
+                var nextExecution = candidate.Get<LoadedExecutionConfiguration>("execution")!;
+                var nextGameplay = candidate.Get<LoadedGameplayConfiguration>("gameplay")!;
+                var nextShmup = candidate.Get<LoadedShmupConfiguration>("shmup")!;
+                var nextInput = candidate.Get<LoadedInputConfiguration>("input")!;
+                var nextTrails = candidate.Get<LoadedBallTrailConfiguration>("trails")!;
+                modes.Reconfigure(nextPhysics.Settings, nextGameplay.Settings, nextShmup.Settings,
+                    nextInput.Settings, nextExecution.Settings, nextTrails.Settings);
+                if (configurationWorkspace.IsChanged(candidate, "audio"))
+                {
+                    var nextAudio = candidate.Get<LoadedAudioConfiguration>("audio")!;
+                    var diagnostic = audio!.Reconfigure(nextAudio.Settings, muteAudio);
+                    audioConfiguration = nextAudio;
+                    configurationWorkspace.RuntimeDiagnostic = diagnostic ?? (muteAudio ? "Audio: silent output (--mute / hidden smoke)." : "Audio: applied.");
+                    if (diagnostic is not null) Console.Error.WriteLine(diagnostic);
+                }
+                (physics, execution, gameplay, shmup, input, trails, colors, style) =
+                    (nextPhysics, nextExecution, nextGameplay, nextShmup, nextInput, nextTrails,
+                        candidate.Get<LoadedColorSchemeConfiguration>("colors"), candidate.Get<LoadedPresentationStyleConfiguration>("style"));
+                audio?.SetSuppressed(muteAudio, hasFocus: false);
+                gameplayControls.Drain(); // discard commands targeting the retired run
+                lastElapsed = timer.Elapsed; // allocation/preparation time is not simulation catch-up debt
+            });
+            if (shmupSmokeTest && shmupFrames == 16)
+            {
+                configurationSmokeApplied = modes!.Shmup != configurationSmokeOldRun &&
+                    ReferenceEquals(modes.Shmup!.Settings, shmup!.Settings) && shmup.Settings.Ball.Speed == 600.5 &&
+                    modes.Mode == GameplayMode.Shmup && modes.Paused == configurationSmokePaused &&
+                    modes.Shmup.Simulation.Snapshot.Tick == 0 && modes.Shmup.Simulation.Snapshot.Balls.Length == 0;
+                if (!configurationSmokeApplied) throw new InvalidOperationException("Queued configuration Apply did not replace settings/run safely.");
+            }
+            if (shmupSmokeTest && shmupFrames == 18)
+            {
+                configurationSmokeRejected = ReferenceEquals(modes!.Shmup, configurationSmokeOldRun) &&
+                    shmup!.Settings.Ball.Speed == 600.5 && configurationWorkspace.Status.StartsWith("Rejected:", StringComparison.Ordinal);
+                if (!configurationSmokeRejected) throw new InvalidOperationException("Invalid configuration draft changed the live run.");
+            }
             var requests = gameplayControls.Drain();
             if (modes is not null && requests.Mode is { } requestedMode)
             {
@@ -262,12 +332,12 @@ try
                 if (shmupFrames >= 70 && shmupSmokeStage == 3)
                 {
 #if BREAKOUT_EDITOR
-                    if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered)
+                    if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered || !configurationSmokeApplied || !configurationSmokeRejected || configurationControls.DrawCount < 2 || configurationControls.ScalarDrawCount == 0 || configurationControls.FirstVisibleField is null)
                         throw new InvalidOperationException("Shmup smoke did not recover and redraw after the inspector callback failure.");
 #endif
                     if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks || !shmupSawAim || (trails!.Settings.Enabled && (!shmupSawTrails || shmupTrailViewports.Count < 2)))
                         throw new InvalidOperationException("Shmup smoke missing resized, fired-ball or spawned-brick geometry.");
-                    Console.WriteLine($"Shmup smoke PASS: hidden input, Select panel, Start pause/resume, queued editor restart, widening, resize, isolated mode switches, fresh reset and indexed presentation; aim={shmupSawAim}; trails={shmupSawTrails}.");
+                    Console.WriteLine($"Shmup smoke PASS: hidden input, Select panel, Start pause/resume, queued editor restart, staged configuration Apply/reject (no saves), widening, resize, isolated mode switches, fresh reset and indexed presentation; aim={shmupSawAim}; trails={shmupSawTrails}.");
                     break;
                 }
             }

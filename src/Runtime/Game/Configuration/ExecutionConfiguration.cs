@@ -12,10 +12,12 @@ public static class ExecutionConfiguration
 {
     private sealed record ExecutionFile(int WorkerCount, int MaxExpectedConcurrentJobs, int PhysicsWorkerCount);
 
-    public static LoadedExecutionConfiguration Load(string path)
+    public static LoadedExecutionConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedExecutionConfiguration Load(string path, string? jsonText)
     {
         var loaded = ConfigurationFile.Load<ExecutionFile, ExecutionSettings>(path, "execution", data =>
-            new(data.WorkerCount, data.MaxExpectedConcurrentJobs, data.PhysicsWorkerCount));
+            new(data.WorkerCount, data.MaxExpectedConcurrentJobs, data.PhysicsWorkerCount), jsonText);
         return new(loaded.Path, loaded.Settings);
     }
 

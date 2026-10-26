@@ -6,13 +6,45 @@ namespace BrutalBreakout.Audio;
 /// <summary>Mode-specific event-to-cue mapping and focus policy; playback/voice ownership belongs to the kit.</summary>
 public sealed class GameAudio : IDisposable
 {
-    private readonly VoicePlayer<AudioCue> voices;
+    private VoicePlayer<AudioCue> voices;
     private readonly int owner = Environment.CurrentManagedThreadId;
     private bool disposed;
+    public AudioSettings Settings { get; private set; }
     public GameAudio(AudioSettings settings, IAudioOutput<AudioCue> output)
     {
         ArgumentNullException.ThrowIfNull(settings);
         voices = new(settings.Output, output);
+        Settings = settings;
+    }
+    /// <summary>One main-thread SDL owner: retire before creating, never overlap global mixer lifetimes.
+    /// A validated edit can apply without an available device; fallback is explicit and nonfatal.</summary>
+    public string? Reconfigure(AudioSettings settings, bool mute)
+    {
+        Guard();
+        ArgumentNullException.ThrowIfNull(settings);
+        string? diagnostic = null;
+        bool retirementFailed = false;
+        try { voices.Dispose(); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            retirementFailed = true;
+            diagnostic = "Audio retirement failed; using silent output (relaunch to recover): " + error.Message;
+        }
+        IAudioOutput<AudioCue>? output = null;
+        try
+        {
+            output = mute || retirementFailed ? new NullAudioOutput<AudioCue>() : SdlMixerOutput<AudioCue>.Create(settings.Output, out diagnostic);
+            voices = new(settings.Output, output);
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            try { output?.Dispose(); } catch (Exception cleanup) { diagnostic = "Audio cleanup: " + cleanup.Message; }
+            voices = new(settings.Output, new NullAudioOutput<AudioCue>());
+            diagnostic = "Audio unavailable after Apply; using silent output: " + error.Message;
+        }
+        Settings = settings;
+        voices.SetMuted(true); // fresh owner does not replay events from the retired run
+        return diagnostic;
     }
     public void SetSuppressed(bool mute, bool hasFocus) => voices.SetMuted(mute || !hasFocus);
     private void Guard()

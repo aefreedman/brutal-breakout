@@ -57,6 +57,7 @@ public sealed class GameplayControls
             throw new ArgumentOutOfRangeException(nameof(width));
         requestedWidth = width;
     }
+    public Action? OpenConfiguration { get; set; }
     public void Draw()
     {
         DrawCount++;
@@ -93,6 +94,8 @@ public sealed class GameplayControls
             if (Ui.Button("Restart"u8)) RequestRestart();
             Ui.SetItemTooltip("Restart resets this run; pause is kept."u8);
 
+            if (OpenConfiguration is not null && Ui.Button("Configuration..."u8)) OpenConfiguration();
+
             Ui.SeparatorText("Mode"u8);
             if (Ui.RadioButton("Breakout"u8, Mode == GameplayMode.Breakout)) RequestMode(GameplayMode.Breakout);
             SameLineIfFits("Shmup"u8, Ui.GetFrameHeight());
@@ -122,7 +125,7 @@ public sealed class GameplayControls
         finally { Ui.End(); }
     }
 
-    private static void SameLineIfFits(ReadOnlySpan<byte> label, float extraWidth = 0)
+    internal static void SameLineIfFits(ReadOnlySpan<byte> label, float extraWidth = 0)
     {
         var style = Ui.GetStyle();
         float required = Ui.CalcTextSize(label).X + style.FramePadding.X * 2 + extraWidth;

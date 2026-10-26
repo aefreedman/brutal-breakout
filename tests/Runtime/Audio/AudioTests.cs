@@ -24,6 +24,20 @@ public class AudioTests
         public void Dispose() => StopAll();
     }
 
+    [Fact]
+    public void ValidatedAudioCanBeReplacedWithSilentOutputWithoutCreatingADevice()
+    {
+        var original = Settings(); var output = new Fake(); using var audio = new GameAudio(original, output);
+        audio.ConsumeShmup([ShmupEvents.Fire]); Assert.Single(output.Played);
+        var next = Settings(4, .25, false);
+        Assert.Null(audio.Reconfigure(next, mute: true));
+        Assert.Same(next, audio.Settings); Assert.True(output.Stops > 0);
+        audio.SetSuppressed(false, true); audio.ConsumeShmup([ShmupEvents.Fire]);
+        Assert.Single(output.Played); // retired output receives no replay or new events
+        audio.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => audio.Reconfigure(original, true));
+    }
+
     [Theory]
     [InlineData(SimulationEvents.Launch, AudioCue.Launch)]
     [InlineData(SimulationEvents.Catch, AudioCue.Catch)]

@@ -7,10 +7,12 @@ public sealed record LoadedBallTrailConfiguration(string Path, BallTrailSettings
 public static class BallTrailConfiguration
 {
     private sealed record TrailFile(bool Enabled, int MaxPointsPerBall, double DurationSeconds, double WidthRadiusRatio, double Opacity, int MaxRenderedSegments);
-    public static LoadedBallTrailConfiguration Load(string path)
+    public static LoadedBallTrailConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedBallTrailConfiguration Load(string path, string? jsonText)
     {
         var loaded = ConfigurationFile.Load<TrailFile, BallTrailSettings>(path, "trails", d =>
-            new(d.Enabled, d.MaxPointsPerBall, d.DurationSeconds, d.WidthRadiusRatio, d.Opacity, d.MaxRenderedSegments));
+            new(d.Enabled, d.MaxPointsPerBall, d.DurationSeconds, d.WidthRadiusRatio, d.Opacity, d.MaxRenderedSegments), jsonText);
         return new(loaded.Path, loaded.Settings);
     }
     public static void ValidateCapacity(LoadedBallTrailConfiguration trails, LoadedShmupConfiguration shmup)

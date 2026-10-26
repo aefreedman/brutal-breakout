@@ -13,9 +13,11 @@ public static class InputConfiguration
 {
     private sealed record InputFile(double StickDeadzone);
 
-    public static LoadedInputConfiguration Load(string path)
+    public static LoadedInputConfiguration Load(string path) => Load(path, null);
+
+    public static LoadedInputConfiguration Load(string path, string? jsonText)
     {
-        var loaded = ConfigurationFile.Load<InputFile, InputSettings>(path, "input", data => new(data.StickDeadzone));
+        var loaded = ConfigurationFile.Load<InputFile, InputSettings>(path, "input", data => new(data.StickDeadzone), jsonText);
         return new(loaded.Path, loaded.Settings);
     }
 

@@ -14,14 +14,14 @@ internal static class ConfigurationFile
     };
 
     internal static (string Path, TSettings Settings) Load<TFile, TSettings>(string path, string section,
-        Func<TFile, TSettings> validate) where TFile : class
+        Func<TFile, TSettings> validate, string? jsonText = null) where TFile : class
     {
         string displayPath = path ?? "<null>";
         try
         {
             displayPath = System.IO.Path.GetFullPath(path!);
-            using var file = File.OpenRead(displayPath);
-            using var document = JsonDocument.Parse(file);
+            using var file = jsonText is null ? File.OpenRead(displayPath) : null;
+            using var document = jsonText is null ? JsonDocument.Parse(file!) : JsonDocument.Parse(jsonText);
             if (document.RootElement.ValueKind != JsonValueKind.Object)
                 throw new JsonException($"Expected an object containing all {section} settings.");
             RejectDuplicates(document.RootElement);
@@ -70,7 +70,7 @@ internal static class ConfigurationFile
             selected = args[i];
         }
         if (!specified && !needed) return null;
-        if (!specified) return System.IO.Path.Combine(baseDirectory, "Config", section + ".json");
+        if (!specified) return System.IO.Path.Combine(args.Contains("--project-configs") ? currentDirectory : baseDirectory, "Config", section + ".json");
         try { return System.IO.Path.GetFullPath(selected!, currentDirectory); }
         catch (ArgumentException error)
         {
