@@ -14,9 +14,9 @@ The shared CrushKit renderer already batches solid shapes. `ShapeDrawList` appen
 
 The frozen Shmup scenes tested at 500/1,000/2,000/4,000 balls produced **one shape command and one indexed shape draw per frame**. This is not one draw per ball. Letterboxing/nested clips can produce more commands. HUD and inspector commands are separate from these shape counts.
 
-**Shape instancing is not implemented:** the vertex binding is per vertex, and `vkCmdDrawIndexed` uses instance count one. Balls are CPU-expanded tessellated discs; trail segments become CPU-expanded quads. `DiskMeshAdapter` reuses native storage but regenerates its unit disk on each `Generate` call, including successive same-resolution discs. Reusable buffers therefore do not mean reusable geometry.
+**Shape instancing is not implemented:** the vertex binding is per vertex, and `vkCmdDrawIndexed` uses instance count one. Balls are CPU-expanded tessellated discs; trail segments become CPU-expanded quads. Since preview.10, `DiskMeshAdapter` retains its last generated unit-disk resolution as well as native storage. Consecutive same-resolution calls reuse the exact generated/welded mesh; a resolution transition regenerates it. This is instance-owned one-entry reuse, not a global mesh cache.
 
-Instancing would primarily target CPU expansion and vertex/index upload volume, not reduce an already single shape draw. An instance path would also need to retain curve precision, clipping, alpha order, framebuffer scaling and ownership contracts. Unit-mesh reuse and instance generation are distinct options; neither is established as a measured improvement here.
+Instancing would primarily target CPU expansion and vertex/index upload volume, not reduce an already single shape draw. An instance path would also need to retain curve precision, clipping, alpha order, framebuffer scaling and ownership contracts. Unit-mesh reuse and instance generation are distinct: the former is implemented and measured below; the latter remains experimental.
 
 ## Submission and synchronization
 
@@ -25,7 +25,7 @@ The current Vulkan path has:
 - One shared submission fence, command buffer and shape vertex/index buffer set; presentation semaphores are indexed by acquired swapchain image.
 - Full vertex/index/command validation on every `Draw`, including normal Release. This is separate from optional Vulkan validation layers.
 - Host-visible, CPU-preferred vertex/index buffers, mapped/copied/flushed each frame. There is no shape staging-to-device-local upload path or persistent instance buffer.
-- Buffer reuse while capacity suffices, but replacement at the exact new byte requirement when geometry grows. A frozen warmed scene does not measure population-growth reallocations.
+- Since preview.10, power-of-two private upload capacity growth while copying/flushing only actual payload bytes and drawing only logical counts. Shrink/reuse does not replace buffers. Capacity is less than twice the growth request; above 2³⁰ bytes the helper uses the exact requirement to avoid integer overflow. Retained capacity trades bounded extra storage for fewer replacements; frozen warmed scenes do not measure growth costs.
 - Four-sample MSAA, sRGB output and premultiplied-alpha blending; configurable FIFO/Immediate presentation. GPU resources and swapchain are not recreated each ordinary frame.
 
 After CPU frame validation, the renderer waits its previous submission fence, uploads geometry, acquires an image, records commands, submits and presents. The next host iteration can do CPU work while the preceding GPU submission executes; one in-flight buffer set does not imply zero CPU/GPU overlap. `Draw` wall time may include fence/acquire/presentation pacing and is not GPU execution time.
@@ -57,6 +57,31 @@ These scenes use 1280×720. At 2,000 balls with trails, geometry was 118,311 ver
 All thirteen cases completed 400 samples, with outliers retained. The final repeated 2,000-ball/720p case had identical frozen-frame bytes and a 4.26 ms median. Measured builds recorded zero current-thread managed allocation after warm-up; this does not imply no native allocation or allocation-free simulation/publication. Normal tiered JIT and a finite warm-up are not proof of complete JIT stability.
 
 The tool freezes its six source configurations, resolved settings, raw timing arrays, counts and SHA256-hashed frame exports into the output directory. Its little-endian frame format stores a 24-byte header, 24-byte vertices, uint32 indices and six-int commands. Export occurs synchronously before borrowed draw-list buffers are reused; exported arrays can be consumed independently by a renderer-only probe. The tool itself creates no Vulkan renderer and reports no GPU time. Bounds, memory observations, truncations and smoke state remain explicit.
+
+### Unit-disc reuse and upload capacity growth
+
+A normal-Release comparison of preview.9 against the reviewed cache/growth changes used the same thirteen frozen configurations/scenes, 200 warm builds and 400 measurements per case. All thirteen frame hashes and vertex/index counts matched exactly. At 720p:
+
+| Balls | Trails: before → cached CPU build p50 | No trails: before → cached CPU build p50 |
+| ---: | ---: | ---: |
+| 2,000 | 4.24 → 3.85 ms | 1.96 → 1.39 ms |
+| 4,000 | 6.42 → 5.32 ms | 3.92 → 2.80 ms |
+
+This single paired comparison observed roughly 9%/17% lower trail-enabled medians and 29% lower no-trail medians at these loads. It is descriptive CPU-preparation evidence, not a full-game/GPU speedup. The original table above records the earlier uncached study.
+
+CPU geometry studies do not execute Vulkan buffer allocation. Separate capacity-policy tests cover ramps, reuse, jumps and integer boundaries. A hidden validation-enabled fixture exercised changing geometry, three actual upload replacement pairs, shrinking/reuse and resize with zero Vulkan errors and the three known layer-naming warnings. It validates buffer ownership and submission, not a quantified frame-time improvement or pixel equivalence. Copy, flush, fence protection and logical draw counts remain unchanged.
+
+### Instancing prototype: not adopted
+
+An isolated ordered prototype compared cached triangles (A), instanced balls (B), and instanced balls plus trails (C). It shared the existing trail selection/fading and presentation ordering, retained tessellation and logical primitive counts, and preserved triangle fallback. This is not part of the shipping packages.
+
+One predeclared 27-case CPU pass used 200 warm builds and 400 measured builds per case. Directly timed preparation plus validation regressed with C: at 2,000 balls/trails, **4.32 → 5.53 ms**; at 4,000, **6.55 → 8.26 ms**. The repeated 2,000-ball control likewise regressed. These are midpoint medians for this experiment, rather than the earlier study's nearest-rank percentiles.
+
+In six separate frozen, no-present GPU cases (180 measured submissions each), C reduced upload payload from 3.44 MB to 0.73 MB at 2,000 balls, and GPU command span from 0.72 ms to 0.13 ms. At 4,000 it reduced 4.95 MB to 0.81 MB and 0.87 ms to 0.12 ms. Those GPU gains do not establish a whole-frame benefit: no live combined preparation-to-submission distribution was collected, and the CPU preparation result was worse.
+
+The prototype conservatively reconstructs reference disc vertices/triangles and segment corners to check eligibility/precision. That is a source-backed explanation worth examining, not profiled proof of the regression's cause or proof that instancing inherently loses. A future implementation could investigate cached mesh invariants and cheaper justified per-instance checks without dropping necessary validation.
+
+CPU contracts and hidden Vulkan validation passed with unchanged selected trail counts and no Vulkan errors. GPU image/readback equivalence, translucent edges/seams and overlay pixel overlap were not established. **Instancing remains unpromoted** because this implementation regressed CPU cost and lacks image-quality acceptance. Its complete source and negative-result evidence are retained outside maintained documentation for future investigation.
 
 ## GPU and presentation evidence
 
@@ -101,6 +126,6 @@ Requested 3840×2160 hidden-window geometry could not be tested: the actual surf
 
 Two preceding hidden validation-enabled probes, at 500 and 4,000 balls, completed with zero Vulkan errors and the three known upstream GalaxyOverlayVkLayer naming warnings each. No visible process windows were sampled. One validation probe observed unrelated foreground-window changes, so its nonactivation evidence is inconclusive; hidden metadata sampling is not a universal focus-disturbance guarantee. Normal performance samples themselves do not establish validation-layer cleanliness.
 
-This evidence excludes dynamic population-growth buffer reallocations, HUD/inspector costs, real host cadence, physical input/display latency and image-quality verification. Unit-disk reuse, instanced balls/trails and capacity-growth policy remain **unmeasured optimization candidates**, not implemented fixes. Production renderer/defaults/backend policy are unchanged; temporary GPU timing hooks are not a shipping API.
+This evidence excludes dynamic population-growth buffer reallocations, HUD/inspector costs, real host cadence, physical input/display latency and image-quality verification. Unit-disc reuse and bounded upload capacity growth are implemented in preview.10. Instancing remains experimental rather than a production default. Physics, execution and presentation defaults/backend policy are unchanged; temporary GPU timing hooks are not a shipping API.
 
 See [performance](performance.md) for simulation scaling, [execution](execution.md) for physics-worker/coarse-owner studies and [validation](validation.md) for hidden versus visible GPU coverage.

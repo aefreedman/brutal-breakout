@@ -4,9 +4,9 @@
     "net10.0": {
       "CrushKit.Brutal.Input": {
         "type": "Direct",
-        "requested": "[0.1.0-preview.9, )",
-        "resolved": "0.1.0-preview.9",
-        "contentHash": "CVfR3nrkO9Hv7eSX8YzoflbzMDYBC4UxlS17POOwXoQ5TeqMoRXVt/+t6hT7+jfgSRJ9cbwatL1+spxCdATLJg==",
+        "requested": "[0.1.0-preview.10, )",
+        "resolved": "0.1.0-preview.10",
+        "contentHash": "h8iS/lxzRAVlm+JTgYYnC54WWYt1l/Lp+ejbPwWqnUPJUJATRyINqJYxlv9BuO8/QWKl4k1IBO0iNpkWom3S+A==",
         "dependencies": {
           "Ahwoo.BRUTAL.Glfw": "[2026.10.5]",
           "Ahwoo.BRUTAL.Numerics": "[2026.10.2]"
