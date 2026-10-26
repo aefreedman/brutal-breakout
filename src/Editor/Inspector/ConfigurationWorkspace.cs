@@ -62,11 +62,14 @@ public sealed class ConfigurationWorkspace
         public bool Unsaved => unsaved ??= !JsonNode.DeepEquals(draft, sourceNode);
         public bool Pending => pending ??= !JsonNode.DeepEquals(draft, appliedNode);
         /// <summary>Edits a section-relative dot path (including array indices). Inputs are detached before commitment.</summary>
-        public bool Set(string path, JsonNode? value)
+        public bool Set(string path, JsonNode? value) => Set(path.Split('.'), value);
+        /// <summary>Edits literal section-relative keys; numeric segments are indices only when their parent is an array.</summary>
+        public bool Set(IReadOnlyList<string> keys, JsonNode? value)
         {
-            var keys = path.Split('.');
+            if (keys.Count == 0) throw new ArgumentException("An edit needs at least one key.", nameof(keys));
             JsonNode parent = draft;
-            foreach (var key in keys.SkipLast(1)) parent = Child(parent, key) ?? throw new ArgumentException("Unknown path: " + path);
+            for (int i = 0; i < keys.Count - 1; i++)
+                parent = Child(parent, keys[i]) ?? throw new ArgumentException("Unknown edit key: " + keys[i], nameof(keys));
             string last = keys[^1];
             if (JsonNode.DeepEquals(Child(parent, last), value)) return false;
             var owned = value?.DeepClone();
@@ -75,6 +78,7 @@ public sealed class ConfigurationWorkspace
             Invalidate(); return true;
         }
         public bool Set(string path, JsonElement value) => Set(path, JsonNode.Parse(value.GetRawText()));
+        public bool Set(IReadOnlyList<string> keys, JsonElement value) => Set(keys, JsonNode.Parse(value.GetRawText()));
         private static JsonNode? Child(JsonNode node, string key) => node is JsonArray array
             ? array[int.Parse(key, System.Globalization.CultureInfo.InvariantCulture)] : node[key];
         private void Invalidate() { Revision++; text = null; view = null; unsaved = pending = null; changed(); }
@@ -93,12 +97,13 @@ public sealed class ConfigurationWorkspace
         }
         internal IEnumerable<string> PendingFields(ConfigurationEffect effect) => ConfigurationImpact.Fields(draft, Section)
             .Where(f => ConfigurationImpact.For(f.Path).Effect == effect &&
-                !JsonNode.DeepEquals(f.Value, Find(appliedNode, f.Path.Split('.').Skip(1))))
+                !JsonNode.DeepEquals(f.Value, Find(appliedNode, f.Keys)))
             .Select(f => f.Path + ": " + ConfigurationImpact.For(f.Path).Reason);
         private JsonObject Parse(string text) { ParseCount++; return JsonNode.Parse(text)!.AsObject(); }
     }
-    public IReadOnlyList<Document> Documents => documents;
+    public IReadOnlyList<Document> Documents => documentView;
     private readonly List<Document> documents = [];
+    private readonly IReadOnlyList<Document> documentView;
     private ConfigurationAction request;
     private Candidate? appliedCandidate;
     public string Status { get; private set; } = "Valid safe edits apply automatically. Save and structural reset are separate.";
@@ -144,6 +149,7 @@ public sealed class ConfigurationWorkspace
     public ConfigurationWorkspace(IReadOnlyDictionary<string, string> paths, bool runtimeAvailable)
     {
         RuntimeAvailable = runtimeAvailable;
+        documentView = documents.AsReadOnly();
         foreach (var (section, path) in paths)
         {
             Func<string, object> load = section switch
@@ -274,7 +280,7 @@ public sealed class ConfigurationWorkspace
                         for (int pass = 0; pass < 2; pass++) foreach (var field in fields)
                         {
                             var target = JsonNode.Parse(accepted[d.Section])!.AsObject();
-                            var keys = field.Path.Split('.').Skip(1).ToArray();
+                            var keys = field.Keys;
                             if (JsonNode.DeepEquals(Find(target, keys), field.Value)) continue;
                             JsonNode parent = target;
                             foreach (var key in keys.SkipLast(1)) parent = parent[key]!;

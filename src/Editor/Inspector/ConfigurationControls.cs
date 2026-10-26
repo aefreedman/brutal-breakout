@@ -17,6 +17,8 @@ public sealed class ConfigurationControls
     public int ScalarDrawCount { get; private set; }
     public (string Path, float2 Minimum, float2 Maximum)? FirstVisibleField { get; private set; }
     private float2 position, size, lastScale;
+    // Synchronous widgets consume this owner-held literal-key stack before traversal pops it.
+    private readonly List<string> editKeys = [];
     private readonly Dictionary<string, bool> groups = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> widgetErrors = new(StringComparer.Ordinal);
     public ConfigurationControls(ConfigurationWorkspace workspace, GameplayWindowSettings settings)
@@ -99,46 +101,52 @@ public sealed class ConfigurationControls
                 if (!Group(document.Section, document.Section.ToUpperInvariant() + " [" + state + "]")) continue;
                 if (Group(document.Section + ".$source", "Selected source path")) Ui.TextWrapped(Bytes(document.Path));
                 Ui.TextWrapped("Per-field effects below; saved/source state is independent of runtime."u8);
+                editKeys.Clear();
                 DrawObject(document, document.Draft, document.Section);
             }
         }
         finally { Ui.End(); }
     }
-    private void Set(ConfigurationWorkspace.Document document, string path, JsonNode? value) =>
-        document.Set(path[(document.Section.Length + 1)..], value);
+    internal static bool EditValue(ConfigurationWorkspace.Document document, IReadOnlyList<string> keys, JsonNode? value) =>
+        document.Set(keys, value);
     private void DrawObject(ConfigurationWorkspace.Document document, JsonElement obj, string path)
     {
         foreach (var property in obj.EnumerateObject())
         {
             string key = property.Name, id = path + "." + key;
             var node = property.Value;
-            if (node.ValueKind == JsonValueKind.Object)
+            editKeys.Add(key);
+            try
             {
-                if (Group(id, Label(key))) { Ui.Indent(); try { DrawObject(document, node, id); } finally { Ui.Unindent(); } }
-            }
-            else if (node.ValueKind == JsonValueKind.Array)
-            {
-                if (Group(id, Label(key))) DrawArray(document, node, id, key);
-            }
-            else if (path == "colors.roles" && node.ValueKind == JsonValueKind.String)
-            {
-                string selected = node.GetString()!;
-                Ui.TextWrapped(Bytes(Label(key) + " [LIVE]"));
-                Ui.SetItemTooltip(Bytes(ConfigurationImpact.For(id).Reason));
-                Ui.SetNextItemWidth(-1);
-                if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected), ImGuiComboFlags.None))
+                if (node.ValueKind == JsonValueKind.Object)
                 {
-                    try
-                    {
-                        var palette = document.Draft.GetProperty("palette"u8);
-                        foreach (var entry in palette.EnumerateObject())
-                            if (Ui.Selectable(Bytes(entry.Name), entry.Name == selected, ImGuiSelectableFlags.None, default))
-                                Set(document, id, JsonValue.Create(entry.Name));
-                    }
-                    finally { Ui.EndCombo(); }
+                    if (Group(id, Label(key))) { Ui.Indent(); try { DrawObject(document, node, id); } finally { Ui.Unindent(); } }
                 }
+                else if (node.ValueKind == JsonValueKind.Array)
+                {
+                    if (Group(id, Label(key))) DrawArray(document, node, id, key);
+                }
+                else if (path == "colors.roles" && node.ValueKind == JsonValueKind.String)
+                {
+                    string selected = node.GetString()!;
+                    Ui.TextWrapped(Bytes(Label(key) + " [LIVE]"));
+                    Ui.SetItemTooltip(Bytes(ConfigurationImpact.For(id).Reason));
+                    Ui.SetNextItemWidth(-1);
+                    if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected), ImGuiComboFlags.None))
+                    {
+                        try
+                        {
+                            var palette = document.Draft.GetProperty("palette"u8);
+                            foreach (var entry in palette.EnumerateObject())
+                                if (Ui.Selectable(Bytes(entry.Name), entry.Name == selected, ImGuiSelectableFlags.None, default))
+                                    EditValue(document, editKeys, JsonValue.Create(entry.Name));
+                        }
+                        finally { Ui.EndCombo(); }
+                    }
+                }
+                else DrawValue(node, id, Label(key), value => EditValue(document, editKeys, value));
             }
-            else DrawValue(node, id, Label(key), value => Set(document, id, value));
+            finally { editKeys.RemoveAt(editKeys.Count - 1); }
         }
     }
     private void DrawArray(ConfigurationWorkspace.Document document, JsonElement array, string path, string key)
@@ -160,19 +168,24 @@ public sealed class ConfigurationControls
                     var replacement = new JsonArray();
                     foreach (var value in options.Where(values.Contains))
                         replacement.Add(key == "shapes" ? JsonValue.Create(value) : JsonValue.Create(int.Parse(value, CultureInfo.InvariantCulture)));
-                    Set(document, path, replacement);
+                    EditValue(document, editKeys, replacement);
                 }
             }
             return;
         }
         for (int i = 0; i < array.GetArrayLength(); i++)
         {
-            string id = path + "." + i;
-            if (array[i].ValueKind == JsonValueKind.Object)
+            string index = i.ToString(CultureInfo.InvariantCulture), id = path + "." + index;
+            editKeys.Add(index);
+            try
             {
-                if (Group(id, $"Item {i + 1}")) DrawObject(document, array[i], id);
+                if (array[i].ValueKind == JsonValueKind.Object)
+                {
+                    if (Group(id, $"Item {i + 1}")) DrawObject(document, array[i], id);
+                }
+                else DrawValue(array[i], id, $"Item {i + 1}", value => EditValue(document, editKeys, value));
             }
-            else DrawValue(array[i], id, $"Item {i + 1}", value => Set(document, id, value));
+            finally { editKeys.RemoveAt(editKeys.Count - 1); }
         }
         Ui.TextWrapped("Array entries are edited in place; list length is preserved."u8);
     }

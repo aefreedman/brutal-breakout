@@ -43,12 +43,18 @@ public static class ConfigurationImpact
         _ => new(ConfigurationEffect.Relaunch, "Published renderer ConfigureOverlay is startup-only and exposes no immutable settings update (including HUD layout/enabled); save then relaunch. Colors/style/HUD tints remain live.")
     };
 
-    internal static IEnumerable<(string Path, JsonNode? Value)> Fields(JsonObject obj, string prefix)
+    internal static IEnumerable<(string Path, JsonNode? Value, string[] Keys)> Fields(JsonObject obj, string prefix) =>
+        Fields(obj, prefix, []);
+    private static IEnumerable<(string Path, JsonNode? Value, string[] Keys)> Fields(JsonObject obj, string prefix, string[] parentKeys)
     {
+        // Only enumerated on change. Display/policy paths are not reversible addresses for arbitrary JSON keys.
         foreach (var pair in obj)
+        {
+            string[] keys = [.. parentKeys, pair.Key];
             if (pair.Value is JsonObject child)
-                foreach (var field in Fields(child, prefix + "." + pair.Key)) yield return field;
-            else yield return (prefix + "." + pair.Key, pair.Value);
+                foreach (var field in Fields(child, prefix + "." + pair.Key, keys)) yield return field;
+            else yield return (prefix + "." + pair.Key, pair.Value, keys);
+        }
     }
     internal static void Merge(JsonObject target, JsonObject source, string prefix, bool reset)
     {

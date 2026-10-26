@@ -24,6 +24,95 @@ public sealed class ConfigurationRevisionTests
         Assert.Same(reset, w.PendingResetFields); Assert.Same(relaunch, w.PendingRelaunchFields);
     }
 
+    [Theory]
+    [InlineData("accent.blue")]
+    [InlineData("accent/blue")]
+    [InlineData("accent~blue")]
+    [InlineData("0")]
+    [InlineData("accent.blue/~0")]
+    public void WidgetEditHelperPreservesLiteralPaletteKeysThroughAutoApplySaveAndIdleReads(string key)
+    {
+        ConfigurationWorkspaceTests.WithCopy(root =>
+        {
+            var paths = ConfigurationWorkspaceTests.Paths(root);
+            var original = JsonNode.Parse(File.ReadAllText(paths["colors"]))!;
+            original["palette"]![key] = "#123456"; original["roles"]!["ball"] = key;
+            File.WriteAllText(paths["colors"], original.ToJsonString());
+            string source = File.ReadAllText(paths["colors"]);
+            var w = new ConfigurationWorkspace(paths, true); var colors = Doc(w, "colors");
+            var retained = colors.Draft; long revision = colors.Revision;
+            string[] keys = ["palette", key];
+            Assert.True(ConfigurationControls.EditValue(colors, keys, JsonValue.Create("#ABCDEF")));
+            Assert.False(ConfigurationControls.EditValue(colors, keys, JsonValue.Create("#ABCDEF")));
+            Assert.Equal(revision + 1, colors.Revision);
+            keys[1] = "not-the-edited-key"; // edit addresses, like values, are not retained caller aliases
+            Assert.True(ConfigurationControls.EditValue(colors, ["roles", "aim"], JsonValue.Create(key)));
+            Assert.False(ConfigurationControls.EditValue(colors, ["roles", "aim"], JsonValue.Create(key)));
+            Assert.Equal(revision + 2, colors.Revision);
+            Assert.Equal("#123456", retained.GetProperty("palette"u8).GetProperty(key).GetString());
+            Assert.Equal("#ABCDEF", colors.Draft.GetProperty("palette"u8).GetProperty(key).GetString());
+            ConfigurationWorkspace.Candidate? applied = null;
+            w.Process(c => applied = c);
+            Assert.NotNull(applied); Assert.False(colors.Pending); Assert.True(colors.Unsaved);
+            var scheme = applied.Get<LoadedColorSchemeConfiguration>("colors")!.Settings;
+            Assert.Equal(scheme.Ball, scheme.Aim);
+            Assert.Equal(source, File.ReadAllText(colors.Path)); AssertIdle(w);
+            w.Request(ConfigurationAction.Save); w.Process(_ => throw new Exception("Save must not apply"));
+            Assert.StartsWith("Saved", w.Status); Assert.False(colors.Unsaved); Assert.False(colors.Pending);
+            original["palette"]![key] = "#ABCDEF"; original["roles"]!["aim"] = key;
+            Assert.True(JsonNode.DeepEquals(original, JsonNode.Parse(File.ReadAllText(colors.Path))));
+            AssertIdle(w);
+        });
+    }
+
+    [Fact]
+    public void LiteralFieldAddressesAlsoKeepIndependentPaletteEditsLiveWhenAnotherColorFieldIsInvalid()
+    {
+        var w = ConfigurationWorkspaceTests.Create(); var colors = Doc(w, "colors");
+        const string key = "accent.blue/~0";
+        Assert.True(ConfigurationControls.EditValue(colors, ["palette", key], JsonValue.Create("#123456")));
+        Assert.True(ConfigurationControls.EditValue(colors, ["roles", "ball"], JsonValue.Create("undefined")));
+        ConfigurationWorkspace.Candidate? applied = null;
+        w.Process(c => applied = c);
+        Assert.NotNull(applied); Assert.StartsWith("Rejected:", w.Status);
+        var accepted = JsonNode.Parse(applied.Texts["colors"])!;
+        Assert.Equal("#123456", accepted["palette"]![key]!.GetValue<string>());
+        Assert.NotEqual("undefined", accepted["roles"]!["ball"]!.GetValue<string>());
+        Assert.True(colors.Pending); AssertIdle(w);
+    }
+
+    [Fact]
+    public void SegmentEditsDistinguishArrayIndicesAndNumericObjectKeysAndSupportDetachedElements()
+    {
+        var w = ConfigurationWorkspaceTests.Create(); var shmup = Doc(w, "shmup");
+        long revision = shmup.Revision;
+        Assert.True(shmup.Set(["ball", "speed"], 701)); Assert.False(shmup.Set("ball.speed", 701));
+        Assert.True(shmup.Set(["brick", "quarterTurns", "0"], 2));
+        Assert.False(shmup.Set("brick.quarterTurns.0", 2));
+        Assert.Equal(revision + 2, shmup.Revision);
+        var colors = Doc(w, "colors");
+        using (var incoming = JsonDocument.Parse("\"#123456\"")) Assert.True(colors.Set(["palette", "0"], incoming.RootElement));
+        Assert.Equal("#123456", colors.Draft.GetProperty("palette"u8).GetProperty("0"u8).GetString());
+        Assert.False(colors.Set(["palette", "0"], JsonValue.Create("#123456")));
+        Assert.Throws<ArgumentException>(() => colors.Set(Array.Empty<string>(), JsonValue.Create(0)));
+        AssertIdle(w);
+    }
+
+    [Fact]
+    public void PublicRegistryIsOneCachedReadOnlyWrapperAndCannotBypassRevisionTracking()
+    {
+        var w = ConfigurationWorkspaceTests.Create(); AssertIdle(w);
+        var documents = w.Documents; var first = documents[0]; long revision = w.ChangeRevision;
+        var list = Assert.IsAssignableFrom<IList<ConfigurationWorkspace.Document>>(documents);
+        Assert.True(list.IsReadOnly);
+        Assert.Throws<NotSupportedException>(() => list.Add(first));
+        Assert.Throws<NotSupportedException>(() => list.Remove(first));
+        Assert.Throws<NotSupportedException>(() => list.Clear());
+        Assert.Throws<NotSupportedException>(() => list[0] = documents[1]);
+        Assert.Same(documents, w.Documents); Assert.Same(first, w.Documents[0]);
+        Assert.Equal(revision, w.ChangeRevision); AssertIdle(w);
+    }
+
     [Fact]
     public void NestedArrayPaletteAndDetachedInputsInvalidateOnceAndRetainedViewsStayUnchanged()
     {
