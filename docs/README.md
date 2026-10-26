@@ -24,6 +24,7 @@ Code ownership, dependencies, native lifecycle, rendering, validation and eviden
 - [Rendering, media and diagnostics](engineering/media.md) — text/audio/font provenance, showcase and shared drawing API.
 - [Validation and evidence limits](engineering/validation.md) — CPU/GPU test commands, coverage and desktop side effects.
 - [Performance design and limits](engineering/performance.md)
+- [Rendering architecture and performance](engineering/rendering.md) — batching, instancing status, CPU geometry and separate GPU/presentation costs.
 - [Physics settings and quality budget](engineering/physics.md)
 - [Execution settings and scheduling](engineering/execution.md)
 

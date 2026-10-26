@@ -1,6 +1,6 @@
 # Performance design and limits
 
-Breakout's CPU cost includes fixed-tick simulation, native physics and queries, snapshot publication, trail history and render-geometry generation. GPU submission and presentation add separate costs. This guide describes the implementation choices, remaining scaling costs and measured limits of this project.
+Breakout's CPU cost includes fixed-tick simulation, native physics and queries, snapshot publication, trail history and render-geometry generation. GPU submission and presentation add separate costs. This guide describes the implementation choices, remaining scaling costs and measured limits of this project. The separate [rendering guide](rendering.md) covers actual batching/instancing status and measurements without a physics world.
 
 ## Implemented improvements
 

@@ -16,7 +16,7 @@ internal static class Program
     {
         try
         {
-            if (args.Length < 1) throw new ArgumentException("Usage: list|campaign --config DIR --manifest FILE --output DIR [--smoke-ticks 1..120] (case is an internal isolated-child entry)");
+            if (args.Length < 1) throw new ArgumentException("Usage: list|campaign|render-cpu --config DIR --manifest FILE --output DIR [--smoke-ticks 1..120] (case is an internal isolated-child entry)");
             var options = new Dictionary<string, string>(StringComparer.Ordinal);
             for (int i = 1; i < args.Length; i += 2)
             {
@@ -37,6 +37,11 @@ internal static class Program
                 Environment.GetEnvironmentVariable("COMPlus_TieredCompilation") == "0"))
                 throw new InvalidOperationException("Measured runs require normal Release JIT, not Debug or globally disabled tiering.");
             string output = Required("--output"); Directory.CreateDirectory(output);
+            if (args[0] == "render-cpu")
+            {
+                if (options.ContainsKey("--id") || options.ContainsKey("--child-token")) throw new ArgumentException("Render study has a frozen geometry-only case order.");
+                return RenderCpuStudy.Run(manifest, config, output, smoke);
+            }
             if (args[0] == "campaign")
             {
                 if (options.ContainsKey("--id") || options.ContainsKey("--child-token")) throw new ArgumentException("Campaign preserves the complete declared order.");
