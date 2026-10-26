@@ -9,6 +9,8 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="BrutalBreakout.Editor" />
+    <InternalsVisibleTo Include="BrutalBreakout.Performance" />
+    <InternalsVisibleTo Include="BrutalBreakout.Performance.Tests" />
     <InternalsVisibleTo Include="BrutalBreakout.Editor.Tests" />
     <ProjectReference Include="../Simulation/BrutalBreakout.Simulation.csproj" />
     <ProjectReference Include="../Audio/BrutalBreakout.Audio.csproj" />
