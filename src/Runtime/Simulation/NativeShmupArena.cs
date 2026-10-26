@@ -10,6 +10,11 @@ namespace BrutalBreakout.Simulation;
 internal sealed class NativeShmupArena : IDisposable
 {
     private readonly B2World world;
+    // Published Box2D queries invoke these synchronously on the exclusive owner thread.
+    // Per-call value context identifies the ball; callbacks only update local Track/Hit bookkeeping.
+    private readonly B2OverlapResultFcn ballOverlap;
+    private readonly B2CastResultFcn ballSweep;
+    internal (Delegate Overlap, Delegate Sweep) BallQueryCallbacks => (ballOverlap, ballSweep);
     private readonly Box2DTaskScheduler tasks;
     private PhysicsSettings physics;
     private ShmupSettings settings;
@@ -49,6 +54,7 @@ internal sealed class NativeShmupArena : IDisposable
     {
         settings.ValidatePhysics(physics);
         this.physics = physics; this.settings = settings;
+        ballOverlap = RecordBallOverlap; ballSweep = RecordBallSweep;
         balls = new B2Body[settings.Capacity.MaxBalls]; bricks = new B2Body[settings.Capacity.MaxBricks];
         brickFixtures = new B2Shape[bricks.Length, ShmupBrickGeometry.MaximumRectangles];
         contactFixtures = new byte[balls.Length, bricks.Length];
@@ -273,33 +279,35 @@ internal sealed class NativeShmupArena : IDisposable
     {
         var filter = B2QueryFilter.Default; filter.CategoryBits = 2; filter.MaskBits = 4; return filter;
     }
-    private void OverlapBall(int ball, bool recordHits)
+    private Brutal.Bool8 RecordBallOverlap(B2Shape shape, nint context)
+    {
+        int ball = (int)context;
+        if (brickIds.TryGetValue(shape, out int brick) && brickEnabled[brick])
+        {
+            Track(ball, brick);
+            if (!overlaps[ball, brick]) { overlaps[ball, brick] = true; overlapPairs.Add((ball, brick)); }
+            if (!touching[ball, brick]) Hit(ball, brick);
+        }
+        return true;
+    }
+    private float RecordBallSweep(B2Shape shape, float2 point, float2 normal, float fraction, nint context)
+    {
+        int ball = (int)context;
+        if (brickIds.TryGetValue(shape, out int brick) && brickEnabled[brick] && !touching[ball, brick])
+            Hit(ball, brick);
+        return 1;
+    }
+    private void OverlapBall(int ball)
     {
         var proxy = Circle(BallPosition(ball), settings.Ball.Radius);
-        B2OverlapResultFcn callback = (shape, context) =>
-        {
-            if (brickIds.TryGetValue(shape, out int brick) && brickEnabled[brick])
-            {
-                Track(ball, brick);
-                if (!overlaps[ball, brick]) { overlaps[ball, brick] = true; overlapPairs.Add((ball, brick)); }
-                if (recordHits && !touching[ball, brick]) Hit(ball, brick);
-            }
-            return true;
-        };
-        world.OverlapShape(in proxy, BrickFilter(), callback, nint.Zero); GC.KeepAlive(callback);
+        world.OverlapShape(in proxy, BrickFilter(), ballOverlap, (nint)ball); GC.KeepAlive(ballOverlap);
     }
     private void SweepBall(int ball, double dt, double descentSpeed)
     {
         // Query at the pre-step brick poses using relative motion; return 1 to collect ALL crossed bricks.
         var proxy = Circle(BallPosition(ball), settings.Ball.Radius);
         double2 v = BallVelocity(ball) - new double2(0, descentSpeed);
-        B2CastResultFcn callback = (shape, point, normal, fraction, context) =>
-        {
-            if (brickIds.TryGetValue(shape, out int brick) && brickEnabled[brick] && !touching[ball, brick])
-                Hit(ball, brick);
-            return 1;
-        };
-        world.CastShape(in proxy, Native(v * dt), BrickFilter(), callback, nint.Zero); GC.KeepAlive(callback);
+        world.CastShape(in proxy, Native(v * dt), BrickFilter(), ballSweep, (nint)ball); GC.KeepAlive(ballSweep);
     }
     /// <summary>Instantaneous projectile-radius query. Open screen exits are not collision surfaces.</summary>
     internal WallContact Query(double2 origin, double2 direction)
@@ -372,7 +380,7 @@ internal sealed class NativeShmupArena : IDisposable
             if (!settings.Ball.BounceOnBricks)
             {
                 ClearOverlaps();
-                foreach (int i in activeBalls) { OverlapBall(i, true); SweepBall(i, dt, descentSpeed); }
+                foreach (int i in activeBalls) { OverlapBall(i); SweepBall(i, dt, descentSpeed); }
             }
             world.Step((float)dt, physics.Substeps); tasks.ThrowIfFaulted();
             var events = world.GetContactEvents();
@@ -381,7 +389,7 @@ internal sealed class NativeShmupArena : IDisposable
             for (int i = 0; i < events.BeginCount; i++) { var e = events.BeginEvents[i]; Contact(e.ShapeIdA, e.ShapeIdB, false); }
             for (int i = 0; i < events.HitCount; i++) { var e = events.HitEvents[i]; Contact(e.ShapeIdA, e.ShapeIdB, false); }
             ClearOverlaps();
-            foreach (int i in activeBalls) OverlapBall(i, true);
+            foreach (int i in activeBalls) OverlapBall(i);
             // Union of prior touching, mask changes and pre/post query candidates. Drop false
             // pairs immediately so quiet-space work cannot grow with past interactions.
             for (int index = pairs.Count - 1; index >= 0; index--)
