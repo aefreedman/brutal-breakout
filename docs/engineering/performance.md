@@ -29,7 +29,7 @@ There is no intentional 500-ball cliff. The sparse fix removed unnecessary pair 
 - Every active ball remains an awake, continuous-collision native body. Balls collide with walls/bricks, **not other balls**. Dense placement can still increase native broad-phase/contact/query work; do not infer the responsible stage without evidence.
 - Shmup's [interval policy](physics.md) performs several world steps per gameplay tick, each with solver substeps, per-ball overlap queries and speed restoration. Piercing adds pre-step overlap and sweep queries. These multipliers matter even after management overhead is improved.
 - At the shipped initial four intervals and 120 Hz, 500 bouncing balls cause about 240,000 per-ball overlap calls per simulated second, in addition to collision response and velocity access. This is arithmetic from the implementation, not a timing prediction.
-- Snapshot output, trail history and trail geometry scale with live population. Trails have 24 points per ball and a 16,384 rendered-segment limit in shipped [`trails.json`](../Config/trails.json); the render limit does not disable simulation history capture.
+- Snapshot output, trail history and trail geometry scale with live population. Trails have 24 points per ball and a 16,384 rendered-segment limit in shipped [`trails.json`](../../Config/trails.json); the render limit does not disable simulation history capture.
 - Increasing **capacity alone** reserves more bodies, fixtures, staging and dense lookup storage. The current pair lookup cells use roughly nine bytes per configured ball×brick slot, excluding array/native/other overhead. At 512×2,048 that is about nine MiB; doubling ball capacity doubles that storage. Full pair traversal is gone, but some single-pass pool scans remain.
 - Expensive ticks trigger catch-up work before rendering. Once the fixed-step budget is exceeded, apparent frame degradation can be much sharper than the extra cost of one ball.
 
@@ -47,4 +47,4 @@ The [execution/worker correction](execution.md#controlled-high-population-findin
 
 Use changed Debug filters, one affected-domain integration batch and an app build. Add an affected hidden GPU scenario only for actual presentation/rendering changes. Visible tests require separate permission. Escalate for genuine shared API/lifecycle risk; avoid routine full matrices and unrelated smoke repeats.
 
-See the [project README](../README.md) for commands, live configuration behavior and controls.
+See [validation](validation.md) for commands, [configuration](../design/configuration.md) for live editing and the [player guide](../player/guide.md) for controls.

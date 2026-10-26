@@ -1,6 +1,6 @@
 # Physics settings and quality budget
 
-[`Config/physics.json`](../Config/physics.json) is authoritative. All five settings are required, strictly validated before platform/native allocation, and passed through the same immutable `PhysicsSettings` object. There are no C# fallback defaults. `--physics-config <path>` selects another file; relative paths resolve against the caller's working directory.
+[`Config/physics.json`](../../Config/physics.json) is authoritative. All five settings are required, strictly validated before platform/native allocation, and passed through the same immutable `PhysicsSettings` object. There are no C# fallback defaults. `--physics-config <path>` selects another file; relative paths resolve against the caller's working directory.
 
 ## Settings
 
@@ -39,7 +39,7 @@ Before changing interval/substep policy, preserve compound seam deduplication, g
 
 ## Sources
 
-- [`PhysicsSettings`](../src/Runtime/Simulation/PhysicsSettings.cs), [`FixedStepClock`](../src/Runtime/Simulation/FixedStepClock.cs)
-- [`NativeArena`](../src/Runtime/Simulation/NativeArena.cs), [`NativeShmupArena`](../src/Runtime/Simulation/NativeShmupArena.cs)
+- [`PhysicsSettings`](../../src/Runtime/Simulation/PhysicsSettings.cs), [`FixedStepClock`](../../src/Runtime/Simulation/FixedStepClock.cs)
+- [`NativeArena`](../../src/Runtime/Simulation/NativeArena.cs), [`NativeShmupArena`](../../src/Runtime/Simulation/NativeShmupArena.cs)
 - [Performance considerations](performance.md)
 - [Upstream simulation concepts](https://box2d.org/documentation/md_simulation.html) and [world settings](https://box2d.org/documentation/group__world.html). Current upstream documentation is conceptual guidance, not proof that every API or feature exists in the locked BRUTAL package; published-symbol/compile evidence owns that question.

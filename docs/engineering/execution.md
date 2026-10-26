@@ -1,6 +1,6 @@
 # Execution settings and scheduling
 
-[`Config/execution.json`](../Config/execution.json) owns the explicit CPU budgets. There is no automatic all-core policy. Settings are validated before native startup; execution changes require resetting the owning worlds.
+[`Config/execution.json`](../../Config/execution.json) owns the explicit CPU budgets. There is no automatic all-core policy. Settings are validated before native startup; execution changes require resetting the owning worlds.
 
 | Setting | Shipped value | Meaning |
 | --- | ---: | --- |
@@ -51,6 +51,6 @@ The shipped worker default remains 2. The earlier one-worker override was a reve
 
 ## Sources
 
-- [`ExecutionSettings`](../src/Runtime/Simulation/ExecutionSettings.cs) and [`ExecutionConfiguration`](../src/Runtime/Game/Configuration/ExecutionConfiguration.cs)
-- [`ShmupSimulation`](../src/Runtime/Simulation/ShmupSimulation.cs), [`BallSimulation`](../src/Runtime/Simulation/BallSimulation.cs)
+- [`ExecutionSettings`](../../src/Runtime/Simulation/ExecutionSettings.cs) and [`ExecutionConfiguration`](../../src/Runtime/Game/Configuration/ExecutionConfiguration.cs)
+- [`ShmupSimulation`](../../src/Runtime/Simulation/ShmupSimulation.cs), [`BallSimulation`](../../src/Runtime/Simulation/BallSimulation.cs)
 - [Physics quality budget](physics.md), [performance considerations](performance.md)
