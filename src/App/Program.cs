@@ -284,6 +284,8 @@ try
                 modes?.Shmup?.Simulation.Snapshot.Width ?? 0);
             configurationWorkspace.Process(candidate =>
             {
+                // Explicit structural Apply bypasses live-world preflight; reject unsupported presentation before any mutation.
+                renderer.ValidateVSync(candidate.Get<LoadedWindowConfiguration>("window")!.Settings.VSync);
                 if (modes is null) throw new InvalidOperationException("No runtime host.");
                 var nextPhysics = candidate.Get<LoadedPhysicsConfiguration>("physics")!;
                 var nextExecution = candidate.Get<LoadedExecutionConfiguration>("execution")!;

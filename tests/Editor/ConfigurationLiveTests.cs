@@ -154,6 +154,92 @@ public sealed class ConfigurationLiveTests
     }
 
     [Fact]
+    public void ExplicitStructuralApplyPreflightsPresentationBeforeReplacingRunOrPublishingSettings()
+    {
+        WithHost((w, host) =>
+        {
+            var session = host.Shmup!;
+            var simulation = session.Simulation;
+            var view = new ShmupViewport(1280, 720, 1280, 720, session.Settings.Arena);
+            var input = new InputSnapshot { Focused = true };
+            session.Advance(input, 0, view); // Establish the focus baseline before advancing the retained run.
+            session.Advance(input, .02, view);
+            host.TogglePause();
+            var publication = simulation.Snapshot;
+            Assert.True(publication.Tick > 0);
+            int ticks = session.TotalTicks;
+            var settings = session.Settings;
+            var window = Doc(w, "window");
+            var shmup = Doc(w, "shmup");
+            var currentWindow = WindowConfiguration.Load(window.Path).Settings;
+            var previousWindow = currentWindow;
+            var applied = w.Documents.ToDictionary(d => d.Section, d => d.Applied);
+            var sources = w.Documents.ToDictionary(d => d.Section, d => File.ReadAllText(d.Path));
+            const System.Reflection.BindingFlags fields = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            static object Field(object owner, string name) => owner.GetType().GetField(name, fields)!.GetValue(owner)!;
+            var native = Field(simulation, "native");
+            var nativeWorld = Field(native, "world");
+            object[] BodyIds(string name) => ((Array)Field(native, name)).Cast<object>().ToArray();
+            var balls = BodyIds("balls"); var bricks = BodyIds("bricks"); var walls = BodyIds("walls");
+            static void ValidatePresentation(ConfigurationWorkspace.Candidate candidate)
+            {
+                if (!candidate.Get<LoadedWindowConfiguration>("window")!.Settings.VSync)
+                    throw new NotSupportedException("Immediate unsupported");
+            }
+            var validateLiveWorld = w.PreflightLive!;
+            int livePreflights = 0, callbacks = 0, mutations = 0;
+            w.PreflightLive = candidate =>
+            {
+                livePreflights++;
+                ValidatePresentation(candidate);
+                validateLiveWorld(candidate);
+            };
+            void Commit(ConfigurationWorkspace.Candidate candidate)
+            {
+                callbacks++;
+                // Same ordering as Program's Process callback, including explicit structural Apply.
+                ValidatePresentation(candidate);
+                mutations++;
+                Apply(host, candidate);
+                currentWindow = candidate.Get<LoadedWindowConfiguration>("window")!.Settings;
+            }
+            window.Set("vsync", false);
+            shmup.Set("capacity.maxBalls", 10);
+            w.Process(Commit); // AutoApply rejects the live policy but deliberately retains the bad draft.
+            Assert.Equal(0, callbacks);
+            Assert.False(window.Draft.GetProperty("vsync"u8).GetBoolean());
+            int preflights = livePreflights;
+            w.Request(ConfigurationAction.Apply); w.Process(Commit);
+            Assert.Equal(preflights, livePreflights); // Structural reset must not use the live-world validator.
+            Assert.Equal(1, callbacks); Assert.Equal(0, mutations);
+            Assert.Contains("Immediate unsupported", w.Status); Assert.StartsWith("Rejected:", w.Status);
+            Assert.Same(session, host.Shmup); Assert.Same(simulation, host.Shmup!.Simulation);
+            Assert.Same(publication, simulation.Snapshot); Assert.Same(settings, session.Settings);
+            Assert.Same(previousWindow, currentWindow); Assert.Equal(ticks, session.TotalTicks);
+            Assert.Equal(publication.Tick, simulation.Snapshot.Tick); Assert.True(host.Paused);
+            Assert.Same(native, Field(simulation, "native")); Assert.Equal(nativeWorld, Field(native, "world"));
+            Assert.Equal(balls, BodyIds("balls")); Assert.Equal(bricks, BodyIds("bricks")); Assert.Equal(walls, BodyIds("walls"));
+            Assert.All(w.Documents, d =>
+            {
+                Assert.Equal(applied[d.Section], d.Applied);
+                Assert.Equal(sources[d.Section], File.ReadAllText(d.Path));
+            });
+            Assert.True(window.Pending); Assert.True(shmup.Pending); Assert.Single(w.PendingResetFields);
+
+            window.Set("vsync", true);
+            w.Request(ConfigurationAction.Apply); w.Process(Commit);
+            Assert.Equal(preflights, livePreflights);
+            Assert.Equal(2, callbacks); Assert.Equal(1, mutations);
+            Assert.StartsWith("Runtime applied; structural reset completed", w.Status);
+            Assert.NotSame(session, host.Shmup); Assert.True(host.Paused);
+            Assert.Equal(10, host.Shmup!.Settings.Capacity.MaxBalls);
+            Assert.Equal(0, host.Shmup.Simulation.Snapshot.Tick);
+            Assert.True(currentWindow.VSync); Assert.Empty(w.PendingResetFields);
+            Assert.False(window.Pending); Assert.False(shmup.Pending);
+        });
+    }
+
+    [Fact]
     public void InvalidLiveIsCachedAndDoesNotBlockOtherValidDocumentOrLeakPendingGeometry()
     {
         WithHost((w, host) =>
