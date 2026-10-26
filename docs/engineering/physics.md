@@ -37,6 +37,26 @@ Tick rate, application intervals and solver substeps jointly determine Shmup's q
 
 Breakout's interval/substep behavior supports compound seam deduplication, genuine reentry, piercing sweeps, moving-brick contacts, chronological wall expiry, same-interval brick precedence, earlier hits surviving later expiry and fixed-tick events/trails. Box2D owns collision response. Throughput measurements alone do not establish that these gameplay behaviors are unchanged.
 
+## Observed settings sensitivities
+
+At the 2,000-ball anchor, 60/120/240 Hz realized 8/4/2 native intervals per tick: all three executed **480 native intervals per simulated second**. Lower per-tick cost at 240 Hz did not make it a cheaper simulated second. The 60 Hz case completed twenty measured simulated seconds, while 240 Hz reached only 11.44 before the work-budget limit. The whole-study scope also generates CPU geometry once per tick, so rate comparisons include a changed presentation frequency; the real render cadence was not measured.
+
+Two solver substeps had a similar step median to four (4.65 versus 4.68 ms). One substep was not a demonstrated faster equivalent: its case truncated at 17.43 simulated seconds and recorded work/lifecycle facts diverged early. The combined 60 Hz-stiffness/.7-damping preset completed its duration with a 4.70 ms median, but likewise changed recorded facts. Those differences are not by themselves semantic failures, nor proof that CCD/compound/expiry invariants remain equivalent under the alternatives.
+
+Four-times ball speed raised realized native intervals from 480 to 1,920 per simulated second; that case reached 9.44 measured simulated seconds with a 15.06 ms step median before truncation. Piercing, with its additional overlap/sweep queries, reached 14.81 seconds at an 8.36 ms median. Their shorter completed durations are retained overload observations, not matched-duration winners.
+
+### Catch-up admission
+
+The same scripted twenty-second, 60 Hz host tape with declared stalls produced:
+
+| Catch-up cap | Completed simulated time | Dropped offered time |
+| ---: | ---: | ---: |
+| 1 | 9.600 s | 10.400 s |
+| 4 | 19.292 s | 0.700 s |
+| 8 | 19.492 s | 0.500 s |
+
+The latter two retain a fractional 0.00833-second tick. Every admitted command completed. A cap of one took less work because it simulated much less offered time, not because it accelerated the solver. These are synthetic host-admission results, separate from asynchronous backpressure and real frame/device latency.
+
 ## Study quality and GPU feasibility
 
 The [CPU study tool](performance.md#opt-in-cpu-physics-study-tool) varies tick/solver/contact/worker budgets without changing production defaults or response code. Its higher-speed interval-pressure case exercises the existing adaptive interval formula. Interval and solver work are reported per completed simulated duration. Changed trajectories under different quality budgets are not automatically failures; throughput is not evidence of quality equivalence. Required CCD, compound seam/reentry, chronological expiry/brick precedence, fixed-tick event/trail and immutable-publication contracts must pass separately before interpreting any configuration as a safe alternative. Small deterministic native fixtures and scheduler gates are correctness tests, not a 4,000-ball benchmark or exact timing/byte gates.

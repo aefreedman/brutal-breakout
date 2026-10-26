@@ -55,6 +55,24 @@ Every completion carries command sequence/enqueue/start/publication timestamps, 
 
 This is **not** proof of a real 120 Hz simulation/60 Hz host loop or lower input latency. The separate catch-up experiment uses `FixedStepClock` with an explicit 60 Hz frame/input tape and known stalls, records dropped offered wall time separately from command completion, and does not count less simulated time as faster execution. Production execution policy and existing Classic source are unchanged.
 
+### Matched-work observations
+
+Direct, immediate-owner and overlap each completed 2,640 commands, captures and presentations (including warm-up). The measured twenty simulated seconds took:
+
+| Protocol | Measured elapsed | Per-command end-to-end p50 / p99 | Publication-to-CPU-display p99 |
+| --- | ---: | ---: | ---: |
+| Direct | 23.40 s | 9.31 / 14.09 ms | 7.58 ms |
+| Immediate owner | 22.88 s | 9.41 / 11.67 ms | 6.22 ms |
+| One-in-flight overlap | 11.87 s | 9.11 / 14.06 ms | 9.17 ms |
+
+Recorded command-frame, coalesced-event, lifecycle, trail and geometry scalar records matched across all 2,640 commands. Final positions/velocities or a full-state fingerprint were not persisted, so offline equality is limited to those recorded facts. Overlap presented one-command-old state for 2,399 of 2,400 measured presentations; the final drain had age zero. It improved useful completed-work throughput in this synthetic CPU pipeline, not measured device-input latency or equal-freshness presentation. Its process CPU total remained similar to the serial controls.
+
+Production has separate render and fixed-tick cadences; this experiment builds CPU geometry once per tick. It therefore supports investigating coarse overlap, but does not establish a safe production execution-policy change, optimal queue depth or real-host latency benefit. No per-ball asynchronous work or parallel mutation of a native world was involved.
+
+## Larger-load worker observations
+
+The intensive study used one serial, fixed-order pass at a 2,000-ball target with the same physics quality. Physics workers 1/2/4/8 produced simulation-step medians of 5.56/4.68/4.26/4.28 ms. The one-worker case stopped at 18.63 measured simulated seconds; the others completed twenty. For workers 2/4/8, measured-phase elapsed times were 23.40/22.62/23.22 seconds, while whole-case process CPU totals rose from 40.30 to 47.64 to 65.41 seconds. Four workers modestly reduced elapsed cost here; eight consumed more CPU without a clear elapsed benefit. Order, drift, finite samples and the truncated one-worker control prevent a portable best-worker conclusion. ECS worker count was not varied and does not parallelize Shmup's managed loops.
+
 ## Sources
 
 - [`ExecutionSettings`](../../src/Runtime/Simulation/ExecutionSettings.cs) and [`ExecutionConfiguration`](../../src/Runtime/Game/Configuration/ExecutionConfiguration.cs)

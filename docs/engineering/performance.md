@@ -29,9 +29,28 @@ High fire rate increases population and spatial density; it is not equivalent to
 
 The [execution/worker correction](execution.md#controlled-high-population-finding) addresses the large preview.7 median penalty without lowering caps or physics quality. The equivalent 500-ball native-only comparison fell from 16.17 to 1.53 ms/tick with two workers in preview.8. A retained sample still contained a roughly 102 ms whole-step outlier, with no established cause. The execution guide records both worker controls, workload, sampling method and limitations.
 
-These headless measurements exclude snapshot publication, presentation and GPU work, so they do not establish full-game frame rate or the cause of a particular live-game slowdown. Native completion waits, the combined [physics quality budget](physics.md), trail/presentation costs and residual tick outliers are distinct contributors.
+That native-only comparison excludes snapshot publication, presentation and GPU work, so it does not establish full-game frame rate or the cause of a particular live-game slowdown. Native completion waits, the combined [physics quality budget](physics.md), trail/presentation costs and residual tick outliers are distinct contributors.
 
 Normal Debug launches enable Vulkan validation; normal Release launches do not unless requested. Hidden GPU tests enable it in either configuration. These renderer costs are absent from the headless native-arena comparison. Execution-setting changes reset the owning world, which also changes population and progression unless the workload is recreated.
+
+## Intensive CPU envelope
+
+The opt-in study completed one frozen 28-case Release pass on an i9-9900K (8 cores/16 logical processors), .NET 10.0.5, using normal tiered JIT. Twenty-two cases completed; six stopped at their measurement work-budget limit. There were no native failures, external hard timeouts or memory skips. Each ordinary case targeted two simulated warm-up seconds plus twenty measured seconds; the workload used 4,096 ball/1,024 brick slots, forty seeded rotated compounds, a 1,280-unit play area and declared refill/high-HP overrides. Observed populations fluctuated below their targets as balls/brick lives retired and were replaced.
+
+| Target live balls | Native step p50 / p99 | Serial simulation + CPU presentation p50 / p99 | Whole measured simulation |
+| ---: | ---: | ---: | ---: |
+| 500 | 1.24 / 2.05 ms | 3.80 / 5.51 ms | 20 s; 2,400 samples |
+| 1,000 | 2.23 / 3.00 ms | 6.08 / 14.45 ms | 20 s; 2,400 samples |
+| 2,000 | 4.04 / 5.16 ms | 9.31 / 14.09 ms | 20 s; 2,400 samples |
+| 4,000 | 8.23 / 10.47 ms | 16.48 / 24.02 ms | **Truncated:** 11.35 s; 1,362 samples |
+
+Native cases all completed twenty measured simulated seconds. Native and whole workloads are not subtractable phase estimates. The serial whole column includes maintenance, simulation/publication, trail capture and **one CPU geometry build per fixed tick**. The real host builds presentation per rendered frame instead, so these are synthetic command costs, not frame times or a production 120 Hz acceptance result. The 4,000-ball whole case observed 3,960–4,000 balls, rather than silently reporting a constant population or a completed duration.
+
+At 2,000 balls, trail-enabled CPU geometry had a 4.25 ms median, versus about 1.97 ms with trail drawing disabled or history absent. The draw-disabled case still captured history; it ended with 42,101 points, while the absent case had none. These are CPU tessellation costs, not GPU timing. [Bounded overlap](execution.md#study-only-dedicated-owner-protocol) improved synthetic throughput while using older state; it did not establish lower input/display latency.
+
+Long outliers remain: the whole-1,000 case retained a 208.64 ms simulation step, and the 240 Hz case a 187.99 ms step. Neither interval had an accompanying recorded global GC-pause increment. That observation does not identify or exclude a cause; native completion, OS scheduling, JIT and GC accounting require more specific evidence. No outliers were discarded. A single repeated-2000 baseline showed modest drift, not stable-JIT or universal worker-setting proof.
+
+The seeded spawn/reuse case completed its duration but fell to 9–978 balls during measurement and ended at 18. It exercised 1,200 measured generation reuses, but reached only 4,005 balls across warm-up/measurement with no drops: **cap saturation was not exercised**. Scalar lifecycle/event/trail records matched among execution comparators, but final snapshot positions/velocities or a full-state hash were not persisted. Changed-quality correctness and full async trajectory equivalence therefore remain separate questions. The study measured no GPU physics, GPU rendering time or physical input latency, and changed no game defaults.
 
 ## Opt-in CPU physics study tool
 
