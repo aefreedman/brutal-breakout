@@ -4,6 +4,7 @@
 
 - `Assets/`: source audio, images, fonts and their provenance/licenses; no application C#.
 - `Config/`: designer-facing authoritative JSON; alternate palettes live in `Config/ColorSchemes/`.
+- `docs/`: maintained [performance](docs/performance.md), [physics](docs/physics.md) and [execution](docs/execution.md) guides.
 - `src/App/`: executable composition and platform/render loop.
 - `src/Runtime/Game/`: `BrutalBreakout.Runtime` assembly, configuration loading, game presentation, HUD and sessions.
 - `src/Runtime/{Simulation,Input,Audio}/`: existing independent runtime assemblies.
@@ -76,17 +77,15 @@ The renderer/geometry/shaders and optional inspector now live in CrushKit, not t
 
 Breakout uses **Arch 2.1.0** through `CrushKit.Brutal.Ecs`, with `ZeroAllocJobScheduler 1.1.2` for explicit dependencies. `CrushKit.Brutal.Physics` owns the reusable Box2D worker/task bridge; neither package knows about balls, bricks, catch rules or game JSON. Breakout owns those components/systems, the native arena layout, tick graph and immutable render publications.
 
-`Config/execution.json` is required for gameplay, copied into the executable's `Config/` directory and validated before platform/native startup. `--execution-config <path>` selects an override. Its three required positive-integer fields are `workerCount` (ECS graph workers), `maxExpectedConcurrentJobs` (scheduler handle-pool sizing, not a queue limit) and `physicsWorkerCount` (Box2D workers). Shipped budgets are 2/64/2; they are explicit composition choices, not a single-thread restriction or a performance claim. Coordinator threads are additional to these worker budgets. Tune total CPU use rather than giving every pool all cores.
+`Config/execution.json` is required for gameplay, copied into the executable's `Config/` directory and validated before platform/native startup. `--execution-config <path>` selects an override. See the [execution guide](docs/execution.md) for the three settings, shipped budgets, coordinator overhead and the distinction between ECS workers and synchronous Shmup/native physics.
 
-Each tick runs input/native physics first, then independent ball/round and brick ECS jobs, then joins both before publishing. The physics engine, not an ECS movement system, owns flight integration and collisions. No world reads/writes overlap its native step; native events are fully copied/consumed before destroying bodies. Structural ECS changes occur only at exclusive boundaries. The pinned Arch query scheduler is static, so the shared host deliberately does not replace it or run nested `ParallelQuery` calls: graph-level jobs provide concurrency over disjoint archetypes instead.
+Classic Breakout ticks run input/native physics first, then independent ball/round and brick ECS jobs, then join both before publishing. The physics engine, not an ECS movement system, owns flight integration and collisions. No world reads/writes overlap its native step; native events are fully copied/consumed before destroying bodies. Structural ECS changes occur only at exclusive boundaries. The pinned Arch query scheduler is static, so the shared host deliberately does not replace it or run nested `ParallelQuery` calls: graph-level jobs provide concurrency over disjoint archetypes instead.
 
 `BallSimulation.StepAsync` queues ticks from any caller thread and returns that tick's immutable `SimulationSnapshot`; snapshots can be retained while work continues. Queries queue behind accepted ticks. Disposal drains accepted work before releasing native worlds, worker pools and ECS storage. `Step` is a blocking compatibility wrapper; the current input/render host joins ticks before drawing, not a requirement that gameplay or physics execute on the render thread. Host input staging remains host-thread-owned. Async I/O, further jobs and snapshot-based render overlap remain possible without changing collision ownership. Dependency graphs, tasks and retained snapshots currently allocate; the scheduler's name does not imply allocation-free ticks or a measured speedup.
 
 ### Performance defaults
 
-Configuration drafts are privately owned JSON, edited through explicit section-relative paths. Cached immutable read views, text and pending/dirty status refresh only on real edits or source/applied/context changes; unchanged inspector draws and owner updates do not serialize, parse or revalidate documents. Invalid attempts stay cached until an edit or live-context change; Save remains explicit and validates disk conflicts.
-
-Shmup publication reuses private staging lists bounded by validated ball/brick capacities, then transfers independently owned arrays to every existing publication in ascending ID order. Retained snapshots never alias scratch, including across tuning, reset and disposal. Ball overlap/sweep callbacks are cached per native arena and carry the ball index as synchronous per-call value context, consulting current settings. Immutable publications and change-triggered validation still deliberately allocate; this is not a zero-allocation claim. Workspace-wide design/review policy lives in the coordination repository's `docs/reference/performance-by-default.md`.
+See the [performance guide](docs/performance.md) for design/review defaults, current ownership/caching rules and high-population scaling considerations. The [physics guide](docs/physics.md) explains the combined interval/substep quality budget; the [execution guide](docs/execution.md) explains what worker settings do and do not parallelize. These product guides are self-contained in this repository; shared workspace policy remains in the coordination repository.
 
 ### Pause and panel controls (both modes)
 
@@ -195,23 +194,9 @@ The immutable `WindowSettings(int width, int height)` has no defaults or mutable
 
 ### Physics configuration
 
-`Config/physics.json` is the **only production default source** for physics timing/tuning. It is copied to build and publish output; normal startup reads the file beneath the executable's `Config/` directory, independent of the caller's working directory. Edit the source file and run/build again, edit the deployed copy, or select a file explicitly:
+`Config/physics.json` is the only production default source for physics timing/tuning and is copied into build/publish output. Select another file with `--physics-config <path>`; explicit relative paths resolve against the caller's working directory. Showcase-only modes do not load implicit physics, but validate an explicit override.
 
-```powershell
-dotnet run --project src/App/BrutalBreakout.App.csproj -- --physics-config ./physics.json
-```
-
-An explicit relative path resolves against the caller's working directory. The file is read and validated **before GLFW or a native physics world starts**. All five fields are required; unknown/misspelled/duplicate fields, wrong types, malformed/nonfinite/unrepresentable numbers and missing/unreadable files fail with path context. There is no C# fallback configuration, partial merge, or last-wins duplicate handling. Showcase-only modes do not load an implicit physics file; an explicit override is still validated. `--physics-config` must occur once with a path. Changes take effect on the **next launch**, not through hot reload.
-
-| Field | Meaning |
-| --- | --- |
-| `updateHz` | Fixed gameplay/physics updates per second; timestep is derived as `1 / updateHz`. Positive finite fractional rates are allowed when native step/substep arithmetic can represent them. |
-| `substeps` | Positive integer Box2D solver substeps within each fixed update; this is not an extra game-command update. |
-| `maxCatchUpSteps` | Positive integer maximum fixed ticks per host advance. Excess new elapsed time is discarded while the previous fractional tick remains. |
-| `contactHertz` | Nonnegative finite native contact stiffness frequency. Explicit, independent tuning—not automatically changed when `updateHz` changes. |
-| `contactDampingRatio` | Nonnegative finite native contact damping ratio; 1 is critical damping. |
-
-One immutable validated `PhysicsSettings` instance is shared by session, clock, simulation and native adapter. Startup prints the loaded absolute path, timestep and all five effective settings. Numeric representability does **not** guarantee useful or stable physics for every extreme combination; tune/test frequency, substeps and contact settings together. Unit conversion and arena geometry are not part of this timing configuration.
+See the [physics guide](docs/physics.md) for every setting, shipped values, strict validation, live-versus-reset behavior, adaptive Shmup intervals and their interaction with solver substeps. External files are not automatically watched; the Configuration panel's Reload/Discard and explicit reset rules apply as described above.
 
 ### Gameplay and input configuration
 
