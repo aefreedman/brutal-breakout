@@ -51,7 +51,6 @@ The immutable `WindowSettings(int width, int height)` has no defaults or mutable
 
 See the [physics guide](../engineering/physics.md) for every setting, shipped values, strict validation, live-versus-reset behavior, adaptive Shmup intervals and their interaction with solver substeps. External files are not automatically watched; the Configuration panel's Reload/Discard and explicit reset rules apply as described above.
 
-
 ## Gameplay and input configuration
 
 `Config/gameplay.json` and `Config/input.json` are the only production default sources for ball/arena geometry and stick deadzone. Like `Config/physics.json`, they are copied into the executable's `Config/` directory on build/publish and loaded before GLFW/native world creation. Edit the source files and build/run again, edit deployed copies, or choose independent overrides:

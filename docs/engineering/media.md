@@ -47,7 +47,6 @@ Prior to this outline/pattern layout, targeted client-area samples on the tested
 
 The maintained drawing API, color/borrowed-frame contracts, stroke patterns and geometry limits are documented in [CrushKit Draw2D](../../../../crushkit-brutal/docs/draw2d.md). Breakout's showcase remains a game-owned integration demo of that API.
 
-
 ## Shmup aim and audio feedback
 
 Shmup aiming uses the original mode's long line, impact circle and short reflected bounce indicator, backed by an instantaneous projectile-radius native cast against the current walls and live bricks. Piercing mode ignores bricks as bounce targets. Open top/bottom exits show an unreflected line to the screen edge; ambiguous or overlapping queries retain the short fallback rather than inventing a bounce. This is current-pose feedback, not prediction of future moving-brick positions.
