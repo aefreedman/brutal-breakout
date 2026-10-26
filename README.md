@@ -39,7 +39,7 @@ A Windows-first 2D game built with C# and [BRUTAL](https://github.com/ahwootech/
 - Vulkan 1.3 GPU/driver, combined graphics/present queue, color-attachment swapchain support, B8G8R8A8_SRGB or R8G8B8A8_SRGB surface format, and 4x-MSAA support for the selected color format. There is no non-sRGB or lower-sample-count fallback; unsupported hardware fails clearly.
 - Vulkan SDK validation layers for Debug development and smoke tests. Players need the driver runtime, not the SDK.
 
-Breakout consumes local prerelease `CrushKit.Brutal.Draw2D`, `CrushKit.Brutal.Vulkan`, optional-inspector `CrushKit.Brutal.ImGui`, `CrushKit.Brutal.Input`, `CrushKit.Brutal.Audio`, `CrushKit.Brutal.Ecs` and `CrushKit.Brutal.Physics` packages (currently version `0.1.0-preview.5`). BRUTAL packages and native libraries restore transitively from NuGet; no BRUTAL source checkout or external shader build step is required. Embedded GLSL compiles once at startup through ShaderC (no external `glslc`).
+Breakout consumes local prerelease `CrushKit.Brutal.Draw2D`, `CrushKit.Brutal.Vulkan`, optional-inspector `CrushKit.Brutal.ImGui`, `CrushKit.Brutal.Input`, `CrushKit.Brutal.Audio`, `CrushKit.Brutal.Ecs` and `CrushKit.Brutal.Physics` packages (currently version `0.1.0-preview.7`). BRUTAL packages and native libraries restore transitively from NuGet; no BRUTAL source checkout or external shader build step is required. Embedded GLSL compiles once at startup through ShaderC (no external `glslc`).
 
 ## Build and run
 
@@ -124,7 +124,7 @@ After a Release build, `pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -
 
 ### BRUTAL audio, text, textures and diagnostics
 
-Normal gameplay now shows count/status/control labels through **SDL.Ttf -> BRUTAL.Texture/GenericTexture -> direct Vulkan textured quads**. `TextureLoader` uses BRUTAL Stb internally for the PNG path; there is no second image decoder or alternate graphics stack. ImGui supplies **only the optional diagnostics inspector and game-mode controls**, not the game text/image compositor. The existing 24-byte solid-shape pipeline is unchanged; textured vertices use a separate 32-byte UV material, with linear-premultiplied texels/tints, sRGB output and the same 4x MSAA render pass.
+Normal gameplay now shows count/status/control labels through **SDL.Ttf -> BRUTAL.Texture/GenericTexture -> direct Vulkan textured quads**. `TextureLoader` uses BRUTAL Stb internally for the PNG path; there is no second image decoder or alternate graphics stack. ImGui supplies **optional diagnostics, gameplay and configuration controls**, not the game text/image compositor. The existing 24-byte solid-shape pipeline is unchanged; textured vertices use a separate 32-byte UV material, with linear-premultiplied texels/tints, sRGB output and the same 4x MSAA render pass.
 
 - `Config/overlay.json` is required in game and gallery modes (`--overlay-config <path>` overrides it). Its `fontPath` selects the proportional game font. Editor-enabled builds separately require `Config/inspector.json` (`--inspector-config <path>`), whose `fontPath` selects the monospaced inspector font and whose `imagePath` selects the preview. Asset paths resolve relative to the JSON containing them. Font sizes, label spacing and inspector dimensions are **physical framebuffer pixels**. Cache/label/texture/encoded-byte limits are explicit; required fields/assets and the host's three-label capacity are validated before GLFW. Defaults exist only in JSON, with no partial merge or hot reload. Labels cache unchanged strings; cache eviction and GPU texture/descriptor lifetime follow the shared frame fence.
 - Press **F1 / Select / Share** to open/close the inspector at runtime, including while it captures input. Holding the key/button does not repeat; focus/device changes baseline held controls. No CLI argument is required. `visible` in `Config/inspector.json` seeds the initial state; `--debug-ui` remains an optional initially-open shortcut. It shows state/counts, timing, geometry/presentation/cache statistics, font/framebuffer/raster-density metrics and an authored PNG preview. Its game-controls window selects the mode and widens the active Shmup play area; the remaining diagnostics are read-only. With it closed, the game does not initialize ImGui or install its GLFW callbacks. Capture transitions clear pending input edges; captured keyboard/mouse sources are suppressed without taking gamepad control away.
@@ -144,18 +144,34 @@ pwsh -NoProfile -File tests/Rendering/hidden-smoke.ps1 -Configuration Debug -Mod
 
 #### Inspector layout
 
-The inspector has two independent movable/resizable windows. Drag a title bar to move a window; drag its edges to resize it. Diagnostics can also collapse to its title bar.
+The inspector has independent movable/resizable Gameplay and Diagnostics windows, plus a Configuration window opened with **Configuration...** in Gameplay. Drag title bars to move windows and edges to resize them. Diagnostics can also collapse to its title bar.
 
 | Window | Initial physical-pixel bounds | Contents |
 | --- | --- | --- |
 | Gameplay | `(16, 16)`, `360×420` | Running/Paused, Pause/Resume and Restart; selected-mode radios; Shmup widening |
 | Diagnostics | `(392, 16)`, `440×480` | Aligned state/run facts/frame-time readings, preview and expandable technical readings |
+| Configuration | `(392, 16)`, `560×500` | Staged settings, Apply & restart, Save changed, Discard and Reload |
 
-These defaults fit without overlapping at both 960×540 and 1280×720. Preview starts open; Rendering, Text cache and Font start closed. Labels, values and help wrap rather than forming one large text block. Shmup reports its actual timing, geometry, HP/counts and pause state. Widening is disabled while paused or at maximum width; its stable range cannot narrow the current run.
+Gameplay and Diagnostics fit without overlapping at both 960×540 and 1280×720. Configuration opens over Diagnostics while tuning; move/resize it as needed. Preview starts open; Rendering, Text cache and Font start closed. Labels, values and help wrap rather than forming one large text block. Shmup reports its actual timing, geometry, HP/counts and pause state. Widening is disabled while paused or at maximum width; its stable range cannot narrow the current run.
 
-`Config/inspector.json` owns initial bounds: root `left/top/width/height` configure Diagnostics, and required `gameplayWindow: { "left": 16, "top": 16, "width": 360, "height": 420 }` configures Gameplay. Custom inspector JSON must include that complete object. Both immutable settings objects are validated before native allocation and passed unchanged to the UI. Bounds are starting positions, not locks: moved/resized bounds and diagnostic section choices survive panel toggles and context recreation within the running application. Smaller framebuffers/DPI changes recover reachable bounds. A new launch starts from JSON again; no docking system or layout files are written.
+`Config/inspector.json` owns initial bounds: root `left/top/width/height` configure Diagnostics, and required `gameplayWindow: { "left": 16, "top": 16, "width": 360, "height": 420 }` configures Gameplay. Required `configurationWindow: { "left": 392, "top": 16, "width": 560, "height": 500 }` seeds Configuration. Custom inspector JSON must include both complete window objects. Immutable settings objects are validated before native allocation and passed unchanged to the UI. Bounds are starting positions, not locks: moved/resized bounds and diagnostic section choices survive panel toggles and context recreation within the running application. Smaller framebuffers/DPI changes recover reachable bounds. A new launch starts from JSON again; no docking system or layout files are written.
 
 CPU/native ImGui and hidden GPU checks verify layout mechanics and real geometry/preview receipts, not subjective readability or visible mixed-DPI quality. Visible inspection remains a separate permission-gated check.
+
+### Configuration controls
+
+Open **F1 / Select / Share → Gameplay → Configuration...**. Expand file/section groups to edit numeric values, toggles and text. Brick shapes/quarter turns have checkboxes; palette colors have native color editors and semantic roles have palette selectors. Values originate from the selected JSON files, not a second set of UI defaults. Input arrays other than shape/rotation choices currently retain their entry counts.
+
+| Groups | Apply behavior |
+| --- | --- |
+| Shmup, Breakout/gameplay, physics, execution, input, trails, colors, style, audio | **Apply & restart** validates the complete compatible runtime bundle, starts a fresh run and retains selected mode/manual pause. Temporary changes are not saved. |
+| Window, overlay, inspector | Editable and savable, but **application relaunch required**. Runtime Apply does not claim these drafts were applied. |
+
+Pending Apply/relaunch and unsaved markers are independent. Invalid drafts report errors and leave the running settings unchanged. Numeric fields use game units, units/second, seconds or their named ratios; integer-only schema fields reject fractional values. Applying settings clears old run/input/trail debt; audio changes use the existing silent-output diagnostic if a device is unavailable. Unrelated settings do not reopen audio devices.
+
+**Save changed** is explicit and does not apply settings. It validates all staged files, preserves relative asset-path spellings, checks for external edits and atomically replaces each changed file. Multi-file failures attempt rollback and report any partial save; this is not a filesystem-wide transaction. **Reload** discards drafts, validates disk files and resolves conflicts without changing the live run. **Discard** returns to the last loaded/saved source, also without changing the live run. No automatic settings or layout writes occur.
+
+The selected absolute paths are shown in the panel. Direct application launches normally select executable-directory `Config/` copies; saving those copies is not durable across clean/redeployment. From the project directory, **`--project-configs`** selects source `Config/` files for implicit paths. The coordination workspace's **`play.cmd`** supplies this flag automatically. Explicit per-file `--*-config <path>` overrides still win and saves target exactly those files. Apply uses in-memory production parsing/cross-validation and does not need write access to the source directory.
 
 ### Initial window configuration
 
