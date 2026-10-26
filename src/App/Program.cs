@@ -193,6 +193,8 @@ try
         bool shmupSawBalls = false, shmupSawBricks = false, shmupSawAim = false, shmupSawTrails = false;
 #if BREAKOUT_EDITOR
         ShmupSession? configurationSmokeOldRun = null;
+        BrutalBreakout.Simulation.ShmupSnapshot? configurationSmokeSnapshot = null;
+        bool configurationSmokeReset = false;
         bool configurationSmokePaused = false, configurationSmokeApplied = false, configurationSmokeRejected = false;
 #endif
         var staleFrameRegressionPassed = false;
@@ -241,12 +243,33 @@ try
             if (shmupSmokeTest && shmupFrames is 16 or 18)
             {
                 configurationSmokeOldRun = modes!.Shmup;
+                configurationSmokeSnapshot = modes.Shmup!.Simulation.Snapshot;
                 configurationSmokePaused = modes.Paused;
                 configurationWorkspace.Documents.Single(d => d.Section == "shmup").Draft["ball"]!["speed"] =
                     shmupFrames == 16 ? 600.5 : -1;
-                configurationWorkspace.Request(ConfigurationAction.Apply);
             }
             if (shmupSmokeTest && shmupFrames == 19) configurationWorkspace.Request(ConfigurationAction.Discard);
+            if (shmupSmokeTest && shmupFrames == 20)
+            {
+                configurationSmokeOldRun = modes!.Shmup;
+                var capacity = configurationWorkspace.Documents.Single(d => d.Section == "shmup").Draft["capacity"]!;
+                capacity["maxBalls"] = shmup!.Settings.Capacity.MaxBalls + 1;
+                configurationWorkspace.Request(ConfigurationAction.Apply);
+            }
+            configurationWorkspace.InactiveModeSection = modes?.Mode == GameplayMode.Shmup ? "gameplay" : modes?.Mode == GameplayMode.Breakout ? "shmup" : null;
+            configurationWorkspace.LiveContextRevision = modes?.Shmup is { } liveRun
+                ? $"{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(liveRun)}:{liveRun.Simulation.Snapshot.Width}"
+                : modes?.Breakout is { } classicRun ? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(classicRun).ToString() : null;
+            configurationWorkspace.PreflightLive = candidate =>
+            {
+                if (modes is null) return;
+                modes.ValidateTuning(candidate.Get<LoadedPhysicsConfiguration>("physics")!.Settings,
+                    candidate.Get<LoadedGameplayConfiguration>("gameplay")!.Settings,
+                    candidate.Get<LoadedShmupConfiguration>("shmup")!.Settings,
+                    candidate.Get<LoadedInputConfiguration>("input")!.Settings,
+                    candidate.Get<LoadedExecutionConfiguration>("execution")!.Settings,
+                    candidate.Get<LoadedBallTrailConfiguration>("trails")!.Settings);
+            };
             configurationWorkspace.Process(candidate =>
             {
                 if (modes is null) throw new InvalidOperationException("No runtime host.");
@@ -256,8 +279,17 @@ try
                 var nextShmup = candidate.Get<LoadedShmupConfiguration>("shmup")!;
                 var nextInput = candidate.Get<LoadedInputConfiguration>("input")!;
                 var nextTrails = candidate.Get<LoadedBallTrailConfiguration>("trails")!;
-                modes.Reconfigure(nextPhysics.Settings, nextGameplay.Settings, nextShmup.Settings,
-                    nextInput.Settings, nextExecution.Settings, nextTrails.Settings);
+                if (candidate.ResetRequired)
+                    modes.Reconfigure(nextPhysics.Settings, nextGameplay.Settings, nextShmup.Settings,
+                        nextInput.Settings, nextExecution.Settings, nextTrails.Settings);
+                else
+                    modes.ApplyTuning(nextPhysics.Settings, nextGameplay.Settings, nextShmup.Settings,
+                        nextInput.Settings, nextExecution.Settings, nextTrails.Settings);
+                if (configurationWorkspace.IsChanged(candidate, "window"))
+                {
+                    windowConfiguration = candidate.Get<LoadedWindowConfiguration>("window")!;
+                    window.Size = new int2(windowConfiguration.Settings.Width, windowConfiguration.Settings.Height);
+                }
                 if (configurationWorkspace.IsChanged(candidate, "audio"))
                 {
                     var nextAudio = candidate.Get<LoadedAudioConfiguration>("audio")!;
@@ -271,23 +303,39 @@ try
                 (physics, execution, gameplay, shmup, input, trails, colors, style) =
                     (nextPhysics, nextExecution, nextGameplay, nextShmup, nextInput, nextTrails,
                         candidate.Get<LoadedColorSchemeConfiguration>("colors"), candidate.Get<LoadedPresentationStyleConfiguration>("style"));
-                audio?.SetSuppressed(muteAudio, hasFocus: false);
-                gameplayControls.Drain(); // discard commands targeting the retired run
-                lastElapsed = timer.Elapsed; // allocation/preparation time is not simulation catch-up debt
+                if (candidate.ResetRequired)
+                {
+                    audio?.SetSuppressed(muteAudio, hasFocus: false);
+                    gameplayControls.Drain(); // commands target the retired run only on explicit structural reset
+                    lastElapsed = timer.Elapsed;
+                }
             });
             if (shmupSmokeTest && shmupFrames == 16)
             {
-                configurationSmokeApplied = modes!.Shmup != configurationSmokeOldRun &&
+                configurationSmokeApplied = ReferenceEquals(modes!.Shmup, configurationSmokeOldRun) &&
                     ReferenceEquals(modes.Shmup!.Settings, shmup!.Settings) && shmup.Settings.Ball.Speed == 600.5 &&
                     modes.Mode == GameplayMode.Shmup && modes.Paused == configurationSmokePaused &&
-                    modes.Shmup.Simulation.Snapshot.Tick == 0 && modes.Shmup.Simulation.Snapshot.Balls.Length == 0;
-                if (!configurationSmokeApplied) throw new InvalidOperationException("Queued configuration Apply did not replace settings/run safely.");
+                    modes.Shmup.Simulation.Snapshot.Tick == configurationSmokeSnapshot!.Tick &&
+                    modes.Shmup.Simulation.Snapshot.TimeSeconds == configurationSmokeSnapshot.TimeSeconds &&
+                    modes.Shmup.Simulation.Snapshot.PlayerHealth == configurationSmokeSnapshot.PlayerHealth &&
+                    modes.Shmup.Simulation.Snapshot.PlayerPosition == configurationSmokeSnapshot.PlayerPosition &&
+                    modes.Shmup.Simulation.Snapshot.Balls.ToArray().Select(b => (b.Id, b.Generation, b.Position, b.WallHits))
+                        .SequenceEqual(configurationSmokeSnapshot.Balls.ToArray().Select(b => (b.Id, b.Generation, b.Position, b.WallHits))) &&
+                    modes.Shmup.Simulation.Snapshot.Bricks.ToArray().SequenceEqual(configurationSmokeSnapshot.Bricks.ToArray());
+                if (!configurationSmokeApplied) throw new InvalidOperationException("Automatic live tuning did not retain settings/run safely.");
             }
             if (shmupSmokeTest && shmupFrames == 18)
             {
                 configurationSmokeRejected = ReferenceEquals(modes!.Shmup, configurationSmokeOldRun) &&
                     shmup!.Settings.Ball.Speed == 600.5 && configurationWorkspace.Status.StartsWith("Rejected:", StringComparison.Ordinal);
                 if (!configurationSmokeRejected) throw new InvalidOperationException("Invalid configuration draft changed the live run.");
+            }
+            if (shmupSmokeTest && shmupFrames == 20)
+            {
+                configurationSmokeReset = !ReferenceEquals(modes!.Shmup, configurationSmokeOldRun) &&
+                    modes.Shmup!.Simulation.Snapshot.Tick == 0 &&
+                    modes.Shmup.Simulation.Snapshot.Balls.Length == 0;
+                if (!configurationSmokeReset) throw new InvalidOperationException("Explicit structural reset did not replace the run.");
             }
             var requests = gameplayControls.Drain();
             if (modes is not null && requests.Mode is { } requestedMode)
@@ -306,7 +354,7 @@ try
 #endif
             modes?.UpdateControls(raw); // Raw Start is processed even when UI captures or simulation is paused.
 #if BREAKOUT_EDITOR
-            if (modes is not null) gameplayControls.Synchronize(modes.Mode, modes.Shmup?.Simulation.Snapshot.Width ?? 0, shmup!.Settings.Arena, modes.Paused);
+            if (modes is not null) gameplayControls.Synchronize(modes.Mode, modes.Shmup?.Simulation.Snapshot.Width ?? 0, shmup!.Settings.Arena, modes.Paused, modes.Shmup?.RunMinimumWidth);
 #endif
             if (modes is not null && (wasPaused != modes.Paused || modes.Paused))
                 audio!.SetSuppressed(muteAudio, hasFocus: false);
@@ -335,7 +383,7 @@ try
                 if (shmupFrames >= 70 && shmupSmokeStage == 3)
                 {
 #if BREAKOUT_EDITOR
-                    if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered || !configurationSmokeApplied || !configurationSmokeRejected || configurationControls.DrawCount < 2 || configurationControls.ScalarDrawCount == 0 || configurationControls.FirstVisibleField is null)
+                    if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered || !configurationSmokeApplied || !configurationSmokeRejected || !configurationSmokeReset || configurationControls.DrawCount < 2 || configurationControls.ScalarDrawCount == 0 || configurationControls.FirstVisibleField is null)
                         throw new InvalidOperationException("Shmup smoke did not recover and redraw after the inspector callback failure.");
 #endif
                     if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks || !shmupSawAim || (trails!.Settings.Enabled && (!shmupSawTrails || shmupTrailViewports.Count < 2)))

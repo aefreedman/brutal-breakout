@@ -10,8 +10,9 @@ internal sealed class NativeShmupArena : IDisposable
 {
     private readonly B2World world;
     private readonly Box2DTaskScheduler tasks;
-    private readonly PhysicsSettings physics;
-    private readonly ShmupSettings settings;
+    private PhysicsSettings physics;
+    private ShmupSettings settings;
+    private readonly float contactPushSpeed;
     private readonly B2Body[] balls, bricks;
     private readonly B2Body[] walls = new B2Body[2];
     private readonly Dictionary<B2Shape, int> ballIds = new(), brickIds = new(), wallIds = new();
@@ -25,6 +26,7 @@ internal sealed class NativeShmupArena : IDisposable
     private readonly bool[,] intervalBrickHits;
     private readonly int[] intervalWallHits;
     private bool disposed;
+    private readonly int owner = Environment.CurrentManagedThreadId;
     internal int[,] BrickHits { get; }
     internal int[] WallHits { get; }
     internal int[] WallStreak { get; }
@@ -49,6 +51,7 @@ internal sealed class NativeShmupArena : IDisposable
         wd.Gravity = default; wd.EnableSleep = false; wd.EnableContinuous = true;
         wd.MaximumLinearSpeed = Math.Max(wd.MaximumLinearSpeed, Geometry.Meters(Math.Max(settings.Ball.Speed, settings.Difficulty.MaximumDescentSpeed)));
         wd.RestitutionThreshold = 0; wd.HitEventThreshold = 0;
+        contactPushSpeed = wd.MaxContactPushSpeed;
         wd.ContactHertz = physics.ContactHertz; wd.ContactDampingRatio = physics.ContactDampingRatio;
         try { tasks.Configure(ref wd); world = Box2DWorldLifetime.CreateWorld(in wd); }
         catch { tasks.Dispose(); throw; }
@@ -95,7 +98,12 @@ internal sealed class NativeShmupArena : IDisposable
         }
         catch { Dispose(); throw; }
     }
-    internal void Guard() { ObjectDisposedException.ThrowIf(disposed, this); tasks.ThrowIfFaulted(); }
+    internal void Guard()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (Environment.CurrentManagedThreadId != owner) throw new InvalidOperationException("Shmup native world is owner-thread only.");
+        tasks.ThrowIfFaulted();
+    }
     private static float2 Native(double2 p) => new(Geometry.Meters(p.X), Geometry.Meters(p.Y));
     private static double2 Logical(float2 p) => new((double)p.X * NativeArena.UnitsPerMeter, (double)p.Y * NativeArena.UnitsPerMeter);
     internal double2 BallPosition(int id) => Logical(balls[id].GetPosition());
@@ -108,6 +116,33 @@ internal sealed class NativeShmupArena : IDisposable
         walls[0].SetTransform(Native(new(center - width / 2 - radius, settings.Arena.Height / 2)), B2Rot.Identity);
         walls[1].SetTransform(Native(new(center + width / 2 + radius, settings.Arena.Height / 2)), B2Rot.Identity);
         Array.Clear(wallTouching);
+    }
+    internal void ApplyTuning(PhysicsSettings physics, ShmupSettings settings, double width)
+    {
+        Guard();
+        if (this.settings.Ball.Speed != settings.Ball.Speed || this.settings.Difficulty.MaximumDescentSpeed != settings.Difficulty.MaximumDescentSpeed)
+            world.SetMaximumLinearSpeed(Geometry.NativePositive(Math.Max(settings.Ball.Speed, settings.Difficulty.MaximumDescentSpeed)));
+        if (this.physics.ContactHertz != physics.ContactHertz || this.physics.ContactDampingRatio != physics.ContactDampingRatio)
+            world.SetContactTuning(physics.ContactHertz, physics.ContactDampingRatio, contactPushSpeed);
+        if (this.settings.Ball.Radius != settings.Ball.Radius)
+        {
+            var circle = new B2Circle { Radius = Geometry.Meters(settings.Ball.Radius) };
+            foreach (var shape in ballIds.Keys) shape.SetCircle(in circle);
+            var box = Box2D.MakeBox(Geometry.Meters(settings.Ball.Radius), Geometry.Meters(settings.Arena.Height / 2 + settings.Ball.Radius));
+            foreach (var shape in wallIds.Keys) shape.SetPolygon(in box);
+            double center = settings.Arena.Width / 2, radius = settings.Ball.Radius;
+            walls[0].SetTransform(Native(new(center - width / 2 - radius, settings.Arena.Height / 2)), B2Rot.Identity);
+            walls[1].SetTransform(Native(new(center + width / 2 + radius, settings.Arena.Height / 2)), B2Rot.Identity);
+        }
+        if (this.settings.Ball.Speed != settings.Ball.Speed)
+            for (int i = 0; i < balls.Length; i++)
+                if (balls[i].IsEnabled() && !Expired[i])
+                {
+                    var velocity = BallVelocity(i);
+                    if (velocity.X != 0 || velocity.Y != 0)
+                        balls[i].SetLinearVelocity(Native(Arena.Normalize(velocity) * settings.Ball.Speed));
+                }
+        this.physics = physics; this.settings = settings;
     }
     internal void ActivateBall(int id, double2 position, double2 direction)
     {

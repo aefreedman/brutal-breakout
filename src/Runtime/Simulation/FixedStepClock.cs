@@ -4,7 +4,12 @@ namespace BrutalBreakout.Simulation;
 /// Reset on pause/focus transitions. Consume action edges on only the first returned tick.</summary>
 public sealed class FixedStepClock
 {
-    public PhysicsSettings Settings { get; }
+    public PhysicsSettings Settings { get; private set; }
+    public void ApplyTuning(PhysicsSettings settings)
+    {
+        TuningCompatibility.Physics(Settings, settings);
+        Settings = settings; // Preserve fractionalTicks.
+    }
     public double StepSeconds => Settings.StepSeconds;
     public int MaxStepsPerAdvance => Settings.MaxCatchUpSteps;
     private double fractionalTicks;

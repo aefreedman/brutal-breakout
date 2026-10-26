@@ -28,7 +28,22 @@ public sealed class ShmupBrickPresentationTests
         (ShmupSnapshot)typeof(ShmupSnapshot).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).Single().Invoke(
             new object[] { 432d, 720d, new double2(640, 600), new double2(0, -1), 100,
                 0d, 600d, 10d, 1d, 0d, 0L, 0L, 0L, 0L, 1, 1,
-                Array.Empty<ShmupBallState>(), new[] { brick }, default(AimPreviewState) });
+                Array.Empty<ShmupBallState>(), new[] { brick }, default(AimPreviewState), 100 });
+
+    [Fact]
+    public void FutureSpawnHealthDoesNotRecolorAnExistingBrickLife()
+    {
+        var initial = ShmupConfiguration.Load(Path.Combine(AppContext.BaseDirectory, "Config", "shmup.json")).Settings;
+        var next = new ShmupSettings(initial.Arena, initial.Avatar, initial.Ball,
+            new(initial.Brick.Size, initial.Brick.ColumnPitch, 1000, initial.Brick.EscapeDamage),
+            initial.Difficulty, initial.Noise, initial.Capacity);
+        var snapshot = Snapshot(new(1, 1, new(640, 200), initial.Brick.Size, 75, InitialHealth: 100));
+        using var a = new ShapeDrawList(); using var b = new ShapeDrawList();
+        var before = ShmupPresentation.Build(a, snapshot, initial, Colors(), TestSettings.Style, 960, 540);
+        var after = ShmupPresentation.Build(b, snapshot, next, Colors(), TestSettings.Style, 960, 540);
+        Assert.Equal(before.Vertices.ToArray(), after.Vertices.ToArray());
+        Assert.Equal(before.Indices.ToArray(), after.Indices.ToArray());
+    }
 
     [Theory]
     [MemberData(nameof(Placements))]
@@ -44,7 +59,7 @@ public sealed class ShmupBrickPresentationTests
         foreach (int health in new[] { settings.Brick.Health / 2, settings.Brick.Health / 2 + 1 })
         {
             // Legacy Size is metadata: authoritative settings supply the shared physical geometry.
-            var brick = new ShmupBrickState(7, 11, new(640, 200), unit, health, shape, turn);
+            var brick = new ShmupBrickState(7, 11, new(640, 200), unit, health, shape, turn, settings.Brick.Health);
             var snapshot = Snapshot(brick);
             var retained = snapshot.Bricks[0];
             var color = health * 2 > settings.Brick.Health ? colors.BrickPrimary : colors.BrickAccent;

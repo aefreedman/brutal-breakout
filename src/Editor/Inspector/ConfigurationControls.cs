@@ -57,14 +57,21 @@ public sealed class ConfigurationControls
             if (nativePosition != clampedPosition) Ui.SetWindowPos(clampedPosition);
             position = (clampedPosition - viewport.Pos) * scale; size = clampedSize * scale;
             if (!expanded) return;
-            Ui.BeginDisabled(!Workspace.RuntimeAvailable);
-            try { if (Ui.Button("Apply & restart"u8)) Workspace.Request(ConfigurationAction.Apply); }
-            finally { Ui.EndDisabled(); }
-            if (!Workspace.RuntimeAvailable) Ui.TextWrapped("Apply unavailable in showcase/sandbox modes."u8);
-            Ui.SetItemTooltip("Apply runtime drafts and restart, keeping mode/pause. Does not save or apply relaunch-only settings."u8);
+            if (Workspace.PendingResetFields.Count > 0)
+            {
+                Ui.BeginDisabled(!Workspace.RuntimeAvailable);
+                try { if (Ui.Button("Reset & apply pending"u8)) Workspace.Request(ConfigurationAction.Apply); }
+                finally { Ui.EndDisabled(); }
+                Ui.SetItemTooltip("Only structural changes need reset. Mode/pause retained; relaunch fields excluded. Does not save."u8);
+                if (Group("$reset", "Pending reset fields / reasons"))
+                    foreach (var field in Workspace.PendingResetFields) Ui.TextWrapped(Bytes(field));
+            }
+            if (!Workspace.RuntimeAvailable) Ui.TextWrapped("Live tuning unavailable in showcase/sandbox modes."u8);
+            if (Workspace.PendingRelaunchFields.Count > 0 && Group("$relaunch", "Pending relaunch fields / reasons"))
+                foreach (var field in Workspace.PendingRelaunchFields) Ui.TextWrapped(Bytes(field));
             GameplayControls.SameLineIfFits("Save changed"u8);
             if (Ui.Button("Save changed"u8)) Workspace.Request(ConfigurationAction.Save);
-            Ui.SetItemTooltip("Explicitly save changed selected JSON sources. Does not apply. All files are validated together."u8);
+            Ui.SetItemTooltip("Explicitly save changed selected JSON sources. Never resets or applies structural fields. All files are validated together."u8);
             GameplayControls.SameLineIfFits("Discard"u8);
             if (Ui.Button("Discard"u8)) Workspace.Request(ConfigurationAction.Discard);
             GameplayControls.SameLineIfFits("Reload"u8);
@@ -75,22 +82,22 @@ public sealed class ConfigurationControls
                 ? "Runtime applied; source saves are separate." : Workspace.Status.StartsWith("Saved", StringComparison.Ordinal)
                 ? Workspace.Status.Contains("Temporary cleanup warning:", StringComparison.Ordinal)
                     ? "Sources saved with cleanup warning; open status details."
-                    : "Sources saved; Apply / relaunch is separate."
-                : "Drafts staged; Apply and Save are separate."));
+                    : "Sources saved; pending reset / relaunch is separate."
+                : "Valid live edits apply automatically; Save is explicit."));
             if (Group("$help", "Help / status details"))
             {
                 Ui.TextWrapped(Bytes(Workspace.Status));
-                Ui.TextWrapped("Geometry uses game units, speed units/sec, durations seconds, angles quarter turns. Integer fields reject fractions. Apply restarts the run without saving. Save writes all changed selected sources after cross-validation. Reload discards drafts and resolves external changes. Renderer/platform settings require Save and app relaunch. Generic arrays edit existing entries only."u8);
+                Ui.TextWrapped("Geometry: game units; speed: units/sec; duration: seconds; angles: quarter turns. LIVE applies at the next owner update, even paused. FUTURE changes new-spawn/next-reset defaults only. RESET rebuilds structural worlds only on explicit request. RELAUNCH rebuilds font/render resources after saving. Invalid live edits keep last valid tuning. Reload/Discard stage source and valid live values take effect automatically. Save never resets. Generic arrays edit existing entries only."u8);
             }
             if (Workspace.RuntimeDiagnostic is { } diagnostic) Ui.TextWrapped(Bytes(diagnostic));
             string[] order = ["shmup", "gameplay", "colors", "trails", "style", "audio", "physics", "execution", "input", "window", "overlay", "inspector"];
             foreach (var document in Workspace.Documents.OrderBy(d => Array.IndexOf(order, d.Section)))
             {
                 string state = (document.Unsaved ? "unsaved" : "saved") + " | " +
-                    (document.Pending ? document.Runtime ? "pending Apply" : "pending relaunch" : "applied");
+                    (document.Pending ? "pending fields" : "applied");
                 if (!Group(document.Section, document.Section.ToUpperInvariant() + " [" + state + "]")) continue;
                 if (Group(document.Section + ".$source", "Selected source path")) Ui.TextWrapped(Bytes(document.Path));
-                Ui.TextWrapped(document.Runtime ? "Runtime — Apply & restart"u8 : "Save & app relaunch only (not applied here)"u8);
+                Ui.TextWrapped("Per-field effects below; saved/source state is independent of runtime."u8);
                 DrawObject(document.Draft, document.Section);
             }
         }
@@ -112,7 +119,8 @@ public sealed class ConfigurationControls
             }
             else if (path == "colors.roles" && node is JsonValue role && role.TryGetValue<string>(out var selected))
             {
-                Ui.TextWrapped(Bytes(Label(key)));
+                Ui.TextWrapped(Bytes(Label(key) + " [LIVE]"));
+                Ui.SetItemTooltip(Bytes(ConfigurationImpact.For(id).Reason));
                 Ui.SetNextItemWidth(-1);
                 if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected), ImGuiComboFlags.None))
                 {
@@ -130,6 +138,8 @@ public sealed class ConfigurationControls
     }
     private void DrawArray(JsonArray array, string path, string key)
     {
+        var impact = ConfigurationImpact.For(path);
+        Ui.TextWrapped(Bytes(impact.Effect.ToString().ToUpperInvariant() + ": " + impact.Reason));
         if (key is "shapes" or "quarterTurns")
         {
             string[] options = key == "shapes" ? ["square", "2x1", "2x2", "l", "t"] : ["0", "1", "2", "3"];
@@ -162,7 +172,9 @@ public sealed class ConfigurationControls
     {
         if (node is not JsonValue value) return;
         ScalarDrawCount++;
-        Ui.TextWrapped(Bytes(label));
+        var impact = ConfigurationImpact.For(id);
+        Ui.TextWrapped(Bytes(label + " [" + impact.Effect.ToString().ToUpperInvariant() + "]"));
+        Ui.SetItemTooltip(Bytes(impact.Reason));
         var widget = Bytes("##" + id);
         Ui.SetNextItemWidth(-1);
         switch (value.GetValueKind())
@@ -175,7 +187,8 @@ public sealed class ConfigurationControls
             case System.Text.Json.JsonValueKind.Number:
                 // Never infer integral schema types from lexical JSON values (e.g. speed: 576).
                 double number = value.GetValue<double>();
-                if (Ui.InputDouble(widget, ref number, 0, 0, "%.8g"u8, ImGuiInputTextFlags.None))
+                if (Ui.InputDouble(widget, ref number, 0, 0, "%.8g"u8,
+                    id is "window.width" or "window.height" ? ImGuiInputTextFlags.EnterReturnsTrue : ImGuiInputTextFlags.None))
                 {
                     if (double.IsFinite(number)) { set(JsonValue.Create(number)!); widgetErrors.Remove(id); }
                     else widgetErrors[id] = "Enter a finite number; NaN/Infinity was not staged.";

@@ -1,6 +1,6 @@
 namespace BrutalBreakout.Configuration;
 
-/// <summary>Initial physical window dimensions, independent of the logical arena.</summary>
+/// <summary>Physical window dimensions (startup or owner-thread live resize), independent of the logical arena.</summary>
 public sealed class WindowSettings
 {
     public int Width { get; }

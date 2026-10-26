@@ -9,14 +9,14 @@ namespace BrutalBreakout.Presentation;
 /// World positions survive framebuffer/DPI changes. Only the synchronized live publication can draw.</summary>
 public sealed class BallTrailHistory
 {
-    public BallTrailSettings Settings { get; }
+    public BallTrailSettings Settings { get; private set; }
     public int Capacity => positions.Length;
     public int PointCount { get; private set; }
-    private readonly double2[] positions;
-    private readonly double[] times;
-    private readonly long[] generations;
-    private readonly int[] heads, counts;
-    private readonly bool[] seen;
+    private double2[] positions;
+    private double[] times;
+    private long[] generations;
+    private int[] heads, counts;
+    private bool[] seen;
     private ShmupSnapshot? current;
 
     public BallTrailHistory(BallTrailSettings settings, int maxBalls)
@@ -24,10 +24,37 @@ public sealed class BallTrailHistory
         ArgumentNullException.ThrowIfNull(settings);
         settings.ValidateCapacity(maxBalls);
         Settings = settings;
-        int slots = settings.Enabled ? maxBalls : 0;
+        int slots = maxBalls;
         positions = new double2[slots * settings.MaxPointsPerBall];
         times = new double[positions.Length];
         generations = new long[slots]; heads = new int[slots]; counts = new int[slots]; seen = new bool[slots];
+    }
+    /// <summary>Allocate bounded migration before any owner/native commit; keep newest samples per life.</summary>
+    public Action PrepareTuning(BallTrailSettings settings)
+    {
+        settings.ValidateCapacity(counts.Length);
+        if (settings.MaxPointsPerBall == Settings.MaxPointsPerBall)
+            return () => Settings = settings;
+        var next = new BallTrailHistory(settings, counts.Length) { current = current };
+        int oldCap = Settings.MaxPointsPerBall, cap = settings.MaxPointsPerBall;
+        for (int id = 0; id < counts.Length; id++)
+        {
+            next.generations[id] = generations[id];
+            int count = Math.Min(counts[id], cap);
+            for (int p = 0; p < count; p++)
+            {
+                int from = id * oldCap + (heads[id] + counts[id] - count + p) % oldCap;
+                next.positions[id * cap + p] = positions[from];
+                next.times[id * cap + p] = times[from];
+            }
+            next.counts[id] = count; next.PointCount += count;
+        }
+        return () =>
+        {
+            Settings = settings;
+            positions = next.positions; times = next.times; generations = next.generations;
+            heads = next.heads; counts = next.counts; seen = next.seen; PointCount = next.PointCount;
+        };
     }
     public void Clear()
     {

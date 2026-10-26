@@ -9,7 +9,8 @@ namespace BrutalBreakout.Platform.Input;
 /// First sample, focus regain, and a newly selected pad baseline held buttons without firing them.</summary>
 public sealed class InputRouter
 {
-    public InputSettings Settings { get; }
+    public InputSettings Settings { get; private set; }
+    public void ApplyTuning(InputSettings settings) => Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
     public InputRouter(InputSettings settings)
     {

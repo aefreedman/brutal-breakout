@@ -24,6 +24,7 @@ public sealed class GameplayControls
     public double Width { get; private set; }
     public ShmupArenaSettings? Arena { get; private set; }
     public double MaximumWidth => Arena?.Width ?? 0;
+    public double MinimumWidth { get; private set; }
     public int DrawCount { get; private set; }
     public bool Paused { get; private set; }
     private bool requestedRestart, requestedPause;
@@ -31,10 +32,11 @@ public sealed class GameplayControls
     public void RequestPauseToggle() => requestedPause = true;
     private GameplayMode? requestedMode;
     private double? requestedWidth;
-    public void Synchronize(GameplayMode mode, double width, ShmupArenaSettings arena, bool paused = false)
+    public void Synchronize(GameplayMode mode, double width, ShmupArenaSettings arena, bool paused = false, double? runMinimumWidth = null)
     {
         ArgumentNullException.ThrowIfNull(arena);
         (Mode, Width, Arena, Paused) = (mode, width, arena, paused);
+        MinimumWidth = runMinimumWidth ?? arena.InitialPlayAreaWidth;
     }
     public (GameplayMode? Mode, double? Width, bool Restart, bool TogglePause) Drain()
     {
@@ -111,7 +113,7 @@ public sealed class GameplayControls
                 {
                     float width = (float)Width;
                     Ui.SetNextItemWidth(-1);
-                    if (Ui.SliderFloat("##Widen area"u8, ref width, (float)Arena!.InitialPlayAreaWidth, (float)MaximumWidth))
+                    if (Ui.SliderFloat("##Widen area"u8, ref width, (float)MinimumWidth, (float)MaximumWidth))
                     {
                         double requested = Math.Clamp(width, Width, MaximumWidth);
                         if (requested > Width) RequestWiden(requested);

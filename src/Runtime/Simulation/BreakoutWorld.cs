@@ -14,7 +14,7 @@ internal sealed class BreakoutWorld : IDisposable
     private readonly NativeArena native;
     private readonly bool[] brickAlive;
     private readonly QueryDescription brickQuery = new QueryDescription().WithAll<BrickComponent>();
-    private readonly GameplaySettings gameplay;
+    private GameplaySettings gameplay;
     private TickMotion motion;
     private long tick;
 
@@ -51,6 +51,13 @@ internal sealed class BreakoutWorld : IDisposable
         State = InitialState();
     }
 
+    internal void ApplyTuning(PhysicsSettings physics, GameplaySettings gameplay)
+    {
+        native.ApplyTuning(physics, gameplay);
+        this.gameplay = gameplay;
+        var state = State;
+        State = new(state.Position, native.Velocity, state.AimDirection, state.Phase, state.CatchEligible);
+    }
     internal WallContact Query(double2 origin, double2 direction) => native.Query(origin, direction);
     public void Dispose() => native.Dispose();
 

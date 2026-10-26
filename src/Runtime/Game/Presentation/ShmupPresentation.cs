@@ -33,7 +33,7 @@ public static class ShmupPresentation
         draw.FillRect(new(right - wall, 0), new(wall, h), colors.Walls);
         foreach (var brick in snapshot.Bricks)
         {
-            var color = brick.Health * 2 > settings.Brick.Health ? colors.BrickPrimary : colors.BrickAccent;
+            var color = (long)brick.Health * 2 > (brick.InitialHealth > 0 ? brick.InitialHealth : brick.Health) ? colors.BrickPrimary : colors.BrickAccent;
             foreach (var rectangle in settings.Brick.Geometry.Rectangles(brick.Shape, brick.QuarterTurns))
             {
                 var minimum = brick.Position + (rectangle.Center - rectangle.HalfExtents);
@@ -60,7 +60,7 @@ public static class ShmupPresentation
         float barWidth = (float)Math.Min(style.Hud.BarMaxWidth, snapshot.Width * style.Hud.BarMaxArenaWidthFraction);
         float barHeight = (float)style.Hud.BarHeight;
         draw.StrokeRect(new(left, h - barHeight), new(barWidth, barHeight), (float)style.Hud.BarOutlineWidth, colors.Hud);
-        draw.FillRect(new(left, h - barHeight), new(barWidth * snapshot.PlayerHealth / settings.Avatar.Health, barHeight), colors.Hud);
+        draw.FillRect(new(left, h - barHeight), new(barWidth * snapshot.PlayerHealth / snapshot.PlayerMaximumHealth, barHeight), colors.Hud);
         draw.PopClip();
         return draw.Finish();
     }

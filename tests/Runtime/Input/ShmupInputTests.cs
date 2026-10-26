@@ -6,6 +6,20 @@ public sealed class ShmupInputTests
 {
     private static InputSnapshot Active => new() { Focused = true, Cursor = new(double.NaN) };
     [Fact]
+    public void LiveDeadzoneKeepsArmedFireAndHeldBaselineWithoutReplay()
+    {
+        var router = new ShmupInputRouter(new(.2));
+        var held = Active with { KeyboardPrimary = true };
+        Assert.False(router.Route(held).FireHeld);
+        router.ApplyTuning(new(.4));
+        Assert.False(router.Route(held).FireHeld); // tuning must not arm a source held at focus baseline
+        router.Route(Active);
+        Assert.True(router.Route(held).FireHeld);
+        var next = new InputSettings(.6); router.ApplyTuning(next);
+        Assert.Same(next, router.Settings); Assert.True(router.Route(held).FireHeld); // armed level survives
+    }
+
+    [Fact]
     public void IndependentSticksAndNeutralAim()
     {
         var router = new ShmupInputRouter(new(.2));

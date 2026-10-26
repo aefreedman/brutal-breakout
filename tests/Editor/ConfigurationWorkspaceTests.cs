@@ -33,8 +33,8 @@ public sealed class ConfigurationWorkspaceTests
         Assert.Equal(source, File.ReadAllText(shmup.Path));
         shmup.Draft["ball"]!["speed"] = 610.5;
         Assert.Equal(600.5, captured.Get<LoadedShmupConfiguration>("shmup")!.Settings.Ball.Speed);
-        Process(workspace, ConfigurationAction.Discard);
-        Assert.False(shmup.Unsaved); Assert.True(shmup.Pending); // source and applied snapshots intentionally differ
+        Process(workspace, ConfigurationAction.Discard, _ => { });
+        Assert.False(shmup.Unsaved); Assert.False(shmup.Pending); // valid source live values apply without a reset
     }
 
     [Theory]
@@ -62,10 +62,10 @@ public sealed class ConfigurationWorkspaceTests
     [Fact]
     public void RelaunchOnlyDraftsAreNotReportedAppliedAndDoNotLeakIntoRuntimeCandidate()
     {
-        var workspace = Create(); var window = Doc(workspace, "window");
-        int original = window.Draft["width"]!.GetValue<int>(); window.Draft["width"] = original + 1;
-        Process(workspace, ConfigurationAction.Apply, c => Assert.Equal(original, c.Get<LoadedWindowConfiguration>("window")!.Settings.Width));
-        Assert.True(window.Pending); Assert.True(window.Unsaved); Assert.Contains("NOT applied", workspace.Status);
+        var workspace = Create(); var overlay = Doc(workspace, "overlay");
+        double original = overlay.Draft["fontSize"]!.GetValue<double>(); overlay.Draft["fontSize"] = original + 1;
+        Process(workspace, ConfigurationAction.Apply, c => Assert.Equal(original, c.Get<LoadedOverlayConfiguration>("overlay")!.Settings.FontSize));
+        Assert.True(overlay.Pending); Assert.True(overlay.Unsaved); Assert.Contains("NOT applied", workspace.Status);
     }
 
     [Fact]
@@ -118,8 +118,8 @@ public sealed class ConfigurationWorkspaceTests
             Process(workspace, ConfigurationAction.Save);
             Assert.Contains("changed externally", workspace.Status); Assert.True(input.Unsaved);
             Assert.Equal(.24f, InputConfiguration.Load(input.Path).Settings.StickDeadzone);
-            Process(workspace, ConfigurationAction.Reload);
-            Assert.False(input.Unsaved); Assert.True(input.Pending); Assert.Equal(.24, input.Draft["stickDeadzone"]!.GetValue<double>());
+            Process(workspace, ConfigurationAction.Reload, _ => { });
+            Assert.False(input.Unsaved); Assert.False(input.Pending); Assert.Equal(.24, input.Draft["stickDeadzone"]!.GetValue<double>());
         });
     }
 

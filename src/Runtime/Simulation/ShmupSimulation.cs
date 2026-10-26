@@ -17,9 +17,9 @@ public sealed class ShmupSimulation : IDisposable
     private long beltRow, lastSpawnGridRow;
     private readonly ShmupAvatarController avatar;
     private long tick, row, droppedBalls, droppedBricks;
-    public ShmupSettings Settings { get; }
-    public PhysicsSettings Physics { get; }
-    public ExecutionSettings Execution { get; }
+    public ShmupSettings Settings { get; private set; }
+    public PhysicsSettings Physics { get; private set; }
+    public ExecutionSettings Execution { get; private set; }
     public double StepSeconds => Physics.StepSeconds;
     public ShmupSnapshot Snapshot => Volatile.Read(ref snapshot);
     /// <summary>Facts from the last command; cleared even when a defeated run cannot advance.</summary>
@@ -50,6 +50,25 @@ public sealed class ShmupSimulation : IDisposable
         catch { native.Dispose(); World.Destroy(world); throw; }
     }
     private void Guard() { ObjectDisposedException.ThrowIf(disposed, this); native.Guard(); }
+    public void ApplyTuning(PhysicsSettings physics, ShmupSettings settings, ExecutionSettings? execution = null)
+    {
+        lock (gate)
+        {
+            Guard();
+            TuningCompatibility.Physics(Physics, physics);
+            if (execution is not null) TuningCompatibility.Execution(Execution, execution);
+            TuningCompatibility.Shmup(Settings, settings, width);
+            settings.ValidatePhysics(physics);
+            double oldInterval = RowInterval, oldFire = 1 / Settings.Ball.FireRate;
+            native.ApplyTuning(physics, settings, width);
+            Physics = physics; Settings = settings; Execution = execution ?? Execution;
+            avatar.ApplyTuning(settings, width);
+            // Preserve fraction of an outstanding deadline; never reset elapsed time/grid phase.
+            if (rowDelay > 0 && oldInterval != RowInterval) rowDelay = Math.Clamp(rowDelay / oldInterval * RowInterval, physics.StepSeconds, RowInterval);
+            if (fireDelay > 0 && oldFire != 1 / settings.Ball.FireRate) fireDelay = Math.Clamp(fireDelay / oldFire / settings.Ball.FireRate, physics.StepSeconds, 1 / settings.Ball.FireRate);
+            Publish();
+        }
+    }
     public void Restart() { lock (gate) { Guard(); Reset(); Events = ShmupEvents.Restart; } }
     private void Reset()
     {
@@ -170,7 +189,7 @@ public sealed class ShmupSimulation : IDisposable
         {
             ref var brick = ref Brick(i);
             if (brick.Active || brick.Generation == long.MaxValue) continue;
-            brick = new() { Active = true, Generation = brick.Generation + 1, Health = Settings.Brick.Health, Shape = shape, QuarterTurns = quarterTurns };
+            brick = new() { Active = true, Generation = brick.Generation + 1, Health = Settings.Brick.Health, InitialHealth = Settings.Brick.Health, Shape = shape, QuarterTurns = quarterTurns };
             native.ActivateBrick(i, position, shape, quarterTurns); return i;
         }
         droppedBricks++; return -1;
@@ -228,11 +247,11 @@ public sealed class ShmupSimulation : IDisposable
         for (int i = 0; i < bricks.Length; i++)
         {
             ref var brick = ref Brick(i);
-            if (brick.Active) brickStates.Add(new(i, brick.Generation, native.BrickPosition(i), Settings.Brick.Size, brick.Health, brick.Shape, brick.QuarterTurns));
+            if (brick.Active) brickStates.Add(new(i, brick.Generation, native.BrickPosition(i), Settings.Brick.Size, brick.Health, brick.Shape, brick.QuarterTurns, brick.InitialHealth));
         }
         Volatile.Write(ref snapshot, new(width, Settings.Arena.Height, avatar.Position, avatar.Aim, avatar.Health, time, Settings.Ball.Speed,
             DescentSpeed, RowInterval, avatar.InvulnerabilityRemaining, tick, row, droppedBalls, droppedBricks,
-            world.Size, native.BodyCount, ballStates.ToArray(), brickStates.ToArray(), native.Preview(avatar.Position, avatar.Aim)));
+            world.Size, native.BodyCount, ballStates.ToArray(), brickStates.ToArray(), native.Preview(avatar.Position, avatar.Aim), avatar.MaximumHealth));
     }
     public void Dispose()
     {

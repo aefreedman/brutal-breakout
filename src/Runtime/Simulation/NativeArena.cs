@@ -23,8 +23,9 @@ internal sealed class NativeArena : IDisposable
     private readonly B2ShapeDef brickDefinition;
     private bool disposed;
 
-    private readonly PhysicsSettings settings;
-    private readonly GameplaySettings gameplay;
+    private PhysicsSettings settings;
+    private GameplaySettings gameplay;
+    private readonly float contactPushSpeed;
 
     internal NativeArena(PhysicsSettings settings, GameplaySettings gameplay, int physicsWorkerCount)
     {
@@ -49,6 +50,7 @@ internal sealed class NativeArena : IDisposable
         definition.RestitutionThreshold = 0;
         definition.HitEventThreshold = 0;
         // Published contact tuning: stiffness in Hz, 1 = critical damping.
+        contactPushSpeed = definition.MaxContactPushSpeed;
         definition.ContactHertz = settings.ContactHertz;
         definition.ContactDampingRatio = settings.ContactDampingRatio;
         try
@@ -133,6 +135,28 @@ internal sealed class NativeArena : IDisposable
         Guard();
         ball.SetType(B2BodyType.Dynamic);
         ball.SetLinearVelocity(new((float)(direction.X * gameplay.NativeSpeed), (float)(direction.Y * gameplay.NativeSpeed)));
+    }
+    internal void ApplyTuning(PhysicsSettings settings, GameplaySettings gameplay)
+    {
+        Guard();
+        if (this.gameplay.Ball.Speed != gameplay.Ball.Speed) world.SetMaximumLinearSpeed(gameplay.NativeSpeed);
+        if (this.settings.ContactHertz != settings.ContactHertz || this.settings.ContactDampingRatio != settings.ContactDampingRatio)
+            world.SetContactTuning(settings.ContactHertz, settings.ContactDampingRatio, contactPushSpeed);
+        if (this.gameplay.Ball.Radius != gameplay.Ball.Radius)
+        {
+            var circle = new B2Circle { Radius = gameplay.NativeRadius };
+            ballShape.SetCircle(in circle);
+        }
+        if (this.gameplay.Ball.Speed != gameplay.Ball.Speed)
+        {
+            var velocity = Velocity;
+            if (velocity.X != 0 || velocity.Y != 0)
+            {
+                var direction = Arena.Normalize(velocity);
+                ball.SetLinearVelocity(new((float)direction.X * gameplay.NativeSpeed, (float)direction.Y * gameplay.NativeSpeed));
+            }
+        }
+        this.settings = settings; this.gameplay = gameplay;
     }
     internal void Reset()
     {

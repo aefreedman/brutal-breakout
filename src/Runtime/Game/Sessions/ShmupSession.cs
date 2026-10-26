@@ -28,7 +28,8 @@ public readonly record struct ShmupViewport(int WindowWidth, int WindowHeight, i
 public sealed class ShmupSession : IDisposable
 {
     public ShmupSimulation Simulation { get; }
-    public ShmupSettings Settings { get; }
+    public ShmupSettings Settings { get; private set; }
+    public double RunMinimumWidth { get; }
     public BallTrailHistory? Trails { get; }
     public ShmupInputRouter Router { get; }
     private readonly FixedStepClock clock;
@@ -61,12 +62,22 @@ public sealed class ShmupSession : IDisposable
         BallTrailSettings? trails = null)
     {
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        RunMinimumWidth = settings.Arena.InitialPlayAreaWidth;
         // Validate and allocate bounded managed history before creating a native world.
         Trails = trails is null ? null : new(trails, settings.Capacity.MaxBalls);
         Router = new(input);
         clock = new(physics);
         tickEvents = new ShmupEvents[physics.MaxCatchUpSteps];
         Simulation = new(physics, settings, execution);
+    }
+    internal void ApplyTuning(PhysicsSettings physics, ShmupSettings settings, InputSettings input, ExecutionSettings execution, Action? commitTrails)
+    {
+        Simulation.ApplyTuning(physics, settings, execution);
+        Settings = settings;
+        clock.ApplyTuning(physics);
+        Router.ApplyTuning(input);
+        commitTrails?.Invoke();
+        Trails?.Synchronize(Simulation.Snapshot);
     }
     public int Advance(InputSnapshot snapshot, double seconds, ShmupViewport viewport)
     {
@@ -177,6 +188,37 @@ public sealed class GameplaySessionHost : IDisposable
         shmup.ValidatePhysics(physics);
         trails?.ValidateCapacity(shmup.Capacity.MaxBalls);
         Replace(Mode, physics, gameplay, shmup, input, execution, trails);
+    }
+
+    /// <summary>Owner update only; prepare managed history, preflight compatibility, then update existing owners.</summary>
+    public void ValidateTuning(PhysicsSettings physics, GameplaySettings gameplay, ShmupSettings shmup,
+        InputSettings input, ExecutionSettings execution, BallTrailSettings? trails)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(execution);
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (Environment.CurrentManagedThreadId != owner) throw new InvalidOperationException("Live tuning belongs to the host thread.");
+        TuningCompatibility.Physics(this.physics, physics);
+        TuningCompatibility.Execution(this.execution, execution);
+        gameplay.ValidatePhysics(physics); shmup.ValidatePhysics(physics);
+        trails?.ValidateCapacity(shmup.Capacity.MaxBalls);
+        // Only the active world's geometry constrains a live update. Inactive defaults can change safely.
+        if (Shmup is { } session) TuningCompatibility.Shmup(session.Settings, shmup, session.Simulation.Snapshot.Width);
+        if (Breakout is { } breakout) TuningCompatibility.Gameplay(breakout.Simulation.Gameplay, gameplay);
+    }
+
+    public void ApplyTuning(PhysicsSettings physics, GameplaySettings gameplay, ShmupSettings shmup,
+        InputSettings input, ExecutionSettings execution, BallTrailSettings? trails)
+    {
+        ValidateTuning(physics, gameplay, shmup, input, execution, trails);
+        var commitTrails = Shmup?.Trails is { } history && trails is not null ? history.PrepareTuning(trails) : null;
+        Shmup?.ApplyTuning(physics, shmup, input, execution, commitTrails);
+        if (Breakout is { } classic)
+        {
+            classic.ApplyTuning(physics, gameplay, input, execution);
+        }
+        (this.physics, this.gameplay, this.shmup, this.input, this.execution, this.trails) =
+            (physics, gameplay, shmup, input, execution, trails);
     }
 
     private void Replace(GameplayMode mode, PhysicsSettings physics, GameplaySettings gameplay, ShmupSettings shmup,

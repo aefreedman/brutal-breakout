@@ -33,7 +33,26 @@ public sealed class ConfigurationWorkspace
     public IReadOnlyList<Document> Documents => documents;
     private readonly List<Document> documents = [];
     private ConfigurationAction request;
-    public string Status { get; private set; } = "Drafts are staged. Apply does not save; Save does not apply.";
+    private Candidate? appliedCandidate;
+    public string Status { get; private set; } = "Valid safe edits apply automatically. Save and structural reset are separate.";
+    private string? lastAttempt;
+    public string? InactiveModeSection { get; set; }
+    public string? LiveContextRevision { get; set; }
+    public Action<Candidate>? PreflightLive { get; set; }
+    private Candidate ValidateLive(Dictionary<string, string> texts)
+    {
+        var candidate = Validate(texts);
+        PreflightLive?.Invoke(candidate);
+        return candidate;
+    }
+    public IReadOnlyList<string> PendingResetFields => PendingFields(ConfigurationEffect.Reset);
+    public IReadOnlyList<string> PendingRelaunchFields => PendingFields(ConfigurationEffect.Relaunch);
+    private string[] PendingFields(ConfigurationEffect effect) => documents.SelectMany(d =>
+        ConfigurationImpact.Fields(d.Draft, d.Section).Where(f => !(effect == ConfigurationEffect.Reset && d.Section == InactiveModeSection) && ConfigurationImpact.For(f.Path).Effect == effect &&
+            !JsonNode.DeepEquals(f.Value, Find(JsonNode.Parse(d.Applied), f.Path.Split('.').Skip(1))))
+            .Select(f => f.Path + ": " + ConfigurationImpact.For(f.Path).Reason)).ToArray();
+    private static JsonNode? Find(JsonNode? node, IEnumerable<string> keys)
+    { foreach (var key in keys) node = node?[key]; return node; }
     public bool RuntimeAvailable { get; }
     public string? RuntimeDiagnostic { get; set; }
     internal Action<string, string> ReplaceFile { get; set; } = (temporary, target) => File.Replace(temporary, target, null);
@@ -61,7 +80,7 @@ public sealed class ConfigurationWorkspace
             };
             documents.Add(new(section, path, section is not ("window" or "overlay" or "inspector"), load));
         }
-        Validate(Capture(false));
+        appliedCandidate = Validate(Capture(false));
     }
     internal static bool Equivalent(string a, string b) => JsonNode.DeepEquals(JsonNode.Parse(a), JsonNode.Parse(b));
     public void Request(ConfigurationAction action) => request = action;
@@ -73,14 +92,17 @@ public sealed class ConfigurationWorkspace
 
     public sealed class Candidate
     {
-        private readonly Dictionary<string, object> loaded;
+        internal readonly Dictionary<string, object> loaded;
         internal readonly Dictionary<string, string> Texts;
+        public bool ResetRequired { get; internal set; }
         internal Candidate(Dictionary<string, object> loaded, Dictionary<string, string> texts) => (this.loaded, Texts) = (loaded, texts);
         public T? Get<T>(string section) where T : class => loaded.GetValueOrDefault(section) as T;
     }
-    private Candidate Validate(Dictionary<string, string> texts)
+    private Candidate Validate(Dictionary<string, string> texts, bool reuseApplied = true)
     {
-        var candidate = new Candidate(documents.ToDictionary(d => d.Section, d => d.Load(texts[d.Section])), texts);
+        var candidate = new Candidate(documents.ToDictionary(d => d.Section, d =>
+            reuseApplied && appliedCandidate is not null && Equivalent(appliedCandidate.Texts[d.Section], texts[d.Section])
+                ? appliedCandidate.loaded[d.Section] : d.Load(texts[d.Section])), texts);
         ConfigurationValidation.Validate(candidate.Get<LoadedPhysicsConfiguration>("physics"), candidate.Get<LoadedGameplayConfiguration>("gameplay"),
             candidate.Get<LoadedShmupConfiguration>("shmup"), candidate.Get<LoadedBallTrailConfiguration>("trails"),
             candidate.Get<LoadedPresentationStyleConfiguration>("style"), candidate.Get<LoadedOverlayConfiguration>("overlay"));
@@ -91,36 +113,109 @@ public sealed class ConfigurationWorkspace
     public void Process(Action<Candidate> apply)
     {
         var action = request; request = ConfigurationAction.None;
-        if (action == ConfigurationAction.None) return;
+        if (action == ConfigurationAction.None) { AutoApply(apply); return; }
         try
         {
             switch (action)
             {
                 case ConfigurationAction.Discard:
                     foreach (var d in documents) d.Discard();
-                    Status = "Discarded drafts to last loaded/saved source. Applied run is unchanged.";
+                    Status = "Discarded drafts to source; valid live values apply automatically.";
                     break;
                 case ConfigurationAction.Reload:
                     var disk = documents.ToDictionary(d => d.Section, d => File.ReadAllText(d.Path));
-                    Validate(disk);
+                    Validate(disk, reuseApplied: false);
                     foreach (var d in documents) d.Reload(disk[d.Section]);
-                    Status = "Reloaded source files. Apply to restart runtime; relaunch-only settings are not applied.";
+                    Status = "Reloaded sources; valid live values apply automatically. Structural/relaunch values remain pending.";
                     break;
                 case ConfigurationAction.Apply:
                     if (!RuntimeAvailable) throw new InvalidOperationException("Runtime Apply is unavailable in showcase/sandbox modes.");
-                    var candidate = Validate(Capture(true));
+                    var candidate = Validate(Merged(true));
+                    candidate.ResetRequired = PendingResetFields.Count > 0;
                     apply(candidate);
-                    foreach (var d in documents.Where(d => d.Runtime)) d.Applied = candidate.Texts[d.Section];
-                    Status = "Runtime applied and restarted (mode/pause kept). Not saved. Relaunch-only drafts were NOT applied.";
+                    Commit(candidate);
+                    Status = candidate.ResetRequired ? "Runtime applied; structural reset completed (mode/pause kept). Not saved. Relaunch drafts NOT applied."
+                        : "Runtime applied live; run retained. Not saved. Relaunch drafts NOT applied.";
                     break;
                 case ConfigurationAction.Save:
                     var texts = Capture(false);
-                    Validate(texts);
+                    Validate(texts, reuseApplied: false);
                     var cleanupWarning = Save(texts);
-                    Status = "Saved changed sources. Save does NOT apply. Window/overlay/inspector require app relaunch.";
+                    Status = "Saved changed sources. Save does NOT reset or apply structural/relaunch fields.";
                     if (cleanupWarning is not null) Status += " " + cleanupWarning;
                     break;
             }
+        }
+        catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException) { ReportFailure(error); return; }
+        if (action is ConfigurationAction.Discard or ConfigurationAction.Reload) AutoApply(apply);
+    }
+    private Dictionary<string, string> Merged(bool reset)
+    {
+        return documents.ToDictionary(d => d.Section, d =>
+        {
+            var target = JsonNode.Parse(d.Applied)!.AsObject();
+            ConfigurationImpact.Merge(target, d.Draft, d.Section, reset || d.Section == InactiveModeSection);
+            return target.ToJsonString();
+        });
+    }
+    private void Commit(Candidate candidate)
+    {
+        foreach (var d in documents) d.Applied = candidate.Texts[d.Section];
+        appliedCandidate = candidate;
+    }
+    private void AutoApply(Action<Candidate> apply)
+    {
+        if (!RuntimeAvailable) return;
+        string revision = LiveContextRevision + InactiveModeSection + string.Join("\n", documents.Select(d => d.Text + "\n" + d.Applied));
+        if (revision == lastAttempt) return;
+        lastAttempt = revision; // Includes invalid attempts: unchanged invalid frames do not parse/load/allocate again.
+        var texts = Merged(false);
+        if (documents.All(d => Equivalent(d.Applied, texts[d.Section]))) return;
+        try
+        {
+            Candidate candidate;
+            string? pending = null;
+            try { candidate = ValidateLive(texts); }
+            catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException)
+            {
+                // Invalid intermediate edits in one document must not block unrelated valid live controls.
+                pending = error.Message;
+                var accepted = documents.ToDictionary(d => d.Section, d => d.Applied);
+                foreach (var d in documents.Where(d => !Equivalent(d.Applied, texts[d.Section])))
+                {
+                    var attempt = new Dictionary<string, string>(accepted) { [d.Section] = texts[d.Section] };
+                    try { ValidateLive(attempt); accepted = attempt; }
+                    catch (Exception invalid) when (invalid is not OutOfMemoryException and not StackOverflowException)
+                    {
+                        pending = d.Section + ": " + invalid.Message;
+                        // Keep independent valid fields in the same JSON responsive too. Atomic arrays stay intact.
+                        // Two bounded passes allow ordinary coupled limits to settle without per-frame retry work.
+                        var fields = ConfigurationImpact.Fields(JsonNode.Parse(texts[d.Section])!.AsObject(), d.Section).ToArray();
+                        for (int pass = 0; pass < 2; pass++) foreach (var field in fields)
+                        {
+                            var target = JsonNode.Parse(accepted[d.Section])!.AsObject();
+                            var keys = field.Path.Split('.').Skip(1).ToArray();
+                            if (JsonNode.DeepEquals(Find(target, keys), field.Value)) continue;
+                            JsonNode parent = target;
+                            foreach (var key in keys.SkipLast(1)) parent = parent[key]!;
+                            parent[keys[^1]] = field.Value?.DeepClone();
+                            var single = new Dictionary<string, string>(accepted) { [d.Section] = target.ToJsonString() };
+                            try { ValidateLive(single); accepted = single; }
+                            catch (Exception rejected) when (rejected is not OutOfMemoryException and not StackOverflowException)
+                            { pending = field.Path + ": " + rejected.Message; }
+                        }
+                    }
+                }
+                if (documents.All(d => Equivalent(d.Applied, accepted[d.Section])))
+                { Status = "Rejected: live values pending against current structural settings: " + pending; return; }
+                candidate = ValidateLive(accepted);
+                if (documents.All(d => Equivalent(texts[d.Section], accepted[d.Section]))) pending = null;
+            }
+            apply(candidate);
+            Commit(candidate);
+            Status = pending is null ? "Runtime applied live; run retained. Save/reset/relaunch are separate."
+                : "Rejected: some live values remain pending against current structural settings: " + pending + ". Other valid live edits applied.";
+            lastAttempt = LiveContextRevision + InactiveModeSection + string.Join("\n", documents.Select(d => d.Text + "\n" + d.Applied));
         }
         catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException) { ReportFailure(error); }
     }

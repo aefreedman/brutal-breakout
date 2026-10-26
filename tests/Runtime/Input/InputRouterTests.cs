@@ -10,6 +10,21 @@ public sealed class InputRouterTests
     private static InputSnapshot Pad => Idle with { PadConnected = true, PadId = 2 };
 
     [Fact]
+    public void LiveDeadzoneRetainsButtonBaselinesAndDoesNotReplayHeldPrimary()
+    {
+        var router = new InputRouter(new(.1));
+        router.Route(Pad);
+        Assert.True(router.Route(Pad with { PadPrimary = true }).PrimaryPressed);
+        var next = new InputSettings(.6);
+        router.ApplyTuning(next);
+        Assert.Same(next, router.Settings);
+        var routed = router.Route(Pad with { PadPrimary = true, PadStick = new(.4f, 0) });
+        Assert.False(routed.PrimaryPressed); Assert.Equal(AimKind.None, routed.AimKind);
+        router.Route(Pad);
+        Assert.True(router.Route(Pad with { PadPrimary = true }).PrimaryPressed);
+    }
+
+    [Fact]
     public void ConfiguredDeadzoneChangesPriorityWithoutChangingNormalization()
     {
         var low = new InputRouter(new InputSettings(0.1));

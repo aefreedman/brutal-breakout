@@ -1,6 +1,6 @@
 namespace BrutalBreakout.Simulation;
 
-/// <summary>Validated, immutable tuning shared for a session/world lifetime. No implicit defaults.</summary>
+/// <summary>Validated immutable tuning, replaced uniformly at owner boundaries. Clock topology changes require reset. No implicit defaults.</summary>
 public sealed class PhysicsSettings
 {
     public double UpdateHz { get; }

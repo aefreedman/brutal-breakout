@@ -16,7 +16,7 @@ public sealed class BallTrailTests
         (ShmupSnapshot)typeof(ShmupSnapshot).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).Single().Invoke(
             new object[] { 432d, 720d, new double2(640, 600), new double2(0, -1), 100,
                 seconds ?? tick / 120d, 600d, 10d, 1d, 0d, tick, 0L, 0L, 0L, balls.Length, balls.Length,
-                balls, Array.Empty<ShmupBrickState>(), preview });
+                balls, Array.Empty<ShmupBrickState>(), preview, 100 });
     private static ShmupBallState Ball(long tick, int id = 0, long generation = 1) =>
         new(id, generation, new(640 + id * .01, 600 - tick), new(0, -120), 6, 0);
     private static int Draw(BallTrailHistory history, ShmupSnapshot snapshot, out ShapeFrame frame)
@@ -24,6 +24,30 @@ public sealed class BallTrailTests
         using var draw = new ShapeDrawList(); draw.BeginFrame(1280, 720);
         int count = history.Draw(draw, snapshot, TestSettings.Colors.Ball); frame = draw.Finish(); return count;
     }
+    [Fact]
+    public void LiveStyleAndBudgetMigrationKeepNewestLifeSamplesAndNeverAddTickPoints()
+    {
+        var history = new BallTrailHistory(Trails(8, 10), 2);
+        ShmupSnapshot snapshot = null!;
+        for (int tick = 1; tick <= 6; tick++) history.Capture(snapshot = Snapshot(tick, [Ball(tick)]));
+        Assert.Equal(6, history.PointCount);
+        var style = new BallTrailSettings(false, 8, 20, 2, .25, 100);
+        history.PrepareTuning(style)();
+        Assert.Same(style, history.Settings); Assert.Equal(6, history.PointCount);
+        Assert.Equal(0, Draw(history, snapshot, out _));
+        var smaller = new BallTrailSettings(true, 3, 20, 3, .75, 50);
+        var commit = history.PrepareTuning(smaller);
+        Assert.Equal(6, history.PointCount); // prepare does not mutate the existing history
+        commit();
+        Assert.Equal(6, history.Capacity); Assert.Equal(3, history.PointCount);
+        history.Synchronize(snapshot);
+        Assert.Equal(3, history.PointCount); Assert.True(Draw(history, snapshot, out _) > 0);
+        history.PrepareTuning(new(true, 12, 20, 1, .5, 100))();
+        Assert.Equal(3, history.PointCount); Assert.Equal(24, history.Capacity);
+        history.Capture(Snapshot(7, [Ball(7)])); Assert.Equal(4, history.PointCount);
+        history.Capture(Snapshot(8, [Ball(8, generation: 2)])); Assert.Equal(1, history.PointCount);
+    }
+
     [Fact]
     public void StrictAuthoritativeConfigurationAndNoImplicitFeatureInHeadlessSession()
     {
@@ -36,7 +60,7 @@ public sealed class BallTrailTests
         Assert.Null(session.Trails);
         var disabled = new BallTrailHistory(Trails(enabled: false), 512);
         disabled.Capture(Snapshot(1, new[] { Ball(1) }));
-        Assert.Equal(0, disabled.Capacity); Assert.Equal(0, disabled.PointCount);
+        Assert.Equal(512 * 24, disabled.Capacity); Assert.Equal(1, disabled.PointCount); // disabled rendering retains bounded history for live enable
     }
     [Theory]
     [InlineData("{}")]

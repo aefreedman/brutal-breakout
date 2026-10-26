@@ -35,9 +35,9 @@ public sealed class BallSimulation : IDisposable
     private SimulationSnapshot snapshot;
     private Task? shutdown;
 
-    public PhysicsSettings Settings { get; }
-    public GameplaySettings Gameplay { get; }
-    public ExecutionSettings Execution { get; }
+    public PhysicsSettings Settings { get; private set; }
+    public GameplaySettings Gameplay { get; private set; }
+    public ExecutionSettings Execution { get; private set; }
     public double StepSeconds => Settings.StepSeconds;
     public double CatchLineY => Gameplay.CatchLineY;
     public SimulationSnapshot Snapshot => Volatile.Read(ref snapshot);
@@ -135,6 +135,23 @@ public sealed class BallSimulation : IDisposable
         }
     }
 
+    public void ApplyTuning(PhysicsSettings physics, GameplaySettings gameplay, ExecutionSettings? execution = null)
+    {
+        lock (submissionGate)
+        {
+            ObjectDisposedException.ThrowIf(shutdown is not null, this);
+            TuningCompatibility.Physics(Settings, physics);
+            if (execution is not null) TuningCompatibility.Execution(Execution, execution);
+            TuningCompatibility.Gameplay(Gameplay, gameplay);
+            gameplay.ValidatePhysics(physics);
+            runtime.RunAsync(new WorldJob("apply-tuning", _ =>
+            {
+                simulation.ApplyTuning(physics, gameplay);
+                Settings = physics; Gameplay = gameplay; Execution = execution ?? Execution;
+                Volatile.Write(ref snapshot, simulation.Publish());
+            })).GetAwaiter().GetResult();
+        }
+    }
     public void Dispose()
     {
         Task completion;

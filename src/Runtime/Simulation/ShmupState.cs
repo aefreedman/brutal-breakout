@@ -21,7 +21,7 @@ public readonly record struct AimPreviewState(WallContact Hit, WallContact NextH
 
 public readonly record struct ShmupBallState(int Id, long Generation, double2 Position, double2 Velocity, double Radius, int WallHits);
 public readonly record struct ShmupBrickState(int Id, long Generation, double2 Position, double Size, int Health,
-    ShmupBrickShape Shape = ShmupBrickShape.Square, int QuarterTurns = 0);
+    ShmupBrickShape Shape = ShmupBrickShape.Square, int QuarterTurns = 0, int InitialHealth = 0);
 
 /// <summary>Owned immutable publication. Id+Generation identifies a life; ids alone may be reused.</summary>
 public sealed class ShmupSnapshot
@@ -34,6 +34,7 @@ public sealed class ShmupSnapshot
     public double2 AimDirection { get; }
     public AimPreviewState AimPreview { get; }
     public int PlayerHealth { get; }
+    public int PlayerMaximumHealth { get; }
     public bool IsDefeated => PlayerHealth == 0;
     public double TimeSeconds { get; }
     public double BallSpeed { get; }
@@ -51,8 +52,9 @@ public sealed class ShmupSnapshot
     internal ShmupSnapshot(double width, double height, double2 playerPosition, double2 aimDirection, int playerHealth,
         double timeSeconds, double ballSpeed, double descentSpeed, double rowInterval, double invulnerabilityRemaining,
         long tick, long rowsSpawned, long droppedBalls, long droppedBricks, int entityCount, int bodyCount,
-        ShmupBallState[] balls, ShmupBrickState[] bricks, AimPreviewState aimPreview = default)
+        ShmupBallState[] balls, ShmupBrickState[] bricks, AimPreviewState aimPreview = default, int playerMaximumHealth = 0)
     {
+        PlayerMaximumHealth = playerMaximumHealth > 0 ? playerMaximumHealth : Math.Max(1, playerHealth);
         AimPreview = aimPreview;
         (Width, Height, PlayerPosition, AimDirection, PlayerHealth, TimeSeconds, BallSpeed, DescentSpeed, RowInterval,
             InvulnerabilityRemaining, Tick, RowsSpawned, DroppedBalls, DroppedBricks, EntityCount, BodyCount, this.balls, this.bricks) =
@@ -73,5 +75,5 @@ internal struct ShmupBrickComponent
     internal int QuarterTurns;
     internal bool Active;
     internal long Generation;
-    internal int Health;
+    internal int Health, InitialHealth;
 }

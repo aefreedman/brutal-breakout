@@ -6,18 +6,29 @@ namespace BrutalBreakout.Simulation;
 /// a rigid-body response solver; native circle overlaps/sweeps provide contact damage facts.</summary>
 internal sealed class ShmupAvatarController
 {
-    private readonly ShmupSettings settings;
+    private ShmupSettings settings;
     internal double2 Position { get; private set; }
     internal double2 PreviousPosition { get; private set; }
     internal double2 Aim { get; private set; }
     internal int Health { get; private set; }
+    internal int MaximumHealth { get; private set; }
     internal double InvulnerabilityRemaining { get; private set; }
     internal ShmupAvatarController(ShmupSettings settings) => this.settings = settings;
+    internal void ApplyTuning(ShmupSettings settings, double width)
+    {
+        this.settings = settings;
+        InvulnerabilityRemaining = Math.Min(InvulnerabilityRemaining, settings.Avatar.InvulnerabilitySeconds);
+        MaximumHealth = Math.Min(MaximumHealth, settings.Avatar.Health);
+        Health = Math.Min(Health, MaximumHealth); // Never heal or resurrect defeat.
+        double left = (settings.Arena.Width - width) / 2, r = settings.Avatar.Radius;
+        Position = new(Math.Clamp(Position.X, left + r, left + width - r), Math.Clamp(Position.Y, r, settings.Arena.Height - r));
+        PreviousPosition = Position; // No fictitious sweep across a configuration clamp.
+    }
     internal void Reset()
     {
         double r = settings.Avatar.Radius;
         Position = PreviousPosition = new(settings.Arena.Width / 2, Math.Clamp(settings.Arena.Height - 2 * r, r, settings.Arena.Height - r));
-        Aim = new(0, -1); Health = settings.Avatar.Health; InvulnerabilityRemaining = 0;
+        Aim = new(0, -1); Health = MaximumHealth = settings.Avatar.Health; InvulnerabilityRemaining = 0;
     }
     internal void Advance(ShmupCommand command, double dt, double width)
     {

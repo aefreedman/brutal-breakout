@@ -85,6 +85,13 @@ public sealed class BallSandboxSession : IDisposable
         }
     }
 
+    internal void ApplyTuning(PhysicsSettings physics, GameplaySettings gameplay, InputSettings input, ExecutionSettings execution)
+    {
+        Simulation.ApplyTuning(physics, gameplay, execution);
+        clock.ApplyTuning(physics);
+        Router.ApplyTuning(input);
+    }
+
     public int Advance(InputSnapshot snapshot, double seconds, ArenaViewport viewport)
     {
         if (Environment.CurrentManagedThreadId != ownerThread)
