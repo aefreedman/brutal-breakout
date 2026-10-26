@@ -35,6 +35,17 @@ public class BakedPresentationTests
         Assert.True(instances>100);
     }
     [Fact]
+    public void AuthoritativeTinyGeometryKeepsReferenceNoOutputInsteadOfThrowingCandidateRejection()
+    {
+        double tiny=Math.ScaleB(1,-160);var geometry=new ShmupBrickGeometry(tiny,tiny);
+        using var owner=new BakedPresentationMeshes(Limits());using var draw=new ShapeDrawList();using var expected=new ShapeDrawList();
+        draw.BeginFrame(1280,720);expected.BeginFrame(1280,720);owner.Begin(geometry);var position=new double2(100,100);var color=new LinearColor(.2f,.4f,.6f);
+        Assert.False(owner.Brick(draw,ShmupBrickShape.Square,0,position,color));
+        DrawBrick(draw,geometry,ShmupBrickShape.Square,0,position,color);DrawBrick(expected,geometry,ShmupBrickShape.Square,0,position,color);
+        var result=owner.Draw.Finish(draw);Assert.Empty(result.Instances.ToArray());Assert.Empty(result.Triangles.Indices.ToArray());
+        Compare(expected.Finish(),result);Assert.Equal(0,owner.Draw.MeshBakes);
+    }
+    [Fact]
     public void MovementHealthShapeSwitchAndRevisionChurnDoNotRetainOldCpuOwners()
     {
         using var owner=new BakedPresentationMeshes(Limits());using var draw=new ShapeDrawList();
