@@ -127,7 +127,7 @@ try
         throw new InvalidOperationException("Failed to create the game window.");
 
     Console.WriteLine($"Window created: {window.Size.X}x{window.Size.Y}; framebuffer={window.FramebufferSize.X}x{window.FramebufferSize.Y}.");
-    var renderer = VulkanRenderer.Create(window, validation);
+    var renderer = VulkanRenderer.Create(window, validation, windowConfiguration.Settings.VSync);
     ResourceLifetime.Run(() =>
     {
 #if BREAKOUT_EDITOR
@@ -194,6 +194,7 @@ try
 #if BREAKOUT_EDITOR
         configurationWorkspace.PreflightLive = candidate =>
         {
+            renderer.ValidateVSync(candidate.Get<LoadedWindowConfiguration>("window")!.Settings.VSync);
             if (modes is null) return;
             modes.ValidateTuning(candidate.Get<LoadedPhysicsConfiguration>("physics")!.Settings,
                 candidate.Get<LoadedGameplayConfiguration>("gameplay")!.Settings,
@@ -206,6 +207,9 @@ try
         BrutalBreakout.Simulation.ShmupSnapshot? configurationSmokeSnapshot = null;
         bool configurationSmokeReset = false;
         bool configurationSmokePaused = false, configurationSmokeApplied = false, configurationSmokeRejected = false;
+        ShmupSession? presentationSmokeRun = null;
+        long presentationSmokeTick = -1;
+        bool presentationSmokeImmediate = false, presentationSmokeFifo = false;
 #endif
         var staleFrameRegressionPassed = false;
         var resizeRequested = false;
@@ -218,6 +222,7 @@ try
         if (smokeTest) Console.WriteLine($"Smoke showcase: expectedShapes={ShapeShowcase.ShapeCount}; " +
             "filled=5; outlines=14; patterned=8; transforms=4; clipped=5; blend=6; panels=12; markers=2; decorativeAngled=4; decorativeChevron=4.");
         var timer = Stopwatch.StartNew();
+        var frameBudget = new RenderFrameBudget(() => timer.Elapsed.TotalSeconds, Glfw.WaitEventsTimeout, () => window.ShouldClose);
         var phase = SmokePhase.Warmup;
         var phaseStarted = TimeSpan.Zero;
         var framesAtTransition = 0;
@@ -226,6 +231,7 @@ try
         {
             // Keep window operations and graphics on this thread. Async work will later
             // need an explicit main-thread scheduler, not an await Task.Delay frame loop.
+            var frameStart = timer.Elapsed.TotalSeconds;
             Glfw.PollEvents();
             if (window.ShouldClose) break;
             // Hidden acceptance opens/closes the inspector without desktop input, including after resize.
@@ -243,6 +249,14 @@ try
             bool? inspectorOverride = false;
 #endif
 #if BREAKOUT_EDITOR
+            if (shmupSmokeTest && shmupFrames is 9 or 11)
+            {
+                presentationSmokeRun = modes!.Shmup;
+                presentationSmokeTick = modes.Shmup!.Simulation.Snapshot.Tick;
+                var document = configurationWorkspace.Documents.Single(d => d.Section == "window");
+                document.Set("vsync", shmupFrames == 11);
+                document.Set("frameRateLimit", shmupFrames == 9 ? 60 : 0);
+            }
             if (shmupSmokeTest && shmupFrames == 15)
             {
                 configurationControls.Visible = true;
@@ -285,8 +299,11 @@ try
                         nextInput.Settings, nextExecution.Settings, nextTrails.Settings);
                 if (configurationWorkspace.IsChanged(candidate, "window"))
                 {
-                    windowConfiguration = candidate.Get<LoadedWindowConfiguration>("window")!;
-                    window.Size = new int2(windowConfiguration.Settings.Width, windowConfiguration.Settings.Height);
+                    var nextWindow = candidate.Get<LoadedWindowConfiguration>("window")!;
+                    renderer.SetVSync(nextWindow.Settings.VSync);
+                    if (nextWindow.Settings.Width != windowConfiguration.Settings.Width || nextWindow.Settings.Height != windowConfiguration.Settings.Height)
+                        window.Size = new int2(nextWindow.Settings.Width, nextWindow.Settings.Height);
+                    windowConfiguration = nextWindow;
                 }
                 if (configurationWorkspace.IsChanged(candidate, "audio"))
                 {
@@ -308,6 +325,15 @@ try
                     lastElapsed = timer.Elapsed;
                 }
             });
+            if (shmupSmokeTest && shmupFrames is 9 or 11)
+            {
+                if (!ReferenceEquals(presentationSmokeRun, modes!.Shmup) ||
+                    presentationSmokeTick != modes.Shmup!.Simulation.Snapshot.Tick || !modes.Paused ||
+                    windowConfiguration.Settings.VSync != (shmupFrames == 11) ||
+                    windowConfiguration.Settings.FrameRateLimit != (shmupFrames == 9 ? 60 : 0) ||
+                    renderer.VSync != windowConfiguration.Settings.VSync)
+                    throw new InvalidOperationException("Live presentation policy replaced/advanced the paused run or failed publication.");
+            }
             if (shmupSmokeTest && shmupFrames == 16)
             {
                 configurationSmokeApplied = ReferenceEquals(modes!.Shmup, configurationSmokeOldRun) &&
@@ -381,7 +407,7 @@ try
                 if (shmupFrames >= 70 && shmupSmokeStage == 3)
                 {
 #if BREAKOUT_EDITOR
-                    if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered || !configurationSmokeApplied || !configurationSmokeRejected || !configurationSmokeReset || configurationControls.DrawCount < 2 || configurationControls.ScalarDrawCount == 0 || configurationControls.FirstVisibleField is null)
+                    if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered || !configurationSmokeApplied || !configurationSmokeRejected || !configurationSmokeReset || !presentationSmokeImmediate || !presentationSmokeFifo || configurationControls.DrawCount < 2 || configurationControls.ScalarDrawCount == 0 || configurationControls.FirstVisibleField is null)
                         throw new InvalidOperationException("Shmup smoke did not recover and redraw after the inspector callback failure.");
 #endif
                     if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks || !shmupSawAim || (trails!.Settings.Enabled && (!shmupSawTrails || shmupTrailViewports.Count < 2)))
@@ -586,6 +612,16 @@ try
             var previousOverlay = renderer.OverlayEvidence;
             var geometryPresented = renderer.Draw(frame, colors?.Settings.Background ?? ShapeShowcase.Background);
             if (geometryPresented) presentedGeometryFrames++;
+#if BREAKOUT_EDITOR
+            if (shmupSmokeTest && shmupFrames is 9 or 11)
+            {
+                var expected = shmupFrames == 9 ? Brutal.VulkanApi.VkPresentModeKHR.ImmediateKHR : Brutal.VulkanApi.VkPresentModeKHR.FifoKHR;
+                if (renderer.EffectivePresentMode != expected)
+                    throw new InvalidOperationException("Swapchain did not apply the explicit present mode.");
+                if (shmupFrames == 9) presentationSmokeImmediate = true; else presentationSmokeFifo = true;
+                Console.WriteLine($"Presentation policy receipt: effective={renderer.EffectivePresentMode}; cap={windowConfiguration.Settings.FrameRateLimit}; sameRun=True; paused=True; tick={presentationSmokeTick}; noSave=True.");
+            }
+#endif
             // The host owns event waiting; the reusable renderer must not pump the OS.
             // Keep processing pause/capture transitions above, then avoid spinning while no framebuffer is available.
             if (wasIconified || framebuffer.X <= 0 || framebuffer.Y <= 0)
@@ -647,6 +683,8 @@ try
             }
             if (smokeTest && wasIconified && renderer.PresentedFrames != framesBeforeDraw)
                 throw new InvalidOperationException("Smoke: Draw presented while iconified.");
+            if (!wasIconified && framebuffer.X > 0 && framebuffer.Y > 0)
+                frameBudget.Wait(frameStart, windowConfiguration.Settings);
         }
         if (shmupSmokeTest && shmupFrames < 70) throw new InvalidOperationException("Shmup smoke interrupted.");
         if (gameplayScript is not null)

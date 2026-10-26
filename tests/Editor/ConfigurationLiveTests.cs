@@ -59,6 +59,8 @@ public sealed class ConfigurationLiveTests
             Doc(w, "input").Set("stickDeadzone", .3);
             Doc(w, "overlay").Set("fontSize", 23);
             Doc(w, "window").Set("width", 960);
+            Doc(w, "window").Set("vsync", false);
+            Doc(w, "window").Set("frameRateLimit", 144);
             ConfigurationWorkspace.Candidate? candidate = null;
             w.Process(c => { candidate = c; Apply(host, c); });
             Assert.NotNull(candidate); Assert.False(candidate.ResetRequired);
@@ -75,12 +77,79 @@ public sealed class ConfigurationLiveTests
             Assert.Same(candidate.Get<LoadedExecutionConfiguration>("execution")!.Settings, simulation.Execution);
             Assert.Same(candidate.Get<LoadedBallTrailConfiguration>("trails")!.Settings, history.Settings);
             Assert.Equal(960, candidate.Get<LoadedWindowConfiguration>("window")!.Settings.Width);
+            Assert.False(candidate.Get<LoadedWindowConfiguration>("window")!.Settings.VSync);
+            Assert.Equal(144, candidate.Get<LoadedWindowConfiguration>("window")!.Settings.FrameRateLimit);
             Assert.Single(w.PendingResetFields); Assert.Single(w.PendingRelaunchFields);
             Assert.True(shmup.Pending); Assert.True(shmup.Unsaved);
             w.Request(ConfigurationAction.Apply); w.Process(c => Apply(host, c));
             Assert.NotSame(session, host.Shmup); Assert.True(host.Paused);
             Assert.Equal(10, host.Shmup!.Settings.Capacity.MaxBalls); Assert.Equal(0, host.Shmup.Simulation.Snapshot.Tick);
             Assert.Empty(w.PendingResetFields); Assert.Single(w.PendingRelaunchFields);
+        });
+    }
+
+    [Fact]
+    public void PausedPresentationLiveDiscardSaveReloadAndInvalidCapRetainLastValidPublication()
+    {
+        WithHost((w, host) =>
+        {
+            host.TogglePause();
+            var session = host.Shmup!;
+            long tick = session.Simulation.Snapshot.Tick;
+            var document = Doc(w, "window");
+            string source = File.ReadAllText(document.Path);
+            WindowSettings current = WindowConfiguration.Load(document.Path).Settings;
+            void Commit(ConfigurationWorkspace.Candidate c)
+            {
+                Apply(host, c);
+                current = c.Get<LoadedWindowConfiguration>("window")!.Settings;
+                Assert.Same(session, host.Shmup);
+                Assert.True(host.Paused); Assert.Equal(tick, session.Simulation.Snapshot.Tick);
+                Assert.False(c.ResetRequired);
+            }
+            Assert.Equal(ConfigurationEffect.Live, ConfigurationImpact.For("window.vsync").Effect);
+            Assert.Equal(ConfigurationEffect.Live, ConfigurationImpact.For("window.frameRateLimit").Effect);
+            document.Set("vsync", false); document.Set("frameRateLimit", 144);
+            w.Process(Commit);
+            Assert.False(current.VSync); Assert.Equal(144, current.FrameRateLimit);
+            Assert.Equal(source, File.ReadAllText(document.Path));
+            foreach (double invalid in new[] { -1d, 1.5, 1001 })
+            {
+                var before = current;
+                document.Set("frameRateLimit", invalid); w.Process(Commit);
+                Assert.Same(before, current); Assert.False(current.VSync); Assert.Equal(144, current.FrameRateLimit);
+                Assert.StartsWith("Rejected:", w.Status);
+            }
+            w.Request(ConfigurationAction.Discard); w.Process(Commit);
+            Assert.True(current.VSync); Assert.Equal(0, current.FrameRateLimit);
+            document.Set("vsync", false); document.Set("frameRateLimit", 60); w.Process(Commit);
+            w.Request(ConfigurationAction.Save); w.Process(Commit);
+            var saved = WindowConfiguration.Load(document.Path).Settings;
+            Assert.False(saved.VSync); Assert.Equal(60, saved.FrameRateLimit);
+            document.Set("vsync", true); document.Set("frameRateLimit", 0); w.Process(Commit);
+            w.Request(ConfigurationAction.Reload); w.Process(Commit);
+            Assert.False(current.VSync); Assert.Equal(60, current.FrameRateLimit);
+            Assert.Empty(w.PendingResetFields); Assert.Empty(w.PendingRelaunchFields);
+        });
+    }
+
+    [Fact]
+    public void PresentationCapabilityPreflightRejectsBeforeWorldCommit()
+    {
+        WithHost((w, host) =>
+        {
+            var session = host.Shmup!;
+            w.PreflightLive = c =>
+            {
+                if (!c.Get<LoadedWindowConfiguration>("window")!.Settings.VSync)
+                    throw new NotSupportedException("Immediate unsupported");
+            };
+            Doc(w, "window").Set("vsync", false);
+            int commits = 0;
+            w.Process(c => { commits++; Apply(host, c); });
+            Assert.Equal(0, commits); Assert.Same(session, host.Shmup);
+            Assert.True(Doc(w, "window").Pending);
+            Assert.StartsWith("Rejected:", w.Status);
         });
     }
 

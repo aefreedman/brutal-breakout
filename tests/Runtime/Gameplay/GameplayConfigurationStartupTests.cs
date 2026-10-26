@@ -25,7 +25,7 @@ public class GameplayConfigurationStartupTests
         string game = files.Put(invalid == "gameplay" ? "{}" : GameplayConfigurationTests.Valid, "g.json");
         string input = files.Put(invalid == "input" ? "{}" : "{\"stickDeadzone\":0.55}", "i.json");
         string style = files.Put(invalid == "style" ? "{}" : PresentationStyleConfigurationTests.Valid, "s.json");
-        string window = files.Put(invalid == "window" ? "{}" : "{\"width\":800,\"height\":600}", "w.json");
+        string window = files.Put(invalid == "window" ? "{}" : "{\"width\":800,\"height\":600,\"vsync\":true,\"frameRateLimit\":0}", "w.json");
         string execution = files.Put(invalid == "execution" ? "{}" : "{\"workerCount\":2,\"maxExpectedConcurrentJobs\":64,\"physicsWorkerCount\":2}", "e.json");
         var start = new ProcessStartInfo("dotnet")
         {

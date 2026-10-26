@@ -136,7 +136,7 @@ try {
     if ($windows.Count -eq 0) { throw 'No test window observed; hidden-state evidence incomplete.' }
     if ($visible.Count -ne 0) { throw 'A test window became visible.' }
     if ($foregrounds.Count -ne 1 -or -not $foregrounds.Contains($before.ToInt64())) { throw 'Foreground changed during observation (possibly external user activity); nonactivation evidence incomplete.' }
-    if (-not $output.Contains("Window configuration: width=$($windowExpected.width); height=$($windowExpected.height); path=$windowPath") -or
+    if (-not $output.Contains("Window configuration: width=$($windowExpected.width); height=$($windowExpected.height); vsync=$($windowExpected.vsync); frameRateLimit=$($windowExpected.frameRateLimit); path=$windowPath") -or
         -not $output.Contains('Window created: 1280x720; framebuffer=1280x720.')) { throw 'Missing selected window path/effective startup dimensions.' }
     if ($Mode -eq 'Showcase') {
     $expected = [regex]::Match($output, 'Smoke showcase: expectedShapes=(\d+);')
@@ -156,6 +156,10 @@ try {
     }
     if ($sizes.Count -lt 2) { throw 'Missing distinct nonempty resize viewports.' }
     } elseif ($Mode -eq 'Shmup') {
+        if ($output -notmatch 'Presentation policy receipt: effective=ImmediateKHR; cap=60; sameRun=True; paused=True; tick=\d+; noSave=True\.' -or
+            $output -notmatch 'Presentation policy receipt: effective=FifoKHR; cap=0; sameRun=True; paused=True; tick=\d+; noSave=True\.') {
+            throw 'Missing live VSync/cap mode-switch receipts without reset/save.'
+        }
         if (-not $output.Contains('Shmup smoke PASS:') -or
             -not $output.Contains('Shmup inspector callback failure caught before acquisition; retrying with a fresh UI frame.') -or
             $output -notmatch 'Shmup viewport: 1280x720; vertices=\d+; indices=[1-9]\d*; aimIndices=[1-9]\d*;' -or

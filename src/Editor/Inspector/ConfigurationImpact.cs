@@ -10,6 +10,8 @@ public static class ConfigurationImpact
 {
     public static ConfigurationFieldImpact For(string path) => path switch
     {
+        "window.vsync" => new(ConfigurationEffect.Live, "Enable FIFO synchronization, or disable using supported Immediate (tearing possible). Applies next owner update without resetting gameplay. The cap and VSync combine at the lower throughput; 0 cap does not disable VSync."),
+        "window.frameRateLimit" => new(ConfigurationEffect.Live, "Press Enter to apply the render frame cap (0 unlimited; 1–1000). Includes work and VSync waits, even paused. Very low caps retain the existing fixed-tick catch-up/drop policy; simulation Hz is unchanged."),
         "window.width" or "window.height" => new(ConfigurationEffect.Live, "Press Enter to resize the physical window on the owner update; partial digits do not resize. Logical game bounds stay unchanged."),
         "physics.updateHz" or "physics.maxCatchUpSteps" => new(ConfigurationEffect.Reset, "Fixed clock and bounded event buffers are constructed for this tick budget."),
         "physics.substeps" or "physics.contactHertz" or "physics.contactDampingRatio" => new(ConfigurationEffect.Live, "Update the existing native world's solver; retain bodies and contact metadata."),

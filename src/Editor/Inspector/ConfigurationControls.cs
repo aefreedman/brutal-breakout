@@ -209,7 +209,7 @@ public sealed class ConfigurationControls
                 // Never infer integral schema types from lexical JSON values (e.g. speed: 576).
                 double number = value.GetDouble();
                 if (Ui.InputDouble(widget, ref number, 0, 0, "%.8g"u8,
-                    id is "window.width" or "window.height" ? ImGuiInputTextFlags.EnterReturnsTrue : ImGuiInputTextFlags.None))
+                    id is "window.width" or "window.height" or "window.frameRateLimit" ? ImGuiInputTextFlags.EnterReturnsTrue : ImGuiInputTextFlags.None))
                 {
                     if (double.IsFinite(number)) { set(JsonValue.Create(number)!); widgetErrors.Remove(id); }
                     else widgetErrors[id] = "Enter a finite number; NaN/Infinity was not staged.";
@@ -250,6 +250,8 @@ public sealed class ConfigurationControls
     }
     private static string Label(string key)
     {
+        if (key == "vsync") return "VSync";
+        if (key == "frameRateLimit") return "Frame rate cap (0 unlimited)";
         var result = new StringBuilder();
         foreach (char c in key) { if (char.IsUpper(c)) result.Append(' '); result.Append(c); }
         if (result.Length > 0) result[0] = char.ToUpperInvariant(result[0]);
