@@ -46,10 +46,6 @@ Set `CrushKitRoot` explicitly if the kit checkout is elsewhere. Use the same pro
 
 The renderer/geometry/shaders and optional inspector now live in CrushKit, not this repository. Breakout retains gameplay, configuration loading/JSON, overlay label/diagnostic content, input bindings/aim priorities, audio cue/event mapping and licensed game assets. CrushKit owns raw input sampling/edge/deadzone helpers and generic clip/device/bounded-voice mechanics; Input/Audio depend on neither graphics nor one another. The renderer no longer knows about balls/bricks; `OverlayHost` supplies those details as text. The kit's Vulkan package alone has no ImGui dependency; this application explicitly configures `ImGuiInspector` with its separately validated `InspectorSettings`; text `OverlaySettings` no longer require any inspector assets. HUD and inspector JSON are independently strict; their immutable settings objects are passed unchanged to their respective consumers.
 
-## Coordination and investigation records
-
-Shared agent tooling and maintained usage/reference documentation live in the separate `brutal-coord` workspace. In the coordinated checkout, see `../../../docs/README.md`, `../../../docs/usage/pi-support.md` and `../../../tasks/README.md`. Unfinished work belongs in its `tasks/`; disposable logs/probes go in its ignored `.local/`, not a permanent investigation archive. Start Pi from the coordination root; ordinary game build/run/test commands above still run from this repository.
-
 ## Project files and dependencies
 
 - `src/App/Program.cs`: main-thread lifecycle and bounded smoke/self-tests.

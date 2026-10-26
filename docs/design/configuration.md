@@ -16,7 +16,7 @@ Gameplay and Diagnostics fit without overlapping at both 960×540 and 1280×720.
 
 `Config/inspector.json` owns initial bounds: root `left/top/width/height` configure Diagnostics, and required `gameplayWindow: { "left": 16, "top": 16, "width": 360, "height": 420 }` configures Gameplay. Required `configurationWindow: { "left": 392, "top": 16, "width": 560, "height": 500 }` seeds Configuration. Custom inspector JSON must include both complete window objects. Immutable settings objects are validated before native allocation and passed unchanged to the UI. Bounds are starting positions, not locks: moved/resized bounds and diagnostic section choices survive panel toggles and context recreation within the running application. Smaller framebuffers/DPI changes recover reachable bounds. A new launch starts from JSON again; no docking system or layout files are written.
 
-See [validation and evidence limits](../engineering/validation.md) for layout test coverage; visible inspection requires separate permission.
+See [validation and evidence limits](../engineering/validation.md) for layout test coverage and visual-testing limitations.
 
 ## Configuration controls
 

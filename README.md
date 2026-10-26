@@ -39,7 +39,7 @@ dotnet run --project src/App/BrutalBreakout.App.csproj --no-build -- --shmup
 dotnet run --project src/App/BrutalBreakout.App.csproj --no-build -- --showcase
 ```
 
-These commands open **visible windows**. Automated GPU validation uses a separate hidden harness; visible lifecycle/resize tests require explicit user permission.
+These commands open **visible windows**. Automated GPU validation uses a separate hidden harness; visible lifecycle/resize tests can disturb desktop focus. See [test coverage](docs/engineering/validation.md).
 
 Debug enables `VK_LAYER_KHRONOS_validation` by default and fails if unavailable; `--no-validation` opts out. Release enables validation with `--validation` or any GPU test mode.
 
