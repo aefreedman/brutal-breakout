@@ -40,7 +40,7 @@ A Windows-first 2D game built with C# and [BRUTAL](https://github.com/ahwootech/
 - Vulkan 1.3 GPU/driver, combined graphics/present queue, color-attachment swapchain support, B8G8R8A8_SRGB or R8G8B8A8_SRGB surface format, and 4x-MSAA support for the selected color format. There is no non-sRGB or lower-sample-count fallback; unsupported hardware fails clearly.
 - Vulkan SDK validation layers for Debug development and smoke tests. Players need the driver runtime, not the SDK.
 
-Breakout consumes local prerelease `CrushKit.Brutal.Draw2D`, `CrushKit.Brutal.Vulkan`, optional-inspector `CrushKit.Brutal.ImGui`, `CrushKit.Brutal.Input`, `CrushKit.Brutal.Audio`, `CrushKit.Brutal.Ecs` and `CrushKit.Brutal.Physics` packages (currently version `0.1.0-preview.7`). BRUTAL packages and native libraries restore transitively from NuGet; no BRUTAL source checkout or external shader build step is required. Embedded GLSL compiles once at startup through ShaderC (no external `glslc`).
+Breakout consumes local prerelease `CrushKit.Brutal.Draw2D`, `CrushKit.Brutal.Vulkan`, optional-inspector `CrushKit.Brutal.ImGui`, `CrushKit.Brutal.Input`, `CrushKit.Brutal.Audio`, `CrushKit.Brutal.Ecs` and `CrushKit.Brutal.Physics` packages (currently version `0.1.0-preview.8`). BRUTAL packages and native libraries restore transitively from NuGet; no BRUTAL source checkout or external shader build step is required. Embedded GLSL compiles once at startup through ShaderC (no external `glslc`).
 
 ## Build and run
 
