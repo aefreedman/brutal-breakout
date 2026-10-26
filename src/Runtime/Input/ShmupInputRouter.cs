@@ -11,14 +11,15 @@ public readonly record struct ShmupInputIntent(float2 Move, float2? Aim, double2
 /// Directions use +Y up; the session converts once to logical screen coordinates.</summary>
 public sealed class ShmupInputRouter
 {
-    public InputSettings Settings { get; private set; }
-    public void ApplyTuning(InputSettings settings) => Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+    private InputSettings settings;
+    public InputSettings Settings => settings;
+    public void ApplyTuning(InputSettings settings) => this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
     private readonly ButtonEdges restart = new();
     private readonly HashSet<string> armed = new();
     private readonly HashSet<string> known = new();
     private double2? previousCursor;
     private bool previousMouse;
-    public ShmupInputRouter(InputSettings settings) => Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+    public ShmupInputRouter(InputSettings settings) => this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
     public void Reset() { restart.Reset(); armed.Clear(); known.Clear(); previousCursor = null; previousMouse = false; }
     public ShmupInputIntent Route(InputSnapshot sample)
     {

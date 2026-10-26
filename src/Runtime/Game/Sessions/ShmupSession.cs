@@ -29,7 +29,7 @@ public sealed class ShmupSession : IDisposable
 {
     public ShmupSimulation Simulation { get; }
     public ShmupSettings Settings { get; private set; }
-    public double RunMinimumWidth { get; }
+    public double RunMinimumWidth => Simulation.RunMinimumWidth;
     public BallTrailHistory? Trails { get; }
     public ShmupInputRouter Router { get; }
     private readonly FixedStepClock clock;
@@ -62,7 +62,6 @@ public sealed class ShmupSession : IDisposable
         BallTrailSettings? trails = null)
     {
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
-        RunMinimumWidth = settings.Arena.InitialPlayAreaWidth;
         // Validate and allocate bounded managed history before creating a native world.
         Trails = trails is null ? null : new(trails, settings.Capacity.MaxBalls);
         Router = new(input);

@@ -19,6 +19,37 @@ public sealed class ShmupSessionTests
     private static ShmupSession Session(ShmupSettings settings) => new(Physics, settings, TestSettings.Input, new(2, 64, 2));
 
     [Fact]
+    public void KeyboardRestartUsesNewDefaultWidthAndRefreshesStableWideningMinimum()
+    {
+        var baseline = Settings();
+        ShmupSettings WithWidth(double width) => new(new(baseline.Arena.Width, baseline.Arena.Height, width),
+            baseline.Avatar, baseline.Ball, baseline.Brick, baseline.Difficulty, baseline.Noise, new(4, 8));
+        var settings = WithWidth(432);
+        var execution = new ExecutionSettings(1, 16, 1);
+        using var host = new GameplaySessionHost(Physics, TestSettings.Gameplay, settings,
+            TestSettings.Input, execution, GameplayMode.Shmup);
+        var session = host.Shmup!;
+        var next = WithWidth(300);
+        host.ApplyTuning(Physics, TestSettings.Gameplay, next, TestSettings.Input, execution, null);
+        Assert.Same(session, host.Shmup);
+        Assert.Equal(432, session.Simulation.Snapshot.Width);
+        Assert.Equal(432, session.RunMinimumWidth);
+        session.Advance(Sample(), 0, View(next));
+        session.Advance(Sample(), Physics.StepSeconds, View(next));
+        session.Advance(Sample(restart: true), Physics.StepSeconds, View(next));
+        Assert.Equal(300, session.Simulation.Snapshot.Width);
+        Assert.Equal(300, session.RunMinimumWidth);
+        session.Simulation.Widen(320);
+        Assert.Equal(320, session.Simulation.Snapshot.Width);
+        Assert.Equal(300, session.RunMinimumWidth);
+        // Direct simulation restarts must refresh the same authoritative run state too.
+        var smaller = WithWidth(280);
+        host.ApplyTuning(Physics, TestSettings.Gameplay, smaller, TestSettings.Input, execution, null);
+        session.Simulation.Restart();
+        Assert.Equal(280, session.RunMinimumWidth);
+    }
+
+    [Fact]
     public void ReleasedFireOnZeroTickFrameDoesNotBecomeLatchedShot()
     {
         var settings = Settings(); using var session = Session(settings); var view = View(settings);

@@ -13,7 +13,7 @@ public sealed class ShmupSimulation : IDisposable
     private readonly Entity[] balls, bricks;
     private ShmupSnapshot snapshot = null!;
     private bool disposed;
-    private double width, time, fireDelay, rowDelay, beltPhase;
+    private double width, time, fireDelay, rowDelay, beltPhase, runMinimumWidth;
     private long beltRow, lastSpawnGridRow;
     private readonly ShmupAvatarController avatar;
     private long tick, row, droppedBalls, droppedBricks;
@@ -21,6 +21,7 @@ public sealed class ShmupSimulation : IDisposable
     public PhysicsSettings Physics { get; private set; }
     public ExecutionSettings Execution { get; private set; }
     public double StepSeconds => Physics.StepSeconds;
+    public double RunMinimumWidth => runMinimumWidth;
     public ShmupSnapshot Snapshot => Volatile.Read(ref snapshot);
     /// <summary>Facts from the last command; cleared even when a defeated run cannot advance.</summary>
     public ShmupEvents Events { get; private set; }
@@ -77,7 +78,7 @@ public sealed class ShmupSimulation : IDisposable
         // Retain generations across restart: a retained publication never aliases another life.
         for (int i = 0; i < balls.Length; i++) { long generation = Ball(i).Generation; Ball(i) = new() { Generation = generation }; }
         for (int i = 0; i < bricks.Length; i++) { long generation = Brick(i).Generation; Brick(i) = new() { Generation = generation }; }
-        width = Settings.Arena.InitialPlayAreaWidth; native.Widen(width);
+        width = runMinimumWidth = Settings.Arena.InitialPlayAreaWidth; native.Widen(width);
         time = fireDelay = rowDelay = beltPhase = 0;
         beltRow = 0; lastSpawnGridRow = -1;
         tick = row = droppedBalls = droppedBricks = 0;
