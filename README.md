@@ -82,6 +82,12 @@ Each tick runs input/native physics first, then independent ball/round and brick
 
 `BallSimulation.StepAsync` queues ticks from any caller thread and returns that tick's immutable `SimulationSnapshot`; snapshots can be retained while work continues. Queries queue behind accepted ticks. Disposal drains accepted work before releasing native worlds, worker pools and ECS storage. `Step` is a blocking compatibility wrapper; the current input/render host joins ticks before drawing, not a requirement that gameplay or physics execute on the render thread. Host input staging remains host-thread-owned. Async I/O, further jobs and snapshot-based render overlap remain possible without changing collision ownership. Dependency graphs, tasks and retained snapshots currently allocate; the scheduler's name does not imply allocation-free ticks or a measured speedup.
 
+### Performance defaults
+
+Configuration drafts are privately owned JSON, edited through explicit section-relative paths. Cached immutable read views, text and pending/dirty status refresh only on real edits or source/applied/context changes; unchanged inspector draws and owner updates do not serialize, parse or revalidate documents. Invalid attempts stay cached until an edit or live-context change; Save remains explicit and validates disk conflicts.
+
+Shmup publication reuses private staging lists bounded by validated ball/brick capacities, then transfers independently owned arrays to every existing publication in ascending ID order. Retained snapshots never alias scratch, including across tuning, reset and disposal. Ball overlap/sweep callbacks are cached per native arena and carry the ball index as synchronous per-call value context, consulting current settings. Immutable publications and change-triggered validation still deliberately allocate; this is not a zero-allocation claim. Workspace-wide design/review policy lives in the coordination repository's `docs/reference/performance-by-default.md`.
+
 ### Pause and panel controls (both modes)
 
 - **Select/Share** (the standardized GLFW Back button) or **F1** toggles the ImGui panel, including while it captures input. Held buttons do not repeat; focus regain and controller reconnect/replacement baseline held controls.

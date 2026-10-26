@@ -192,16 +192,16 @@ try
         var shmupTrailViewports = new HashSet<(int Width, int Height)>();
         bool shmupSawBalls = false, shmupSawBricks = false, shmupSawAim = false, shmupSawTrails = false;
 #if BREAKOUT_EDITOR
-configurationWorkspace.PreflightLive = candidate =>
-            {
-                if (modes is null) return;
-                modes.ValidateTuning(candidate.Get<LoadedPhysicsConfiguration>("physics")!.Settings,
-                    candidate.Get<LoadedGameplayConfiguration>("gameplay")!.Settings,
-                    candidate.Get<LoadedShmupConfiguration>("shmup")!.Settings,
-                    candidate.Get<LoadedInputConfiguration>("input")!.Settings,
-                    candidate.Get<LoadedExecutionConfiguration>("execution")!.Settings,
-                    candidate.Get<LoadedBallTrailConfiguration>("trails")!.Settings);
-            };
+        configurationWorkspace.PreflightLive = candidate =>
+        {
+            if (modes is null) return;
+            modes.ValidateTuning(candidate.Get<LoadedPhysicsConfiguration>("physics")!.Settings,
+                candidate.Get<LoadedGameplayConfiguration>("gameplay")!.Settings,
+                candidate.Get<LoadedShmupConfiguration>("shmup")!.Settings,
+                candidate.Get<LoadedInputConfiguration>("input")!.Settings,
+                candidate.Get<LoadedExecutionConfiguration>("execution")!.Settings,
+                candidate.Get<LoadedBallTrailConfiguration>("trails")!.Settings);
+        };
         ShmupSession? configurationSmokeOldRun = null;
         BrutalBreakout.Simulation.ShmupSnapshot? configurationSmokeSnapshot = null;
         bool configurationSmokeReset = false;
