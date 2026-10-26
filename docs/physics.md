@@ -16,7 +16,7 @@ Changing `updateHz` or catch-up capacity requires an explicit reset. Substeps an
 
 ## Two levels of subdivision in Shmup
 
-Classic Breakout advances its native world once per fixed tick with the configured solver substeps. Shmup currently adds application-controlled native intervals:
+Classic Breakout advances its native world once per flying tick with the configured solver substeps; paused/held updates do not imply a native step. Shmup currently adds application-controlled native intervals:
 
 ```text
 intervals = max(1, ceil((ballSpeed + descentSpeed)
@@ -33,7 +33,7 @@ Intervals preserve application contact/expiry chronology and short post-wall que
 
 The 120 Hz / four-substep settings predate Shmup's interval loop. They are a fidelity-biased inherited baseline, not a demonstrated optimum for hundreds of balls. [Upstream Box2D guidance](https://box2d.org/documentation/md_simulation.html) recommends four solver substeps generally and describes 60 Hz as usually high quality; that does not independently justify four substeps inside each of our four-to-five application intervals. Contact settings are explicit behavior choices, not throughput controls. Eight catch-up ticks cap work, but can still allow a long rendered frame when each tick is expensive.
 
-A sound change should establish a deliberate combined quality budget, rather than independently accumulating conservative settings. Reducing update rate alone does not necessarily reduce Shmup cost proportionally: larger ticks can require more intervals. Reducing radius or increasing speed also increases the interval count. Raising worker counts does not remove this work; see [execution](execution.md).
+A sound change should establish a deliberate combined quality budget, rather than independently accumulating conservative settings. However, the [controlled worker comparison](execution.md#controlled-high-population-finding) identifies execution as the leading demonstrated opportunity: reducing solver substeps did not remove that fixture's large two-worker slowdown, and changed contact/hit results. Do not weaken quality as the presumed remedy. Reducing update rate alone does not necessarily reduce Shmup cost proportionally: larger ticks can require more intervals. Reducing radius or increasing speed also increases the interval count. Raising worker counts does not remove this work; see [execution](execution.md).
 
 Before changing interval/substep policy, preserve compound seam deduplication, genuine reentry, piercing sweeps, moving-brick contacts, chronological wall expiry, same-interval brick precedence, earlier hits surviving later expiry and fixed-tick events/trails. Keep native collision authority. A faster timing result alone does not establish equivalent gameplay.
 

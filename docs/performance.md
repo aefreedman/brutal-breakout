@@ -41,7 +41,7 @@ Keep build and validation modes explicit: normal Debug launches enable Vulkan va
 
 Start with source-backed work/ownership reasoning. For uncertain design tradeoffs, compare controlled equal populations/capacities and separate active-work, collision-density, scheduling and quality-budget effects. Label CPU-only synthetic results honestly. Use representative full-frame/tail-latency evidence when the question actually concerns rendering or perceived responsiveness; do not turn every cleanup into a profiling project.
 
-The immediate design questions are the combined [physics quality budget](physics.md) and [execution granularity](execution.md), not blindly lowering caps or adding threads. Keep behavioral correctness separate from throughput comparisons.
+The leading demonstrated opportunity is the [execution/worker interaction](execution.md#controlled-high-population-finding), not blindly lowering caps or physics quality. A controlled 500-ball native-only fixture measured about 1.20 ms/tick with one physics bridge worker versus 16.17 ms with two; that is not a full-frame or universal-threshold claim. A separate instrumented repeat narrowed the worker interaction to delayed completion returns after native callback ranges had exited; the exact internal cause remains unresolved. Keep the combined [physics quality budget](physics.md) as a separate design concern and behavioral correctness separate from throughput comparisons.
 
 ## Validation
 
