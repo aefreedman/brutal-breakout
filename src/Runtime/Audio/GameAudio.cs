@@ -10,11 +10,22 @@ public sealed class GameAudio : IDisposable
     private readonly int owner = Environment.CurrentManagedThreadId;
     private bool disposed;
     public AudioSettings Settings { get; private set; }
-    public GameAudio(AudioSettings settings, IAudioOutput<AudioCue> output)
+    private readonly Func<AudioSettings, (IAudioOutput<AudioCue> Output, string? Diagnostic)> createOutput;
+    // Failed native retirement is unrecoverable within this owner, even after later Null disposals succeed.
+    private string? quarantineDiagnostic;
+    public GameAudio(AudioSettings settings, IAudioOutput<AudioCue> output) : this(settings, output, CreateOutput) { }
+    internal GameAudio(AudioSettings settings, IAudioOutput<AudioCue> output,
+        Func<AudioSettings, (IAudioOutput<AudioCue> Output, string? Diagnostic)> createOutput)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        this.createOutput = createOutput ?? throw new ArgumentNullException(nameof(createOutput));
         voices = new(settings.Output, output);
         Settings = settings;
+    }
+    private static (IAudioOutput<AudioCue>, string?) CreateOutput(AudioSettings settings)
+    {
+        var output = SdlMixerOutput<AudioCue>.Create(settings.Output, out var diagnostic);
+        return (output, diagnostic);
     }
     /// <summary>One main-thread SDL owner: retire before creating, never overlap global mixer lifetimes.
     /// A validated edit can apply without an available device; fallback is explicit and nonfatal.</summary>
@@ -22,25 +33,30 @@ public sealed class GameAudio : IDisposable
     {
         Guard();
         ArgumentNullException.ThrowIfNull(settings);
-        string? diagnostic = null;
-        bool retirementFailed = false;
+        string? diagnostic = quarantineDiagnostic;
         try { voices.Dispose(); }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            retirementFailed = true;
-            diagnostic = "Audio retirement failed; using silent output (relaunch to recover): " + error.Message;
+            quarantineDiagnostic ??= "Audio retirement failed; using silent output (relaunch to recover): " + error.Message;
+            diagnostic = quarantineDiagnostic;
         }
         IAudioOutput<AudioCue>? output = null;
         try
         {
-            output = mute || retirementFailed ? new NullAudioOutput<AudioCue>() : SdlMixerOutput<AudioCue>.Create(settings.Output, out diagnostic);
+            if (mute || quarantineDiagnostic is not null) output = new NullAudioOutput<AudioCue>();
+            else (output, diagnostic) = createOutput(settings);
             voices = new(settings.Output, output);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            try { output?.Dispose(); } catch (Exception cleanup) { diagnostic = "Audio cleanup: " + cleanup.Message; }
+            try { output?.Dispose(); }
+            catch (Exception cleanup)
+            {
+                quarantineDiagnostic ??= "Audio cleanup failed; using silent output (relaunch to recover): " + cleanup.Message;
+            }
             voices = new(settings.Output, new NullAudioOutput<AudioCue>());
             diagnostic = "Audio unavailable after Apply; using silent output: " + error.Message;
+            if (quarantineDiagnostic is not null) diagnostic += ". " + quarantineDiagnostic;
         }
         Settings = settings;
         voices.SetMuted(true); // fresh owner does not replay events from the retired run

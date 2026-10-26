@@ -6,6 +6,7 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="BrutalBreakout.Editor.Tests" />
     <ProjectReference Include="../Runtime/Game/BrutalBreakout.Runtime.csproj" />
     <PackageReference Include="CrushKit.Brutal.ImGui" Version="$(CrushKitVersion)" Condition="'$(UseCrushKitProjects)' != 'true'" />
     <ProjectReference Include="$(CrushKitRoot)/src/CrushKit.Brutal.ImGui/CrushKit.Brutal.ImGui.csproj" Condition="'$(UseCrushKitProjects)' == 'true'" />

@@ -36,6 +36,8 @@ public sealed class ConfigurationWorkspace
     public string Status { get; private set; } = "Drafts are staged. Apply does not save; Save does not apply.";
     public bool RuntimeAvailable { get; }
     public string? RuntimeDiagnostic { get; set; }
+    internal Action<string, string> ReplaceFile { get; set; } = (temporary, target) => File.Replace(temporary, target, null);
+    internal Action<string> DeleteTemporaryFile { get; set; } = File.Delete;
     public ConfigurationWorkspace(IReadOnlyDictionary<string, string> paths, bool runtimeAvailable)
     {
         RuntimeAvailable = runtimeAvailable;
@@ -114,14 +116,15 @@ public sealed class ConfigurationWorkspace
                 case ConfigurationAction.Save:
                     var texts = Capture(false);
                     Validate(texts);
-                    Save(texts);
+                    var cleanupWarning = Save(texts);
                     Status = "Saved changed sources. Save does NOT apply. Window/overlay/inspector require app relaunch.";
+                    if (cleanupWarning is not null) Status += " " + cleanupWarning;
                     break;
             }
         }
         catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException) { ReportFailure(error); }
     }
-    private void Save(Dictionary<string, string> texts)
+    private string? Save(Dictionary<string, string> texts)
     {
         // Validate against the entire observed source bundle; an unchanged but externally edited file is a conflict too.
         foreach (var d in documents)
@@ -129,39 +132,54 @@ public sealed class ConfigurationWorkspace
                 throw new IOException($"Source changed externally: {d.Path}. Reload from disk (discards drafts) before saving.");
         var changed = documents.Where(d => d.Unsaved).ToArray();
         var prepared = new Dictionary<Document, string>();
+        var temporaryPaths = new List<string>();
         var committed = new List<Document>();
+        var cleanupFailures = new List<string>();
+        string? primaryFailure = null;
+        Exception? primaryError = null;
         string Prepare(Document d, string text)
         {
             string temp = d.Path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            prepared[d] = temp;
+            temporaryPaths.Add(temp); // retain every path, including failed writes and rollback preparations
             File.WriteAllText(temp, text);
             return temp;
         }
         try
         {
-            foreach (var d in changed) Prepare(d, texts[d.Section]);
+            foreach (var d in changed) prepared[d] = Prepare(d, texts[d.Section]);
             foreach (var d in changed)
             {
                 if (File.ReadAllText(d.Path) != d.Source) throw new IOException($"Source changed externally: {d.Path}. Reload before saving.");
-                File.Replace(prepared[d], d.Path, null);
+                ReplaceFile(prepared[d], d.Path);
                 committed.Add(d);
             }
             foreach (var d in changed) d.Source = texts[d.Section];
         }
         catch (Exception saveError)
         {
+            primaryError = saveError;
             var failures = new List<string>();
             foreach (var d in committed.AsEnumerable().Reverse())
             {
-                try { File.Replace(Prepare(d, d.Source), d.Path, null); }
+                try { ReplaceFile(Prepare(d, d.Source), d.Path); }
                 catch (Exception rollbackError) { failures.Add(d.Path + ": " + rollbackError.Message); }
             }
-            throw new IOException(failures.Count == 0 ? "Save failed; originals retained/restored. " + saveError.Message
-                : "PARTIAL SAVE; rollback failed: " + string.Join("; ", failures) + ". Reload to inspect disk. " + saveError.Message, saveError);
+            primaryFailure = failures.Count == 0 ? "Save failed; originals retained/restored. " + saveError.Message
+                : "PARTIAL SAVE; rollback failed: " + string.Join("; ", failures) + ". Reload to inspect disk. " + saveError.Message;
         }
         finally
         {
-            foreach (var temp in prepared.Values) if (File.Exists(temp)) File.Delete(temp);
+            // Cleanup is secondary: attempt every path, never obscure the committed/rollback outcome.
+            // File.Delete is intentionally safe for paths already consumed by a successful replacement.
+            foreach (var temp in temporaryPaths)
+            {
+                try { DeleteTemporaryFile(temp); }
+                catch (Exception cleanupError) { cleanupFailures.Add(temp + ": " + cleanupError.Message); }
+            }
         }
+        string? warning = cleanupFailures.Count == 0 ? null : "Temporary cleanup warning: " + string.Join("; ", cleanupFailures);
+        if (primaryFailure is not null)
+            throw new IOException(primaryFailure + (warning is null ? "" : " " + warning), primaryError);
+        return warning;
     }
 }

@@ -73,7 +73,10 @@ public sealed class ConfigurationControls
             bool rejected = Workspace.Status.StartsWith("Rejected:", StringComparison.Ordinal);
             Ui.TextWrapped(Bytes(rejected ? Workspace.Status : Workspace.Status.StartsWith("Runtime applied", StringComparison.Ordinal)
                 ? "Runtime applied; source saves are separate." : Workspace.Status.StartsWith("Saved", StringComparison.Ordinal)
-                ? "Sources saved; Apply / relaunch is separate." : "Drafts staged; Apply and Save are separate."));
+                ? Workspace.Status.Contains("Temporary cleanup warning:", StringComparison.Ordinal)
+                    ? "Sources saved with cleanup warning; open status details."
+                    : "Sources saved; Apply / relaunch is separate."
+                : "Drafts staged; Apply and Save are separate."));
             if (Group("$help", "Help / status details"))
             {
                 Ui.TextWrapped(Bytes(Workspace.Status));

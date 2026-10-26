@@ -122,6 +122,9 @@ public sealed class GameplaySessionHost : IDisposable
     private BallTrailSettings? trails;
     private readonly HostControlRouter controls = new();
     private readonly int owner = Environment.CurrentManagedThreadId;
+    public string? RetirementDiagnostic { get; private set; }
+    // Fault-injection seam: production always invokes the resource's actual Dispose.
+    internal Action<IDisposable> RetireSession { get; set; } = resource => resource.Dispose();
     private bool restartRequested;
     public bool Paused { get; private set; }
     public GameplayMode Mode { get; private set; }
@@ -179,6 +182,7 @@ public sealed class GameplaySessionHost : IDisposable
     private void Replace(GameplayMode mode, PhysicsSettings physics, GameplaySettings gameplay, ShmupSettings shmup,
         InputSettings input, ExecutionSettings execution, BallTrailSettings? trails)
     {
+        if (Environment.CurrentManagedThreadId != owner) throw new InvalidOperationException("Run replacement belongs to the host thread.");
         BallSandboxSession? nextBreakout = null;
         ShmupSession? nextShmup = null;
         try
@@ -197,7 +201,21 @@ public sealed class GameplaySessionHost : IDisposable
         (this.physics, this.gameplay, this.shmup, this.input, this.execution, this.trails) =
             (physics, gameplay, shmup, input, execution, trails);
         (Mode, Breakout, Shmup, restartRequested) = (mode, nextBreakout, nextShmup, false);
-        try { oldBreakout?.Dispose(); } finally { oldShmup?.Dispose(); }
+        // Commit is complete: cleanup failures must not masquerade as prepare rejection.
+        // Both resources are attempted independently, even if the first retirement fails.
+        var failures = new List<string>();
+        Retire(oldBreakout, "Breakout");
+        Retire(oldShmup, "Shmup");
+        RetirementDiagnostic = failures.Count == 0 ? null : "Run applied; retirement cleanup warning: " + string.Join("; ", failures);
+        void Retire(IDisposable? resource, string name)
+        {
+            if (resource is null) return;
+            try { RetireSession(resource); }
+            catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException)
+            {
+                failures.Add(name + ": " + error.Message[..Math.Min(error.Message.Length, 512)]);
+            }
+        }
     }
     public void Dispose()
     {

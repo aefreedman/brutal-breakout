@@ -146,6 +146,7 @@ try
         if (audioConfiguration is not null) configurationPaths["audio"] = audioConfiguration.Path;
         var configurationWorkspace = new ConfigurationWorkspace(configurationPaths, !gallery && !gameplaySmokeTest);
         var configurationControls = new ConfigurationControls(configurationWorkspace, inspectorConfiguration.ConfigurationWindow);
+        string? audioApplyDiagnostic = null;
         gameplayControls.OpenConfiguration = () => configurationControls.Visible = true;
         var callbackFailure = new InvalidOperationException("Injected hidden-smoke inspector callback failure.");
         bool callbackFailureInjected = false, callbackFailureRecovered = false;
@@ -262,9 +263,11 @@ try
                     var nextAudio = candidate.Get<LoadedAudioConfiguration>("audio")!;
                     var diagnostic = audio!.Reconfigure(nextAudio.Settings, muteAudio);
                     audioConfiguration = nextAudio;
-                    configurationWorkspace.RuntimeDiagnostic = diagnostic ?? (muteAudio ? "Audio: silent output (--mute / hidden smoke)." : "Audio: applied.");
+                    audioApplyDiagnostic = diagnostic ?? (muteAudio ? "Audio: silent output (--mute / hidden smoke)." : "Audio: applied.");
                     if (diagnostic is not null) Console.Error.WriteLine(diagnostic);
                 }
+                configurationWorkspace.RuntimeDiagnostic = modes.RetirementDiagnostic is null ? audioApplyDiagnostic
+                    : string.Join(" ", new[] { modes.RetirementDiagnostic, audioApplyDiagnostic }.Where(message => message is not null));
                 (physics, execution, gameplay, shmup, input, trails, colors, style) =
                     (nextPhysics, nextExecution, nextGameplay, nextShmup, nextInput, nextTrails,
                         candidate.Get<LoadedColorSchemeConfiguration>("colors"), candidate.Get<LoadedPresentationStyleConfiguration>("style"));
