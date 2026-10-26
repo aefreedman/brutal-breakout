@@ -1,6 +1,6 @@
 # Performance design and limits
 
-Performance is a design constraint from the first implementation. Profiling verifies assumptions and investigates unexpected behavior; it is not permission to avoid obviously unnecessary work. Prefer simple, bounded designs over both naive hot loops and elaborate speculative optimizations.
+Performance is a design constraint from the first implementation. Avoid obviously unnecessary work by design. Use profiling to verify assumptions, investigate unexpected costs and guide optimizations whose benefits are uncertain. Prefer simple, bounded designs over both naive hot loops and elaborate speculative optimizations.
 
 ## Design and review defaults
 
@@ -11,8 +11,8 @@ For a changed hot path, identify its frequency, work scaling, storage/ownership,
 - Recompute stable configuration/derived data at change boundaries. Every mutation and lifecycle transition must participate in invalidation; public mutable aliases must not bypass revisions.
 - Preserve independently owned immutable publications and the same authoritative immutable settings objects. Do not recycle published buffers without a reader-release contract.
 - Keep native physics authoritative and simulation independent of presentation/platform work. Preserve fixed-tick events and trail capture during catch-up; do not silently skip them to reduce rendering work.
-- Prefer coarse synchronous work to per-object tasks, while preserving existing ordered asynchronous APIs. Batch graphics work and reuse resources through verified facilities rather than inventing new cache/pool/scheduler frameworks.
-- Bound work, memory, queues and saturation behavior. Do not tune thread counts, GC/JIT modes, pool limits or physics fidelity to hide structural waste.
+- Use coarse-grained simulation work instead of one task per object; preserve existing ordered asynchronous APIs. Batch graphics work and reuse resources through verified facilities rather than inventing new cache/pool/scheduler frameworks.
+- Bound work, memory, queues and saturation behavior. Remove structural waste rather than compensating for it with thread counts, GC/JIT modes, pool limits or reduced physics fidelity. Evaluate tuning separately with representative measurements and explicit behavior tradeoffs.
 
 Owned snapshot arrays, construction-time bounded buffers, change-triggered validation and explicit saves are deliberate costs. This is not a blanket zero-allocation policy. Prefer deterministic work-count, invalidation and retained-ownership tests to wall-time gates or runtime-specific exact byte totals.
 
@@ -39,7 +39,7 @@ High fire rate increases population and spatial density; it is not equivalent to
 
 Keep build and validation modes explicit: normal Debug launches enable Vulkan validation, while normal Release launches do not unless requested. Those costs are outside a headless physics test. Do not present Debug-versus-Release or validation differences as proof of the cause of a particular live-ball limit.
 
-Start with source-backed work/ownership reasoning. For uncertain design tradeoffs, compare controlled equal populations/capacities and separate active-work, collision-density, scheduling and quality-budget effects. Label CPU-only synthetic results honestly. Use representative full-frame/tail-latency evidence when the question actually concerns rendering or perceived responsiveness; do not turn every cleanup into a profiling project.
+Start with source-backed work/ownership reasoning. For uncertain design tradeoffs, compare controlled equal populations/capacities and separate active-work, collision-density, scheduling and quality-budget effects. Label CPU-only synthetic results honestly. Use representative full-frame/tail-latency evidence when the question concerns rendering or perceived responsiveness. Take targeted measurements where needed; routine cleanups do not require a new benchmark framework.
 
 The [execution/worker correction](execution.md#controlled-high-population-finding) addresses the large preview.7 median penalty without lowering caps or physics quality. The equivalent 500-ball native-only comparison fell from 16.17 to 1.53 ms/tick with two workers in preview.8. This is not a full-frame or universal-threshold claim: a retained sample still contained a roughly 102 ms whole-step outlier, with no established cause. Keep residual tail latency and the combined [physics quality budget](physics.md) as separate questions, and behavioral correctness separate from throughput comparisons.
 
