@@ -49,6 +49,7 @@ public sealed class ShmupSnapshot
     public int BodyCount { get; }
     public ReadOnlySpan<ShmupBallState> Balls => balls;
     public ReadOnlySpan<ShmupBrickState> Bricks => bricks;
+    /// <summary>Transfers exclusive ownership of both arrays; callers must never mutate or reuse their storage.</summary>
     internal ShmupSnapshot(double width, double height, double2 playerPosition, double2 aimDirection, int playerHealth,
         double timeSeconds, double ballSpeed, double descentSpeed, double rowInterval, double invulnerabilityRemaining,
         long tick, long rowsSpawned, long droppedBalls, long droppedBricks, int entityCount, int bodyCount,

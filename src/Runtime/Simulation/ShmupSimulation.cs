@@ -11,6 +11,10 @@ public sealed class ShmupSimulation : IDisposable
     private readonly World world;
     private readonly NativeShmupArena native;
     private readonly Entity[] balls, bricks;
+    // Owner-only bounded staging. Every publication copies actual entries into independent arrays.
+    private readonly List<ShmupBallState> ballStates;
+    private readonly List<ShmupBrickState> brickStates;
+    internal (int Balls, int Bricks) PublicationStagingCapacity => (ballStates.Capacity, brickStates.Capacity);
     private ShmupSnapshot snapshot = null!;
     private bool disposed;
     private double width, time, fireDelay, rowDelay, beltPhase, runMinimumWidth;
@@ -38,6 +42,7 @@ public sealed class ShmupSimulation : IDisposable
         ArgumentNullException.ThrowIfNull(physics); ArgumentNullException.ThrowIfNull(settings); ArgumentNullException.ThrowIfNull(execution);
         settings.ValidatePhysics(physics); // All managed validation precedes ECS/native allocation.
         (Physics, Settings, Execution) = (physics, settings, execution);
+        ballStates = new(settings.Capacity.MaxBalls); brickStates = new(settings.Capacity.MaxBricks);
         avatar = new(settings);
         world = World.Create();
         try
@@ -245,7 +250,8 @@ public sealed class ShmupSimulation : IDisposable
     }
     private void Publish()
     {
-        var ballStates = new List<ShmupBallState>(); var brickStates = new List<ShmupBrickState>();
+        ballStates.Clear(); brickStates.Clear();
+        // Ascending slot scans preserve stable ID order even after pool reuse.
         for (int i = 0; i < balls.Length; i++)
         {
             ref var ball = ref Ball(i);
