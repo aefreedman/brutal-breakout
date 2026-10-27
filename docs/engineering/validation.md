@@ -10,7 +10,7 @@ The project suites live under `tests/Runtime/` and `tests/Editor/`:
 - **Gameplay:** host input staging, catch/miss/restart, pause and focus transitions, mode switching, trail history, configuration integration and HUD geometry. Native gameplay fixtures serialize world creation/destruction to protect native global allocation state.
 - **Input:** bindings, deadzones, direction mapping and input-state transitions using synthetic snapshots.
 - **Audio/media:** cue mapping, bounded voices, unavailable-output handling and asset/text contracts. Audio tests use fakes rather than judging audible quality.
-- **Editor:** configuration edits, live/reset/relaunch effects, invalidation, Save/Reload and offscreen inspector behavior.
+- **Editor:** configuration edits, live/reset/relaunch effects, invalidation, Save/Reload and offscreen inspector behavior. Native CPU layout cases exercise wide/sidebar and narrow/stacked categories, long field labels, independently scrolling bodies with reachable navigation, actual shape/rotation checkbox mouse edits, balanced scopes and consumer selection/bounds across context recreation. These cases do not create GLFW windows or establish visual/focus quality.
 
 For example, the Shmup-related simulation and gameplay tests can be selected with:
 
@@ -65,7 +65,7 @@ A stale-frame regression deliberately supplies 1281×720 geometry to a 1280×720
 
 ### Shmup coverage
 
-The Shmup scenario exercises synthetic input, widening, resize, fresh mode-switch state, pause/restart and inspector callback failure/retry. CPU/native ImGui and hidden GPU checks cover layout mechanics and indexed geometry/preview receipts.
+The Shmup scenario exercises synthetic input, widening, resize, fresh mode-switch state, pause/restart and inspector callback failure/retry. Its configuration fixture explicitly selects the Shmup category and opens live Ball fields. CPU/native ImGui tests cover layout mechanics; the separate overlay smoke opts into an explicit diagnostic PNG fixture and requires actual indexed image/diagnostics receipts at both extents. Normal inspector JSON has no preview fields. Host elapsed history observations occur outside drawing, with monotonic IDs independent of callback cancellation; they are not GPU timing measurements.
 
 ## Visible lifecycle and resize tests
 

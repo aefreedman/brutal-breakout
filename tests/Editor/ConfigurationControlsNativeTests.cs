@@ -22,6 +22,11 @@ public sealed class ConfigurationControlsNativeTests
         }
         Context(width, height, 1, () =>
         {
+            foreach (string category in new[] { "shmup", "breakout", "rendering", "appearance", "audio", "input", "physics", "window", "tools" })
+            {
+                controls.SelectCategory(category); Frame(controls); Frame(controls);
+            }
+            controls.SelectCategory("shmup");
             Frame(controls); var initial = Frame(controls);
             Assert.True(initial.ScrollMax > 0);
             Assert.Equal(new float2(settings.ConfigurationWindow.Width, settings.ConfigurationWindow.Height), initial.Size);
@@ -52,7 +57,7 @@ public sealed class ConfigurationControlsNativeTests
     {
         var settings = InspectorConfiguration.Load(ConfigurationWorkspaceTests.Paths()["inspector"]);
         var controls = new ConfigurationControls(ConfigurationWorkspaceTests.Create(), settings.ConfigurationWindow) { Visible = true };
-        controls.SetGroupOpen("shmup", true); controls.SetGroupOpen("shmup.ball", true);
+        controls.SelectCategory("shmup"); controls.SetGroupOpen("shmup.ball", true);
         Context(960, 540, 1, () =>
         {
             Frame(controls); var window = Frame(controls);
@@ -77,17 +82,18 @@ public sealed class ConfigurationControlsNativeTests
             {
                 foreach (var d in workspace.Documents) controls.SetGroupOpen(d.Section, false);
                 foreach (string group in new[] { "arena", "avatar", "ball", "difficulty", "noise", "capacity" }) controls.SetGroupOpen("shmup." + group, false);
-                controls.SetGroupOpen("shmup", true); controls.SetGroupOpen("shmup.brick", true);
+                controls.SelectCategory("shmup"); controls.SetGroupOpen("shmup.brick", true);
                 controls.SetGroupOpen("shmup.brick.shapes", true); controls.SetGroupOpen("shmup.brick.quarterTurns", true);
             }
             Prepare(); Frame(controls); Frame(controls);
-            Frame(controls, () => Ui.SetScrollY(Ui.GetScrollMaxY())); Frame(controls);
+            Frame(controls);
             bool ClickUntil(string key, int count)
             {
-                for (int y = 240; y < 940; y += 8)
+                for (int y = (int)controls.BodyMinimum.Y + 12; y < controls.BodyMaximum.Y - 12; y += 8)
                 {
                     Prepare();
-                    var io = Ui.GetIO(); io.AddMousePosEvent(48, y); Frame(controls);
+                    float x = controls.BodyMinimum.X + Ui.GetStyle().WindowPadding.X + Ui.GetStyle().IndentSpacing + 8;
+                    var io = Ui.GetIO(); io.AddMousePosEvent(x, y); Frame(controls);
                     io.AddMouseButtonEvent(0, true); Frame(controls);
                     io.AddMouseButtonEvent(0, false); Frame(controls);
                     if (document.Draft.GetProperty("brick"u8).GetProperty(key).GetArrayLength() < count) return true;
@@ -97,6 +103,71 @@ public sealed class ConfigurationControlsNativeTests
             Assert.True(ClickUntil("shapes", 5), "Shape checkbox must be a working published widget.");
             Assert.True(ClickUntil("quarterTurns", 4), "Quarter-turn checkbox must be a working published widget.");
             Assert.True(document.Pending); Assert.True(document.Unsaved);
+        });
+    }
+
+    [Fact]
+    public void CategoriesAndActionsStayOutsideScrollableBodyAndSelectionSurvivesRecreation()
+    {
+        var workspace = ConfigurationWorkspaceTests.Create();
+        var controls = new ConfigurationControls(workspace, new(16, 16, 900, 600)) { Visible = true };
+        foreach (var document in workspace.Documents) OpenChildren(controls, document.Draft, document.Section);
+        Context(1280, 720, 1, () =>
+        {
+            Frame(controls); Frame(controls);
+            Assert.True(controls.CategorySidebarVisible);
+            Assert.True(controls.BodyScrollMax > 0);
+            var bodyTop = controls.BodyMinimum;
+            var io = Ui.GetIO();
+            io.AddMousePosEvent(bodyTop.X + 30, bodyTop.Y + 80); Frame(controls);
+            io.AddMouseWheelEvent(0, -10); Frame(controls); Frame(controls);
+            Assert.Equal(bodyTop, controls.BodyMinimum);
+            Assert.True(controls.BodyScrollY > 0, "The long selected body must really scroll.");
+            Assert.Equal(0, Frame(controls).ParentScroll); // Only the child scrolls, never the action/navigation shell.
+            // Native hit targets remain available beside the independently scrolled body.
+            for (int y = (int)bodyTop.Y; y < bodyTop.Y + 300 && controls.SelectedCategory != "window"; y += 6)
+            {
+                io.AddMousePosEvent(bodyTop.X - 20, y); Frame(controls);
+                io.AddMouseButtonEvent(0, true); Frame(controls);
+                io.AddMouseButtonEvent(0, false); Frame(controls);
+            }
+            Assert.Equal("window", controls.SelectedCategory);
+            controls.Visible = false; Frame(controls); controls.Visible = true;
+            Assert.Equal("window", controls.SelectedCategory);
+            Frame(controls, () => Ui.SetWindowSize(new float2(230, 500))); Frame(controls);
+            Assert.False(controls.CategorySidebarVisible);
+            Assert.Equal("window", controls.SelectedCategory);
+        });
+        Context(1280, 720, 1, () =>
+        {
+            Frame(controls); Frame(controls);
+            Assert.Equal("window", controls.SelectedCategory);
+            Assert.False(controls.CategorySidebarVisible);
+            Assert.StartsWith("window.", controls.FirstVisibleField!.Value.Path);
+        });
+        Assert.Throws<ArgumentException>(() => controls.SelectCategory("missing"));
+    }
+
+    [Theory]
+    [InlineData(230)] [InlineData(900)]
+    public void LongFieldLabelsStayInSelectedBodyWithoutChangingDrafts(float width)
+    {
+        var workspace = new ConfigurationWorkspace(new Dictionary<string, string>
+        { ["window"] = ConfigurationWorkspaceTests.Paths()["window"] }, true);
+        var document = ConfigurationWorkspaceTests.Doc(workspace, "window");
+        document.Set("A deliberately long diagnostic field label that must wrap rather than pushing its editor outside the panel", 1);
+        var controls = new ConfigurationControls(workspace, new(16, 16, width, 500)) { Visible = true };
+        long revision = document.Revision;
+        Context(1280, 720, 1, () =>
+        {
+            Frame(controls); var window = Frame(controls);
+            Assert.Equal("window", controls.SelectedCategory);
+            Assert.Equal(width >= 900, controls.CategorySidebarVisible);
+            Assert.True(controls.BodyMaximum.X <= window.Position.X + window.Size.X);
+            Assert.True(controls.BodyMaximum.Y <= window.Position.Y + window.Size.Y);
+            Assert.True(controls.ScalarDrawCount >= 5); // The long-name fallback field is actually traversed.
+            Assert.Equal(0, window.ParentScroll);
+            Assert.Equal(revision, document.Revision);
         });
     }
 
@@ -112,14 +183,14 @@ public sealed class ConfigurationControlsNativeTests
             for (int i = 0; i < node.GetArrayLength(); i++)
             { controls.SetGroupOpen(path + "." + i, true); OpenChildren(controls, node[i], path + "." + i); }
     }
-    private static (float2 Position, float2 Size, float ScrollMax) Frame(ConfigurationControls controls, Action? edit = null)
+    private static (float2 Position, float2 Size, float ScrollMax, float ParentScroll) Frame(ConfigurationControls controls, Action? edit = null)
     {
         Ui.NewFrame();
         int before = Ui.GetCurrentContext().CurrentWindowStack.Count;
         controls.Draw();
         Assert.Equal(before, Ui.GetCurrentContext().CurrentWindowStack.Count);
         Ui.Begin("Configuration"u8);
-        var result = (Ui.GetWindowPos(), Ui.GetWindowSize(), Ui.GetScrollMaxY());
+        var result = (Ui.GetWindowPos(), Ui.GetWindowSize(), controls.BodyScrollMax, Ui.GetScrollY());
         try { edit?.Invoke(); } finally { Ui.End(); }
         Ui.Render(); return result;
     }

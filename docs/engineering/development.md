@@ -19,7 +19,7 @@ Build/publish output preserves `Config/` and `Assets/`. Default configuration pa
 
 ## Optional editor
 
-Normal development builds include the F1 / gamepad Select/Share diagnostics inspector and game-mode controls. HUD text is configured independently in `Config/overlay.json`; editor font, preview image, layout and initial visibility are configured in `Config/inspector.json` (`--inspector-config <path>`). Both settings objects are validated before native initialization and passed unchanged to their consumers.
+Normal development builds include the F1 / gamepad Select/Share diagnostics inspector and game-mode controls. HUD text is configured independently in `Config/overlay.json`; editor font, layout, initial controls/diagnostics visibility and frame-history capacity are configured in `Config/inspector.json` (`--inspector-config <path>`). Settings are validated before native initialization and passed unchanged to their consumers. Normal controls require no PNG; the overlay smoke opts into its own explicit image fixture. Configuration uses the kit's opt-in category/property-row helpers with application-owned selection and group/window state; actions and navigation remain outside the selected scrolling body. A disposable net10.0 compile probe against exact published `Ahwoo.BRUTAL.ImGui [2026.10.3]` from nuget.org verified public `BeginChild(ImString, float2, ImGuiChildFlags, ImGuiWindowFlags)` / `EndChild()` with zero warnings/errors before adoption; this proves API shape, not visual quality.
 
 Build without editor code, ImGui packages or inspector configuration/asset validation:
 

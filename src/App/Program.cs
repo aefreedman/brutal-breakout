@@ -52,6 +52,7 @@ LoadedAudioConfiguration? audioConfiguration;
 LoadedOverlayConfiguration? overlays;
 #if BREAKOUT_EDITOR
 LoadedInspectorConfiguration? inspectorConfiguration;
+InspectorSettings uiSettings;
 #endif
 try
 {
@@ -69,6 +70,15 @@ try
     // HUD and optional inspector settings are validated before native initialization.
 #if BREAKOUT_EDITOR
     inspectorConfiguration = InspectorConfiguration.LoadForMode(args, true, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    uiSettings = inspectorConfiguration!.Settings;
+    if (overlaySmokeTest)
+    {
+        // Explicit hidden-test fixture, validated before native startup; never a normal consumer requirement.
+        var preview = new InspectorPreviewSettings(Path.Combine(AppContext.BaseDirectory, "Assets", "Images", "debug.png"),
+            imageSize: 96, maxTextureDimension: 2048, maxEncodedImageBytes: 1048576);
+        uiSettings = new InspectorSettings(uiSettings.FontPath, uiSettings.FontSize, uiSettings.Visible,
+            uiSettings.Left, uiSettings.Top, uiSettings.Width, uiSettings.Height, diagnosticsVisible: true, preview: preview);
+    }
 #endif
     overlays = OverlayConfiguration.LoadForMode(args, true, AppContext.BaseDirectory, Environment.CurrentDirectory);
 #if BREAKOUT_EDITOR
@@ -149,10 +159,10 @@ try
         var configurationWorkspace = new ConfigurationWorkspace(configurationPaths, !gallery && !gameplaySmokeTest);
         var configurationControls = new ConfigurationControls(configurationWorkspace, inspectorConfiguration.ConfigurationWindow);
         string? audioApplyDiagnostic = null;
-        gameplayControls.OpenConfiguration = () => configurationControls.Visible = true;
         var callbackFailure = new InvalidOperationException("Injected hidden-smoke inspector callback failure.");
         bool callbackFailureInjected = false, callbackFailureRecovered = false;
-        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, new ImGuiInspector(inspectorConfiguration!.Settings, () =>
+        var frameHistory = new FrameTimeHistory(inspectorConfiguration.HistoryCapacity);
+        var uiInspector = new ImGuiInspector(uiSettings, () =>
         {
             gameplayControls.Draw();
             configurationControls.Draw();
@@ -161,7 +171,14 @@ try
                 callbackFailureInjected = true;
                 throw callbackFailure; // Balanced UI scopes; failure must occur before Vulkan image acquisition.
             }
-        }));
+        }, overlaySmokeTest ? null : frameHistory); // Image smoke isolates the explicit preview from history layout.
+        gameplayControls.OpenConfiguration = () => { configurationControls.Visible = true; uiInspector.DiagnosticsVisible = false; };
+        gameplayControls.ToggleDiagnostics = () =>
+        {
+            uiInspector.DiagnosticsVisible = !uiInspector.DiagnosticsVisible;
+            if (uiInspector.DiagnosticsVisible) configurationControls.Visible = false;
+        };
+        if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings, uiInspector);
 #else
         if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings);
 #endif
@@ -231,11 +248,22 @@ try
         var phaseStarted = TimeSpan.Zero;
         var framesAtTransition = 0;
         var completed = false;
+#if BREAKOUT_EDITOR
+        long elapsedObservationId = 0;
+        double? previousElapsedObservation = null;
+#endif
         while (!window.ShouldClose)
         {
             // Keep window operations and graphics on this thread. Async work will later
             // need an explicit main-thread scheduler, not an await Task.Delay frame loop.
             var frameStart = timer.Elapsed.TotalSeconds;
+#if BREAKOUT_EDITOR
+            // Host-loop elapsed observations, not simulation steps or UI/presentation attempts.
+            // Collection precedes UI creation/cancellation; a callback retry never resubmits an observation ID.
+            if (previousElapsedObservation is { } previous)
+                frameHistory.Observe(elapsedObservationId++, (frameStart - previous) * 1000);
+            previousElapsedObservation = frameStart;
+#endif
             Glfw.PollEvents();
             if (window.ShouldClose) break;
             // Hidden acceptance opens/closes the inspector without desktop input, including after resize.
@@ -266,7 +294,7 @@ try
             if (shmupSmokeTest && shmupFrames == 15)
             {
                 configurationControls.Visible = true;
-                configurationControls.SetGroupOpen("shmup", true);
+                configurationControls.SelectCategory("shmup");
                 configurationControls.SetGroupOpen("shmup.ball", true);
                 configurationControls.SetGroupOpen("rendering", true);
                 configurationControls.SetGroupOpen("shmup.brick", true);

@@ -33,6 +33,9 @@ public sealed class InspectorConfigurationTests
         Assert.Equal(loaded.Settings.FontSize, inspector.Settings.FontSize);
         // No GLFW, device or ImGui context is initialized by inspector construction/disposal.
         Assert.False(configured.Settings.Visible);
+        Assert.False(configured.Settings.DiagnosticsVisible);
+        Assert.Null(configured.Settings.Preview);
+        Assert.Equal(240, configured.HistoryCapacity);
     }
 
     [Fact]
@@ -122,18 +125,19 @@ public sealed class InspectorConfigurationTests
         var settings = InspectorConfiguration.Load(InspectorPath).Settings;
         Assert.Equal("Iosevka-Regular.ttf", Path.GetFileName(settings.FontPath));
         Assert.True(File.Exists(settings.FontPath));
-        Assert.True(File.Exists(settings.ImagePath));
+        Assert.Null(settings.Preview); // Ordinary consumers require no diagnostic image.
     }
 
     [Theory]
     [InlineData("unknown", "1")]
     [InlineData("fontPath", "null")]
     [InlineData("fontPath", "\"missing.ttf\"")]
-    [InlineData("imagePath", "\"missing.png\"")]
     [InlineData("fontSize", "0")]
-    [InlineData("imageSize", "0")]
-    [InlineData("maxTextureDimension", "8")]
-    [InlineData("maxEncodedImageBytes", "1")]
+    [InlineData("diagnosticsVisible", "null")]
+    [InlineData("historyCapacity", "0")]
+    [InlineData("historyCapacity", "65537")]
+    [InlineData("historyCapacity", "1.5")]
+    [InlineData("imagePath", "\"legacy.png\"")] // Legacy preview fields are no longer production schema.
     public void InvalidInspectorConfigurationIsRejected(string property, string value)
     {
         WithConfig(n => n[property] = JsonNode.Parse(value), path =>
@@ -143,8 +147,9 @@ public sealed class InspectorConfigurationTests
     [Fact]
     public void RequiredAndDuplicatePropertiesAreRejected()
     {
-        WithConfig(n => n.Remove("fontPath"), path =>
-            Assert.Throws<InvalidDataException>(() => InspectorConfiguration.Load(path)));
+        foreach (string property in new[] { "fontPath", "diagnosticsVisible", "historyCapacity" })
+            WithConfig(n => n.Remove(property), path =>
+                Assert.Throws<InvalidDataException>(() => InspectorConfiguration.Load(path)));
         WithConfig(_ => { }, path =>
         {
             File.WriteAllText(path, File.ReadAllText(path).TrimEnd().TrimEnd('}') + ",\"visible\":true}");
@@ -208,7 +213,6 @@ public sealed class InspectorConfigurationTests
             var node = JsonNode.Parse(File.ReadAllText(InspectorPath))!.AsObject();
             var settings = InspectorConfiguration.Load(InspectorPath).Settings;
             node["fontPath"] = settings.FontPath;
-            node["imagePath"] = settings.ImagePath;
             mutate(node);
             File.WriteAllText(path, node.ToJsonString());
             test(path);

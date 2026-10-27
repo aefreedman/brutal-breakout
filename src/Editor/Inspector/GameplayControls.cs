@@ -3,6 +3,7 @@ using Brutal.ImGuiApi;
 using Brutal.Numerics;
 using BrutalBreakout.Presentation;
 using BrutalBreakout.Simulation;
+using CrushKit.Brutal.ImGui;
 using Ui = Brutal.ImGuiApi.ImGui;
 
 namespace BrutalBreakout.Editor;
@@ -60,6 +61,7 @@ public sealed class GameplayControls
         requestedWidth = width;
     }
     public Action? OpenConfiguration { get; set; }
+    public Action? ToggleDiagnostics { get; set; }
     public void Draw()
     {
         DrawCount++;
@@ -96,16 +98,29 @@ public sealed class GameplayControls
             if (Ui.Button("Restart"u8)) RequestRestart();
             Ui.SetItemTooltip("Restart resets this run; pause is kept."u8);
 
+            ToolLayout.Heading("Tools"u8);
             if (OpenConfiguration is not null && Ui.Button("Configuration..."u8)) OpenConfiguration();
+            if (ToggleDiagnostics is not null)
+            {
+                SameLineIfFits("Diagnostics"u8);
+                if (Ui.Button("Diagnostics"u8)) ToggleDiagnostics();
+            }
 
-            Ui.SeparatorText("Mode"u8);
-            if (Ui.RadioButton("Breakout"u8, Mode == GameplayMode.Breakout)) RequestMode(GameplayMode.Breakout);
-            SameLineIfFits("Shmup"u8, Ui.GetFrameHeight());
-            if (Ui.RadioButton("Shmup"u8, Mode == GameplayMode.Shmup)) RequestMode(GameplayMode.Shmup);
+            ToolLayout.Heading("Session"u8);
+            using (var row = ToolLayout.PropertyRow("session.mode"u8, "Mode"u8, Ui.GetFontSize() * 7,
+                "Changing mode starts a new run and keeps manual pause."u8))
+            {
+                if (row.ContentVisible)
+                {
+                    if (Ui.RadioButton("Breakout"u8, Mode == GameplayMode.Breakout)) RequestMode(GameplayMode.Breakout);
+                    SameLineIfFits("Shmup"u8, Ui.GetFrameHeight());
+                    if (Ui.RadioButton("Shmup"u8, Mode == GameplayMode.Shmup)) RequestMode(GameplayMode.Shmup);
+                }
+            }
             Ui.TextWrapped("Changing mode starts a new run."u8);
             if (Mode == GameplayMode.Shmup)
             {
-                Ui.SeparatorText("Play area"u8);
+                ToolLayout.Heading("Play area"u8);
                 Ui.Text(Encoding.UTF8.GetBytes($"Current width: {Width:F0}"));
                 Ui.Text(Encoding.UTF8.GetBytes($"Maximum width: {MaximumWidth:F0}"));
                 Ui.BeginDisabled(Paused || Width >= MaximumWidth);
@@ -127,13 +142,6 @@ public sealed class GameplayControls
         finally { Ui.End(); }
     }
 
-    internal static void SameLineIfFits(ReadOnlySpan<byte> label, float extraWidth = 0)
-    {
-        var style = Ui.GetStyle();
-        float required = Ui.CalcTextSize(label).X + style.FramePadding.X * 2 + extraWidth;
-        // Available region at the previous item's right edge, not the next line's left edge.
-        float right = Ui.GetCursorScreenPos().X + Ui.GetContentRegionAvail().X;
-        if (Ui.GetItemRectMax().X + style.ItemSpacing.X + required <= right)
-            Ui.SameLine();
-    }
+    internal static void SameLineIfFits(ReadOnlySpan<byte> label, float extraWidth = 0) =>
+        ToolLayout.SameLineIfFits(label, extraWidth);
 }

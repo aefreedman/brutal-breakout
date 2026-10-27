@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Brutal.ImGuiApi;
 using Brutal.Numerics;
+using CrushKit.Brutal.ImGui;
 using Ui = Brutal.ImGuiApi.ImGui;
 
 namespace BrutalBreakout.Editor;
@@ -12,6 +13,34 @@ namespace BrutalBreakout.Editor;
 public sealed class ConfigurationControls
 {
     private static readonly string[] RenderingPaths = ["sharedMeshes", "cpuBuiltTriangles"];
+    private static readonly string[] ShmupGroups = ["ball", "avatar", "brick", "difficulty", "noise", "arena", "capacity"];
+    private static readonly (ToolCategory Category, string[] Sections)[] CategoryDefinitions =
+    [
+        (new("shmup", "Shmup"), ["shmup"]),
+        (new("breakout", "Breakout"), ["gameplay"]),
+        (new("rendering", "Rendering"), ["rendering"]),
+        (new("appearance", "Appearance"), ["colors", "style", "trails"]),
+        (new("audio", "Audio"), ["audio"]),
+        (new("input", "Input"), ["input"]),
+        (new("physics", "Physics & workers"), ["physics", "execution"]),
+        (new("window", "Window"), ["window"]),
+        (new("tools", "HUD & tools"), ["overlay", "inspector"])
+    ];
+    private readonly ToolCategory[] categories;
+    private readonly ConfigurationWorkspace.Document[][] categoryDocuments;
+    private int selectedCategory;
+    public string? SelectedCategory => categories.Length == 0 ? null : categories[selectedCategory].Id;
+    internal bool CategorySidebarVisible { get; private set; }
+    internal float BodyScrollMax { get; private set; }
+    internal float BodyScrollY { get; private set; }
+    internal float2 BodyMinimum { get; private set; }
+    internal float2 BodyMaximum { get; private set; }
+    public void SelectCategory(string id)
+    {
+        int index = Array.FindIndex(categories, category => category.Id == id);
+        if (index < 0) throw new ArgumentException("Unknown or unavailable configuration category.", nameof(id));
+        selectedCategory = index;
+    }
     public ConfigurationWorkspace Workspace { get; }
     public bool Visible { get; set; }
     public int DrawCount { get; private set; }
@@ -24,8 +53,15 @@ public sealed class ConfigurationControls
     private readonly Dictionary<string, string> widgetErrors = new(StringComparer.Ordinal);
     public ConfigurationControls(ConfigurationWorkspace workspace, GameplayWindowSettings settings)
     {
-        Workspace = workspace;
+        Workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
         position = new(settings.Left, settings.Top); size = new(settings.Width, settings.Height);
+        var available = CategoryDefinitions.Select(definition => (definition.Category,
+            Documents: definition.Sections.SelectMany(section => workspace.Documents.Where(d => d.Section == section)).ToArray()))
+            .Where(definition => definition.Documents.Length > 0).ToArray();
+        categories = available.Select(definition => definition.Category).ToArray();
+        categoryDocuments = available.Select(definition => definition.Documents).ToArray();
+        // The primary Shmup tuning surface starts at its ball controls; other groups remain optional.
+        groups["shmup.ball"] = groups["gameplay.ball"] = true;
     }
     public void SetGroupOpen(string path, bool open) => groups[path] = open;
     private bool Group(string key, string label)
@@ -49,7 +85,8 @@ public sealed class ConfigurationControls
         Ui.SetNextWindowPos(viewport.Pos + position / scale, condition);
         Ui.SetNextWindowSize(size / scale, condition);
         bool visible = Visible;
-        bool expanded = Ui.Begin("Configuration"u8, ref visible, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoCollapse);
+        bool expanded = Ui.Begin("Configuration"u8, ref visible, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoCollapse |
+            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
         Visible = visible;
         try
         {
@@ -61,117 +98,165 @@ public sealed class ConfigurationControls
             if (nativePosition != clampedPosition) Ui.SetWindowPos(clampedPosition);
             position = (clampedPosition - viewport.Pos) * scale; size = clampedSize * scale;
             if (!expanded) return;
-            if (Workspace.PendingResetFields.Count > 0)
+            DrawActionsAndStatus();
+            if (categories.Length == 0) { Ui.TextWrapped("No configuration sources selected."u8); return; }
+            using var body = ToolLayout.Categories("configuration.categories"u8, categories, ref selectedCategory, Ui.GetFontSize() * 18);
+            CategorySidebarVisible = body.IsWide;
+            if (!body.ContentVisible) return;
+            Ui.PushID(Bytes(categories[selectedCategory].Id));
+            try
             {
-                Ui.BeginDisabled(!Workspace.RuntimeAvailable);
-                try { if (Ui.Button("Reset & apply pending"u8)) Workspace.Request(ConfigurationAction.Apply); }
-                finally { Ui.EndDisabled(); }
-                Ui.SetItemTooltip("Only structural changes need reset. Mode/pause retained; relaunch fields excluded. Does not save."u8);
-                if (Group("$reset", "Pending reset fields / reasons"))
-                    foreach (var field in Workspace.PendingResetFields) Ui.TextWrapped(Bytes(field));
+                // Only the selected settings body scrolls. Navigation, actions and critical status stay reachable.
+                bool childVisible = Ui.BeginChild("##settings.body"u8, new float2(0), ImGuiChildFlags.None, ImGuiWindowFlags.None);
+                try
+                {
+                    BodyMinimum = Ui.GetWindowPos(); BodyMaximum = BodyMinimum + Ui.GetWindowSize();
+                    if (childVisible)
+                    {
+                        if (groups.GetValueOrDefault("$help")) DrawPolicyHelp();
+                        foreach (var document in categoryDocuments[selectedCategory])
+                        {
+                            if (categoryDocuments[selectedCategory].Length > 1) ToolLayout.Heading(Bytes(DocumentTitle(document.Section)));
+                            Ui.TextWrapped(Bytes((document.Unsaved ? "Unsaved changes" : "Source saved") + " | " +
+                                (document.Pending ? "Pending fields" : "Applied")));
+                            if (Group(document.Section + ".$source", "Source path")) Ui.TextWrapped(Bytes(document.Path));
+                            editKeys.Clear();
+                            DrawDocument(document);
+                        }
+                    }
+                    BodyScrollMax = Ui.GetScrollMaxY(); BodyScrollY = Ui.GetScrollY();
+                }
+                finally { Ui.EndChild(); }
             }
-            if (!Workspace.RuntimeAvailable) Ui.TextWrapped("Live tuning unavailable in showcase/sandbox modes."u8);
-            if (Workspace.PendingRelaunchFields.Count > 0 && Group("$relaunch", "Pending relaunch fields / reasons"))
-                foreach (var field in Workspace.PendingRelaunchFields) Ui.TextWrapped(Bytes(field));
-            GameplayControls.SameLineIfFits("Save changed"u8);
-            if (Ui.Button("Save changed"u8)) Workspace.Request(ConfigurationAction.Save);
-            Ui.SetItemTooltip("Explicitly save changed selected JSON sources. Never resets or applies structural fields. All files are validated together."u8);
-            GameplayControls.SameLineIfFits("Discard"u8);
-            if (Ui.Button("Discard"u8)) Workspace.Request(ConfigurationAction.Discard);
-            GameplayControls.SameLineIfFits("Reload"u8);
-            if (Ui.Button("Reload"u8)) Workspace.Request(ConfigurationAction.Reload);
-            Ui.SetItemTooltip("Reload from disk discards drafts and resolves external file conflicts."u8);
-            bool rejected = Workspace.Status.StartsWith("Rejected:", StringComparison.Ordinal);
-            Ui.TextWrapped(Bytes(rejected ? Workspace.Status : Workspace.Status.StartsWith("Runtime applied", StringComparison.Ordinal)
-                ? "Runtime applied; source saves are separate." : Workspace.Status.StartsWith("Saved", StringComparison.Ordinal)
-                ? Workspace.Status.Contains("Temporary cleanup warning:", StringComparison.Ordinal)
-                    ? "Sources saved with cleanup warning; open status details."
-                    : "Sources saved; pending reset / relaunch is separate."
-                : "Valid live edits apply automatically; Save is explicit."));
-            if (Group("$help", "Help / status details"))
-            {
-                Ui.TextWrapped(Bytes(Workspace.Status));
-                Ui.TextWrapped("Geometry: game units; speed: units/sec; duration: seconds; angles: quarter turns. LIVE applies at the next owner update, even paused. FUTURE changes new-spawn/next-reset defaults only. RESET rebuilds structural worlds only on explicit request. RELAUNCH rebuilds font/render resources after saving. Invalid live edits keep last valid tuning. Reload/Discard stage source and valid live values take effect automatically. Save never resets. Generic arrays edit existing entries only."u8);
-            }
-            if (Workspace.RuntimeDiagnostic is { } diagnostic) Ui.TextWrapped(Bytes(diagnostic));
-            string[] order = ["shmup", "gameplay", "rendering", "colors", "trails", "style", "audio", "physics", "execution", "input", "window", "overlay", "inspector"];
-            foreach (var document in Workspace.Documents.OrderBy(d => Array.IndexOf(order, d.Section)))
-            {
-                string state = (document.Unsaved ? "unsaved" : "saved") + " | " +
-                    (document.Pending ? "pending fields" : "applied");
-                if (!Group(document.Section, document.Section.ToUpperInvariant() + " [" + state + "]")) continue;
-                if (Group(document.Section + ".$source", "Selected source path")) Ui.TextWrapped(Bytes(document.Path));
-                Ui.TextWrapped("Per-field effects below; saved/source state is independent of runtime."u8);
-                editKeys.Clear();
-                DrawObject(document, document.Draft, document.Section);
-            }
+            finally { Ui.PopID(); }
         }
         finally { Ui.End(); }
+    }
+    private void DrawActionsAndStatus()
+    {
+        if (Ui.Button("Save changed"u8)) Workspace.Request(ConfigurationAction.Save);
+        Ui.SetItemTooltip("Save validates all selected sources. It never resets or applies structural fields."u8);
+        ToolLayout.SameLineIfFits("Discard"u8);
+        if (Ui.Button("Discard"u8)) Workspace.Request(ConfigurationAction.Discard);
+        ToolLayout.SameLineIfFits("Reload"u8);
+        if (Ui.Button("Reload"u8)) Workspace.Request(ConfigurationAction.Reload);
+        Ui.SetItemTooltip("Reload discards drafts and resolves external source conflicts."u8);
+        if (Workspace.PendingResetFields.Count > 0)
+        {
+            ToolLayout.SameLineIfFits("Reset & apply"u8);
+            Ui.BeginDisabled(!Workspace.RuntimeAvailable);
+            try { if (Ui.Button("Reset & apply"u8)) Workspace.Request(ConfigurationAction.Apply); }
+            finally { Ui.EndDisabled(); }
+            Ui.SetItemTooltip("Explicit structural reset; keeps mode/pause. Does not save or apply relaunch fields."u8);
+        }
+        ToolLayout.SameLineIfFits("Help"u8);
+        if (Ui.Button("Help"u8)) groups["$help"] = !groups.GetValueOrDefault("$help");
+        bool rejected = Workspace.Status.StartsWith("Rejected:", StringComparison.Ordinal);
+        Ui.TextWrapped(rejected ? "Rejected operation. Open Help for details."u8
+            : Workspace.Status.Contains("warning:", StringComparison.OrdinalIgnoreCase)
+                ? "Source cleanup warning. Open Help for details."u8 : "Live edits; Save is separate."u8);
+        if (!Workspace.RuntimeAvailable) Ui.TextWrapped("Live tuning unavailable in this mode."u8);
+        if (Workspace.PendingResetFields.Count > 0)
+            Ui.TextWrapped(Bytes($"Reset required: {Workspace.PendingResetFields.Count} field(s)."));
+        if (Workspace.PendingRelaunchFields.Count > 0)
+            Ui.TextWrapped(Bytes($"Relaunch required: {Workspace.PendingRelaunchFields.Count} field(s)."));
+        if (Workspace.RuntimeDiagnostic is { } diagnostic) Ui.TextWrapped(Bytes(diagnostic));
+        Ui.Separator();
+    }
+    private void DrawPolicyHelp()
+    {
+        ToolLayout.Heading("Help / pending reasons"u8);
+        Ui.TextWrapped(Bytes(Workspace.Status));
+        Ui.TextWrapped("LIVE: next owner update, even paused. FUTURE: new spawns/reset defaults. RESET: explicit structural rebuild. RELAUNCH: save then restart the app. Save never resets. Reload/Discard restore source drafts. Generic arrays keep their length."u8);
+        foreach (var field in Workspace.PendingResetFields) Ui.TextWrapped(Bytes(field));
+        foreach (var field in Workspace.PendingRelaunchFields) Ui.TextWrapped(Bytes(field));
+    }
+    private static string DocumentTitle(string section) => section switch
+    {
+        "colors" => "Palette & roles", "style" => "Shape styling", "trails" => "Ball trails",
+        "physics" => "Physics clock & solver", "execution" => "Worker budgets",
+        "overlay" => "Game HUD", "inspector" => "Inspector tools", _ => Label(section)
+    };
+    private void DrawDocument(ConfigurationWorkspace.Document document)
+    {
+        var obj = document.Draft;
+        if (document.Section == "shmup")
+        {
+            // Prioritize live tuning over construction-only geometry; no extra document disclosure layer.
+            foreach (string key in ShmupGroups)
+                if (obj.TryGetProperty(key, out var value)) DrawProperty(document, key, value, document.Section);
+            foreach (var property in obj.EnumerateObject())
+                if (!ShmupGroups.Contains(property.Name)) DrawProperty(document, property.Name, property.Value, document.Section);
+        }
+        else DrawObject(document, obj, document.Section);
     }
     internal static bool EditValue(ConfigurationWorkspace.Document document, IReadOnlyList<string> keys, JsonNode? value) =>
         document.Set(keys, value);
     private void DrawObject(ConfigurationWorkspace.Document document, JsonElement obj, string path)
     {
-        foreach (var property in obj.EnumerateObject())
+        foreach (var property in obj.EnumerateObject()) DrawProperty(document, property.Name, property.Value, path);
+    }
+    private void DrawProperty(ConfigurationWorkspace.Document document, string key, JsonElement node, string path)
+    {
+        string id = path + "." + key;
+        editKeys.Add(key);
+        try
         {
-            string key = property.Name, id = path + "." + key;
-            var node = property.Value;
-            editKeys.Add(key);
-            try
+            if (node.ValueKind == JsonValueKind.Object)
             {
-                if (node.ValueKind == JsonValueKind.Object)
-                {
-                    if (Group(id, Label(key))) { Ui.Indent(); try { DrawObject(document, node, id); } finally { Ui.Unindent(); } }
-                }
-                else if (node.ValueKind == JsonValueKind.Array)
-                {
-                    if (Group(id, Label(key))) DrawArray(document, node, id, key);
-                }
-                else if (id == "rendering.path" && node.ValueKind == JsonValueKind.String)
-                {
-                    string selected = node.GetString()!;
-                    Ui.TextWrapped("Rendering path [LIVE]"u8);
-                    Ui.SetItemTooltip(Bytes(ConfigurationImpact.For(id).Reason));
-                    Ui.SetNextItemWidth(-1);
-                    static string Name(string value) => value == "sharedMeshes" ? "Shared meshes" : value == "cpuBuiltTriangles" ? "CPU-built triangles" : value;
-                    if (Ui.BeginCombo(Bytes("##" + id), Bytes(Name(selected)), ImGuiComboFlags.None))
-                    {
-                        try
-                        {
-                            foreach (string value in RenderingPaths)
-                                if (Ui.Selectable(Bytes(Name(value)), value == selected, ImGuiSelectableFlags.None, default))
-                                    EditValue(document, editKeys, JsonValue.Create(value));
-                        }
-                        finally { Ui.EndCombo(); }
-                    }
-                }
-                else if (path == "colors.roles" && node.ValueKind == JsonValueKind.String)
-                {
-                    string selected = node.GetString()!;
-                    Ui.TextWrapped(Bytes(Label(key) + " [LIVE]"));
-                    Ui.SetItemTooltip(Bytes(ConfigurationImpact.For(id).Reason));
-                    Ui.SetNextItemWidth(-1);
-                    if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected), ImGuiComboFlags.None))
-                    {
-                        try
-                        {
-                            var palette = document.Draft.GetProperty("palette"u8);
-                            foreach (var entry in palette.EnumerateObject())
-                                if (Ui.Selectable(Bytes(entry.Name), entry.Name == selected, ImGuiSelectableFlags.None, default))
-                                    EditValue(document, editKeys, JsonValue.Create(entry.Name));
-                        }
-                        finally { Ui.EndCombo(); }
-                    }
-                }
-                else DrawValue(node, id, Label(key), value => EditValue(document, editKeys, value));
+                if (Group(id, Label(key))) { Ui.Indent(); try { DrawObject(document, node, id); } finally { Ui.Unindent(); } }
             }
-            finally { editKeys.RemoveAt(editKeys.Count - 1); }
+            else if (node.ValueKind == JsonValueKind.Array)
+            {
+                if (Group(id, Label(key))) DrawArray(document, node, id, key);
+            }
+            else if (id == "rendering.path" && node.ValueKind == JsonValueKind.String)
+            {
+                string selected = node.GetString()!;
+                using var row = ToolLayout.PropertyRow(Bytes(id), "Rendering path [LIVE]"u8, Ui.GetFontSize() * 7,
+                    Bytes(ConfigurationImpact.For(id).Reason));
+                if (!row.ContentVisible) return;
+                static string Name(string value) => value == "sharedMeshes" ? "Shared meshes" : value == "cpuBuiltTriangles" ? "CPU-built triangles" : value;
+                if (Ui.BeginCombo(Bytes("##" + id), Bytes(Name(selected)), ImGuiComboFlags.None))
+                {
+                    try
+                    {
+                        foreach (string value in RenderingPaths)
+                            if (Ui.Selectable(Bytes(Name(value)), value == selected, ImGuiSelectableFlags.None, default))
+                                EditValue(document, editKeys, JsonValue.Create(value));
+                    }
+                    finally { Ui.EndCombo(); }
+                }
+                ScalarDrawCount++; RecordField(id);
+            }
+            else if (path == "colors.roles" && node.ValueKind == JsonValueKind.String)
+            {
+                string selected = node.GetString()!;
+                using var row = ToolLayout.PropertyRow(Bytes(id), Bytes(Label(key) + " [LIVE]"), Ui.GetFontSize() * 7,
+                    Bytes(ConfigurationImpact.For(id).Reason));
+                if (!row.ContentVisible) return;
+                if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected), ImGuiComboFlags.None))
+                {
+                    try
+                    {
+                        var palette = document.Draft.GetProperty("palette"u8);
+                        foreach (var entry in palette.EnumerateObject())
+                            if (Ui.Selectable(Bytes(entry.Name), entry.Name == selected, ImGuiSelectableFlags.None, default))
+                                EditValue(document, editKeys, JsonValue.Create(entry.Name));
+                    }
+                    finally { Ui.EndCombo(); }
+                }
+                ScalarDrawCount++; RecordField(id);
+            }
+            else DrawValue(node, id, Label(key), value => EditValue(document, editKeys, value));
         }
+        finally { editKeys.RemoveAt(editKeys.Count - 1); }
     }
     private void DrawArray(ConfigurationWorkspace.Document document, JsonElement array, string path, string key)
     {
         var impact = ConfigurationImpact.For(path);
-        Ui.TextWrapped(Bytes(impact.Effect.ToString().ToUpperInvariant() + ": " + impact.Reason));
+        Ui.TextWrapped(Bytes(impact.Effect.ToString().ToUpperInvariant()));
+        Ui.SetItemTooltip(Bytes(impact.Reason));
         if (key is "shapes" or "quarterTurns")
         {
             string[] options = key == "shapes" ? ["square", "2x1", "2x2", "l", "t"] : ["0", "1", "2", "3"];
@@ -213,10 +298,10 @@ public sealed class ConfigurationControls
         if (value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) return;
         ScalarDrawCount++;
         var impact = ConfigurationImpact.For(id);
-        Ui.TextWrapped(Bytes(label + " [" + impact.Effect.ToString().ToUpperInvariant() + "]"));
-        Ui.SetItemTooltip(Bytes(impact.Reason));
+        using var row = ToolLayout.PropertyRow(Bytes(id), Bytes(label + Unit(id) + " [" + impact.Effect.ToString().ToUpperInvariant() + "]"),
+            Ui.GetFontSize() * 7, Bytes(impact.Reason));
+        if (!row.ContentVisible) return;
         var widget = Bytes("##" + id);
-        Ui.SetNextItemWidth(-1);
         switch (value.ValueKind)
         {
             case System.Text.Json.JsonValueKind.True:
@@ -267,6 +352,13 @@ public sealed class ConfigurationControls
         if (FirstVisibleField is null && Ui.IsItemVisible())
             FirstVisibleField = (id, Ui.GetItemRectMin(), Ui.GetItemRectMax());
     }
+    private static string Unit(string path) => path.AsSpan(path.LastIndexOf('.') + 1) switch
+    {
+        "speed" or "moveSpeed" or "descentSpeed" or "maximumDescentSpeed" => " (units/s)",
+        "radius" or "size" or "columnPitch" or "width" or "height" when !path.StartsWith("window.", StringComparison.Ordinal) && !path.StartsWith("inspector.", StringComparison.Ordinal) => " (units)",
+        "invulnerabilitySeconds" or "rampSeconds" or "rowInterval" or "minimumRowInterval" => " (s)",
+        "fireRate" => " (shots/s)", "updateHz" => " (Hz)", _ => ""
+    };
     private static string Label(string key)
     {
         if (key == "vsync") return "VSync";

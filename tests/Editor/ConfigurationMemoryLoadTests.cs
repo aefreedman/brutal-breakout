@@ -74,7 +74,8 @@ public sealed class ConfigurationMemoryLoadTests
         var inspectorPath = ConfigurationWorkspaceTests.Paths()["inspector"];
         var inspector = InspectorConfiguration.Load(nonexistentPath, File.ReadAllText(inspectorPath));
         Assert.Equal(InspectorConfiguration.Load(inspectorPath).Settings.FontPath, inspector.Settings.FontPath);
-        Assert.Equal(InspectorConfiguration.Load(inspectorPath).Settings.ImagePath, inspector.Settings.ImagePath);
+        Assert.Null(inspector.Settings.Preview);
+        Assert.Equal(InspectorConfiguration.Load(inspectorPath).HistoryCapacity, inspector.HistoryCapacity);
         Assert.False(File.Exists(nonexistentPath));
     }
 
