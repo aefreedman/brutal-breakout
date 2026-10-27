@@ -8,6 +8,20 @@ namespace BrutalBreakout.Editor;
 internal sealed class ConfigurationFieldPresentation
 {
     public ToolProperty Property { get; }
+    private readonly ToolProperty? unappliedProperty;
+    private ToolProperty? displayedProperty;
+    private long displayedDraftRevision = -1, displayedAppliedRevision = -1;
+    // Each cached descriptor owns one stable document/key path. Compare only on owner-state changes.
+    internal ToolProperty ForDocument(ConfigurationWorkspace.Document document, IReadOnlyList<string> keys)
+    {
+        if (unappliedProperty is null) return Property;
+        if (displayedDraftRevision != document.Revision || displayedAppliedRevision != document.AppliedRevision)
+        {
+            displayedProperty = document.IsUnapplied(keys) ? unappliedProperty : Property;
+            displayedDraftRevision = document.Revision; displayedAppliedRevision = document.AppliedRevision;
+        }
+        return displayedProperty!;
+    }
     public ToolDoubleEditor Real { get; }
     public ToolInt64Editor? Integer { get; }
     public byte[] WidgetId { get; }
@@ -37,7 +51,10 @@ internal sealed class ConfigurationFieldPresentation
             : Real.Mode != ToolNumberMode.Input || Integer?.Mode is ToolNumberMode.Drag or ToolNumberMode.Slider
                 ? "Drag/slide for quick adjustment; Ctrl-click for exact entry. The drag range is not a validation limit."
                 : "Enter an exact value. Production validation runs outside drawing.";
-        Property = new(id, label, Units(id), impact.Effect.ToString(), new ToolHelp(label, impact.Reason, interaction));
+        var help = new ToolHelp(label, impact.Reason, interaction);
+        Property = new(id, label, Units(id), help: help);
+        if (impact.Effect is ConfigurationEffect.Reset or ConfigurationEffect.Relaunch)
+            unappliedProperty = new(id, label + "*", Units(id), help: help);
         WidgetId = Encoding.UTF8.GetBytes("##" + id);
         (string Label, JsonElement Value)[] presets = id switch
         {

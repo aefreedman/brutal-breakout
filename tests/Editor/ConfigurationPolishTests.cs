@@ -108,7 +108,8 @@ public sealed class ConfigurationPolishTests
         var unknown = new ConfigurationFieldPresentation("unknown.wholeLookingValue", "Value");
         Assert.Null(speed.Integer); Assert.NotNull(damage.Integer); Assert.Null(unknown.Integer);
         Assert.Equal(ToolNumberMode.Drag, speed.Real.Mode);
-        Assert.Equal("units/s", speed.Property.Units); Assert.Equal("Live", speed.Property.Effect);
+        Assert.Equal("units/s", speed.Property.Units); Assert.Empty(speed.Property.Effect);
+        Assert.Equal("units/s", System.Text.Encoding.UTF8.GetString(speed.Property.MetadataUtf8));
         Assert.DoesNotContain("LIVE", speed.Property.Label);
         var controls = new ConfigurationControls(ConfigurationWorkspaceTests.Create(), new(0, 0, 900, 600));
         controls.SetPresentationFacts(0, true, "ImmediateKHR");
@@ -116,6 +117,83 @@ public sealed class ConfigurationPolishTests
         Assert.Contains("does not disable VSync", controls.PresentationSummary);
         controls.SetPresentationFacts(120, false, "ImmediateKHR");
         Assert.Contains("120 fps", controls.PresentationSummary); Assert.DoesNotContain("pending", controls.PresentationSummary);
+    }
+
+    [Fact]
+    public void ResetMarkerTracksRunningValuesAndSurvivesSaveAndSourceReload()
+    {
+        ConfigurationWorkspaceTests.WithCopy(root =>
+        {
+            var workspace = new ConfigurationWorkspace(ConfigurationWorkspaceTests.Paths(root), true);
+            var document = ConfigurationWorkspaceTests.Doc(workspace, "physics");
+            var field = new ConfigurationFieldPresentation("physics.updateHz", "Update Hz");
+            string[] keys = ["updateHz"];
+            double original = document.Draft.GetProperty("updateHz"u8).GetDouble();
+            Assert.Same(field.Property, field.ForDocument(document, keys));
+            document.Set("updateHz", original + 1);
+            var marked = field.ForDocument(document, keys);
+            Assert.Equal("Update Hz*", marked.Label); Assert.Empty(marked.Effect);
+            Assert.Equal(field.Property.Id, marked.Id);
+            workspace.Process(_ => throw new Exception("Reset-only edit must not autoapply"));
+            Assert.Same(marked, field.ForDocument(document, keys));
+            workspace.Request(ConfigurationAction.Save); workspace.Process(_ => { });
+            Assert.True(workspace.LastOutcome!.Succeeded); Assert.False(document.Unsaved);
+            Assert.Same(marked, field.ForDocument(document, keys)); // Saved is not applied.
+            workspace.Request(ConfigurationAction.Reload); workspace.Process(_ => { });
+            Assert.Same(marked, field.ForDocument(document, keys)); // Source Reload is not a game reset.
+            long revision = document.Revision, applied = document.AppliedRevision;
+            workspace.Request(ConfigurationAction.Apply); workspace.Process(_ => { });
+            Assert.True(workspace.LastOutcome.Succeeded);
+            Assert.Equal(revision, document.Revision); Assert.True(document.AppliedRevision > applied);
+            Assert.Same(field.Property, field.ForDocument(document, keys));
+            document.Set("updateHz", original + 2); Assert.Same(marked, field.ForDocument(document, keys));
+            document.Set("updateHz", original + 1); Assert.Same(field.Property, field.ForDocument(document, keys));
+        });
+    }
+
+    [Fact]
+    public void RelaunchMarkersSurviveRuntimeApplyWhileLiveAndFutureValuesHaveNoPolicyLabelsOrStars()
+    {
+        var workspace = ConfigurationWorkspaceTests.Create();
+        var rendering = ConfigurationWorkspaceTests.Doc(workspace, "rendering");
+        var field = new ConfigurationFieldPresentation("rendering.limits.instances", "Instances");
+        string[] keys = ["limits", "instances"];
+        long original = rendering.Draft.GetProperty("limits"u8).GetProperty("instances"u8).GetInt64();
+        rendering.Set(keys, JsonValue.Create(original + 1));
+        var marked = field.ForDocument(rendering, keys);
+        Assert.Equal("Instances*", marked.Label);
+        workspace.Request(ConfigurationAction.Apply); workspace.Process(_ => { });
+        Assert.True(workspace.LastOutcome!.Succeeded); Assert.Same(marked, field.ForDocument(rendering, keys));
+        Assert.True(rendering.RestoreSource(keys));
+        Assert.Same(field.Property, field.ForDocument(rendering, keys));
+        var shmup = ConfigurationWorkspaceTests.Doc(workspace, "shmup");
+        foreach (var (id, label, path, value) in new[]
+        {
+            ("shmup.ball.speed", "Speed", "ball.speed", 650d),
+            ("shmup.avatar.health", "Health", "avatar.health", 4d)
+        })
+        {
+            var immediate = new ConfigurationFieldPresentation(id, label);
+            shmup.Set(path, JsonValue.Create(value));
+            var property = immediate.ForDocument(shmup, path.Split('.'));
+            Assert.Equal(label, property.Label); Assert.Empty(property.Effect);
+        }
+    }
+
+    [Fact]
+    public void AtomicArrayAndLiteralKeyPendingComparisonsUseRunningRatherThanSourceValues()
+    {
+        var workspace = ConfigurationWorkspaceTests.Create();
+        var document = ConfigurationWorkspaceTests.Doc(workspace, "gameplay");
+        var field = new ConfigurationFieldPresentation("gameplay.breakout.bricks", "Bricks");
+        string[] array = ["breakout", "bricks"];
+        var original = document.Draft.GetProperty("breakout"u8).GetProperty("bricks"u8)[0].GetProperty("width"u8).GetDouble();
+        document.Set(["breakout", "bricks", "0", "width"], JsonValue.Create(original + 1));
+        Assert.Equal("Bricks*", field.ForDocument(document, array).Label);
+        Assert.True(document.RestoreSource(array)); Assert.Equal("Bricks", field.ForDocument(document, array).Label);
+        document.Set(["ball", "literal.key"], JsonValue.Create(1));
+        Assert.True(document.IsUnapplied(["ball", "literal.key"]));
+        Assert.False(document.IsUnapplied(["ball", "radius"]));
     }
 
     [Fact]

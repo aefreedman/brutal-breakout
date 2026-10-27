@@ -11,6 +11,10 @@ public sealed class ConfigurationLiveTests
     private static void WithHost(Action<ConfigurationWorkspace, GameplaySessionHost> test) => ConfigurationWorkspaceTests.WithCopy(root =>
     {
         var paths = ConfigurationWorkspaceTests.Paths(root);
+        // These presentation transitions start from FIFO/uncapped, independent of local play settings.
+        var window = JsonNode.Parse(File.ReadAllText(paths["window"]))!;
+        window["vsync"] = true; window["frameRateLimit"] = 0;
+        File.WriteAllText(paths["window"], window.ToJsonString());
         var json = JsonNode.Parse(File.ReadAllText(paths["shmup"]))!;
         json["capacity"]!["maxBalls"] = 8; json["capacity"]!["maxBricks"] = 16;
         File.WriteAllText(paths["shmup"], json.ToJsonString());

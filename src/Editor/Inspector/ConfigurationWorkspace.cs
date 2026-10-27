@@ -30,6 +30,7 @@ public sealed class ConfigurationWorkspace
         private static readonly JsonSerializerOptions TextOptions = new() { WriteIndented = true };
         public long Revision { get; private set; }
         public long SourceRevision { get; private set; }
+        internal long AppliedRevision { get; private set; }
         internal int SerializationCount { get; private set; }
         internal int ParseCount { get; private set; }
         public JsonElement Draft
@@ -52,7 +53,7 @@ public sealed class ConfigurationWorkspace
         internal string Applied
         {
             get => applied;
-            set { if (applied == value) return; applied = value; appliedNode = Parse(value); pending = null; changed(); }
+            set { if (applied == value) return; applied = value; appliedNode = Parse(value); AppliedRevision++; pending = null; changed(); }
         }
         internal Func<string, object> Load;
         internal Document(string section, string path, bool runtime, Func<string, object> load, Action changed)
@@ -86,6 +87,10 @@ public sealed class ConfigurationWorkspace
         /// <summary>Checks the selected in-memory source snapshot; no file I/O or display-path splitting.</summary>
         public bool CanRestoreSource(IReadOnlyList<string> keys) =>
             TryFind(sourceNode, keys, out var saved) && TryFind(draft, keys, out var current) && !JsonNode.DeepEquals(saved, current);
+        /// <summary>Compares a literal-key field with the running configuration, not the saved source.</summary>
+        internal bool IsUnapplied(IReadOnlyList<string> keys) =>
+            TryFind(draft, keys, out var current) &&
+            (!TryFind(appliedNode, keys, out var running) || !JsonNode.DeepEquals(current, running));
         /// <summary>Stages only this literal-key field from the selected source. Save, reset and apply remain separate.</summary>
         public bool RestoreSource(IReadOnlyList<string> keys) =>
             TryFind(sourceNode, keys, out var saved) && TryFind(draft, keys, out _) && Set(keys, saved);

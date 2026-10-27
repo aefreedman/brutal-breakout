@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Brutal.ImGuiApi;
 using Brutal.Numerics;
 using BrutalBreakout.Editor;
@@ -83,9 +84,49 @@ public sealed class ConfigurationPolishNativeTests
             for (int i = 0; i < 4; i++) Frame(controls);
             Assert.Equal(1.5, d.Draft.GetProperty("ball"u8).GetProperty("damage"u8).GetDouble());
             Assert.Equal(123.45678901234567, d.Draft.GetProperty("ball"u8).GetProperty("speed"u8).GetDouble());
-            Assert.NotNull(controls.FirstVisibleAction); Assert.True(controls.BodyScrollMax > 0);
+            Assert.NotNull(controls.FirstVisibleAction);
+            Assert.True(controls.BodyMaximum.Y > controls.BodyMinimum.Y);
         });
     }
+    [Fact]
+    public void PendingMarkersUpdateNativeGroupCaptionsWithoutReplacingDescriptorsOrIds()
+    {
+        var workspace = ConfigurationWorkspaceTests.Create();
+        var document = ConfigurationWorkspaceTests.Doc(workspace, "gameplay");
+        var controls = new ConfigurationControls(workspace, new(16, 16, 900, 650)) { Visible = true };
+        controls.SelectCategory("breakout"); controls.SetGroupOpen("gameplay.ball", false);
+        controls.SetGroupOpen("gameplay.breakout", true); controls.SetGroupOpen("gameplay.breakout.bricks", true);
+        Context(() =>
+        {
+            Frame(controls); Frame(controls);
+            var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            var descriptions = (Dictionary<string, ConfigurationFieldPresentation>)typeof(ConfigurationControls)
+                .GetField("presentation", flags)!.GetValue(controls)!;
+            var labels = (Dictionary<string, (string Label, byte[] Utf8)>)typeof(ConfigurationControls)
+                .GetField("groupLabels", flags)!.GetValue(controls)!;
+            const string path = "gameplay.breakout.bricks";
+            var field = descriptions[path];
+            var original = document.Draft.GetProperty("breakout"u8).GetProperty("bricks"u8)[0].GetProperty("width"u8).GetDouble();
+            var id = field.Property.Id;
+            Assert.Equal("Bricks", labels[path].Label);
+            document.Set(["breakout", "bricks", "0", "width"], JsonValue.Create(original + 1)); Frame(controls);
+            Assert.Equal("Bricks*", labels[path].Label);
+            var marked = field.ForDocument(document, ["breakout", "bricks"]);
+            Assert.EndsWith("*", marked.Label); Assert.Equal(id, marked.Id);
+            var groupLabel = labels[path].Utf8;
+            for (int i = 0; i < 8; i++) Frame(controls);
+            Assert.Same(groupLabel, labels[path].Utf8);
+            workspace.Request(ConfigurationAction.Apply); workspace.Process(_ => throw new InvalidOperationException("Reset failed"));
+            Frame(controls); Assert.Equal("Bricks*", labels[path].Label);
+            long revision = document.Revision;
+            workspace.Request(ConfigurationAction.Apply); workspace.Process(_ => { }); Frame(controls);
+            Assert.True(workspace.LastOutcome!.Succeeded); Assert.Equal(revision, document.Revision);
+            Assert.Equal("Bricks", labels[path].Label);
+            Assert.Same(field, descriptions[path]);
+            Assert.Same(field.Property, field.ForDocument(document, ["breakout", "bricks"]));
+        });
+    }
+
     [Fact]
     public void IdleMetadataReusesDescriptorsAndSourceRevisionInvalidatesThem()
     {

@@ -75,7 +75,7 @@ public sealed class ConfigurationControls
     private readonly Dictionary<string, bool> groups = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> widgetErrors = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ConfigurationFieldPresentation> presentation = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, byte[]> groupLabels = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (string Label, byte[] Utf8)> groupLabels = new(StringComparer.Ordinal);
     private readonly Dictionary<ConfigurationWorkspace.Document, long> sourceRevisions = [];
     private string? pendingClipboard;
     public InspectorTheme? Theme { get; }
@@ -109,8 +109,9 @@ public sealed class ConfigurationControls
     private bool Group(string key, string label)
     {
         Ui.SetNextItemOpen(groups.GetValueOrDefault(key), ImGuiCond.Always);
-        if (!groupLabels.TryGetValue(key, out var encoded)) groupLabels.Add(key, encoded = Bytes(label + "###" + key));
-        bool open = Ui.CollapsingHeader(encoded);
+        if (!groupLabels.TryGetValue(key, out var cached) || cached.Label != label)
+            groupLabels[key] = cached = (label, Bytes(label + "###" + key));
+        bool open = Ui.CollapsingHeader(cached.Utf8);
         groups[key] = open;
         return open;
     }
@@ -243,7 +244,7 @@ public sealed class ConfigurationControls
             runtime.DrawDetails("##persistent.runtime"u8);
             RuntimeDetailsBounds = CurrentItemBounds();
         }
-        Ui.TextWrapped("LIVE: next owner update, even paused. FUTURE: new spawns/reset defaults. RESET: explicit structural rebuild. RELAUNCH: save then restart the app. Save never resets. Reload/Discard restore source drafts. Generic arrays keep their length."u8);
+        Ui.TextWrapped("* marks an unapplied value requiring a structural reset or app relaunch. LIVE: next owner update, even paused. FUTURE: new spawns/reset defaults. RESET: explicit structural rebuild. RELAUNCH: save then restart the app. Save never resets. Reload/Discard restore source drafts. Generic arrays keep their length."u8);
         foreach (var field in Workspace.PendingResetFields) Ui.TextWrapped(Bytes(field));
         foreach (var field in Workspace.PendingRelaunchFields) Ui.TextWrapped(Bytes(field));
     }
@@ -284,7 +285,7 @@ public sealed class ConfigurationControls
             {
                 string selected = node.GetString()!;
                 var description = Presentation(id, "Circle detail", humanLabel: true);
-                using var row = ToolLayout.PropertyRow(description.Property, Ui.GetFontSize() * 7);
+                using var row = ToolLayout.PropertyRow(description.ForDocument(document, editKeys), Ui.GetFontSize() * 7);
                 if (!row.ContentVisible) return;
                 ToolFieldActions.ReserveControlWidth();
                 if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected == "automatic" ? "Automatic" : "Fixed side count"), ImGuiComboFlags.None))
@@ -305,13 +306,16 @@ public sealed class ConfigurationControls
             }
             else if (node.ValueKind == JsonValueKind.Array)
             {
-                if (Group(id, Presentation(id, key).Property.Label)) DrawArray(document, node, id, key);
+                var description = Presentation(id, key);
+                bool open = Group(id, description.ForDocument(document, editKeys).Label);
+                description.Property.Help?.ShowForLastItem();
+                if (open) DrawArray(document, node, id, key);
             }
             else if (id == "rendering.path" && node.ValueKind == JsonValueKind.String)
             {
                 string selected = node.GetString()!;
                 var description = Presentation(id, "Rendering path", humanLabel: true);
-                using var row = ToolLayout.PropertyRow(description.Property, Ui.GetFontSize() * 7);
+                using var row = ToolLayout.PropertyRow(description.ForDocument(document, editKeys), Ui.GetFontSize() * 7);
                 if (!row.ContentVisible) return;
                 ToolFieldActions.ReserveControlWidth();
                 static string Name(string value) => value == "sharedMeshes" ? "Shared meshes" : value == "cpuBuiltTriangles" ? "CPU-built triangles" : value;
@@ -331,7 +335,7 @@ public sealed class ConfigurationControls
             {
                 string selected = node.GetString()!;
                 var description = Presentation(id, key);
-                using var row = ToolLayout.PropertyRow(description.Property, Ui.GetFontSize() * 7);
+                using var row = ToolLayout.PropertyRow(description.ForDocument(document, editKeys), Ui.GetFontSize() * 7);
                 if (!row.ContentVisible) return;
                 ToolFieldActions.ReserveControlWidth();
                 if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected), ImGuiComboFlags.None))
@@ -353,9 +357,6 @@ public sealed class ConfigurationControls
     }
     private void DrawArray(ConfigurationWorkspace.Document document, JsonElement array, string path, string key)
     {
-        var impact = ConfigurationImpact.For(path);
-        Text(impact.Effect.ToString(), InspectorTone.Secondary);
-        Ui.SetItemTooltip(Bytes(impact.Reason));
         if (key is "shapes" or "quarterTurns")
         {
             string[] options = key == "shapes" ? ["square", "2x1", "2x2", "l", "t"] : ["0", "1", "2", "3"];
@@ -399,7 +400,7 @@ public sealed class ConfigurationControls
         if (value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) return;
         ScalarDrawCount++;
         var description = Presentation(id, key, arrayIndex: arrayIndex);
-        using var row = ToolLayout.PropertyRow(description.Property, Ui.GetFontSize() * 7);
+        using var row = ToolLayout.PropertyRow(description.ForDocument(document, editKeys), Ui.GetFontSize() * 7);
         if (!row.ContentVisible) return;
         ToolFieldActions.ReserveControlWidth();
         var widget = description.WidgetId;
