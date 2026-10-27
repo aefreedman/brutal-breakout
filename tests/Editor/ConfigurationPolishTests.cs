@@ -108,8 +108,9 @@ public sealed class ConfigurationPolishTests
         var unknown = new ConfigurationFieldPresentation("unknown.wholeLookingValue", "Value");
         Assert.Null(speed.Integer); Assert.NotNull(damage.Integer); Assert.Null(unknown.Integer);
         Assert.Equal(ToolNumberMode.Drag, speed.Real.Mode);
-        Assert.Equal("units/s", speed.Property.Units); Assert.Empty(speed.Property.Effect);
-        Assert.Equal("units/s", System.Text.Encoding.UTF8.GetString(speed.Property.MetadataUtf8));
+        Assert.Equal("units/s", speed.UnitSuffix); Assert.Equal("units/s", speed.Real.Suffix);
+        Assert.Empty(speed.Property.Units); Assert.Empty(speed.Property.Effect);
+        Assert.True(speed.Property.MetadataUtf8.IsEmpty);
         Assert.DoesNotContain("LIVE", speed.Property.Label);
         var controls = new ConfigurationControls(ConfigurationWorkspaceTests.Create(), new(0, 0, 900, 600));
         controls.SetPresentationFacts(0, true, "ImmediateKHR");
@@ -117,6 +118,22 @@ public sealed class ConfigurationPolishTests
         Assert.Contains("does not disable VSync", controls.PresentationSummary);
         controls.SetPresentationFacts(120, false, "ImmediateKHR");
         Assert.Contains("120 fps", controls.PresentationSummary); Assert.DoesNotContain("pending", controls.PresentationSummary);
+    }
+
+    [Theory]
+    [InlineData("shmup.ball.radius", "units", false)]
+    [InlineData("shmup.ball.fireRate", "shots/s", false)]
+    [InlineData("shmup.avatar.invulnerabilitySeconds", "s", false)]
+    [InlineData("physics.updateHz", "Hz", false)]
+    [InlineData("window.width", "px", true)]
+    [InlineData("window.frameRateLimit", "fps", true)]
+    public void UnitsBelongToNumericValuesNotPropertySubtitles(string id, string units, bool integer)
+    {
+        var field = new ConfigurationFieldPresentation(id, "Value");
+        Assert.Equal(units, field.UnitSuffix); Assert.Equal(units, field.Real.Suffix);
+        if (integer) Assert.Equal(units, field.Integer!.Suffix);
+        Assert.True(field.Property.MetadataUtf8.IsEmpty);
+        Assert.Equal("Value", field.Property.Label);
     }
 
     [Fact]

@@ -22,6 +22,7 @@ internal sealed class ConfigurationFieldPresentation
         }
         return displayedProperty!;
     }
+    public string UnitSuffix { get; }
     public ToolDoubleEditor Real { get; }
     public ToolInt64Editor? Integer { get; }
     public byte[] WidgetId { get; }
@@ -46,15 +47,21 @@ internal sealed class ConfigurationFieldPresentation
         if (id == "shmup.avatar.invulnerabilitySeconds") Real = ToolDoubleEditor.Drag(.01, 10, .01f, "%.3f");
         if (id == "input.stickDeadzone") Real = ToolDoubleEditor.Slider(0, .95, "%.3f");
         if (id is "audio.masterGain" or "trails.opacity") Real = ToolDoubleEditor.Slider(0, 1, "%.3f");
+        UnitSuffix = Units(id);
+        if (UnitSuffix.Length > 0)
+        {
+            Real = Real.WithSuffix(UnitSuffix);
+            if (Integer is not null) Integer = Integer.WithSuffix(UnitSuffix);
+        }
         var impact = ConfigurationImpact.For(id);
         string interaction = CommitOnEnter ? "Press Enter to stage. Partial digits do not resize or change the cap."
             : Real.Mode != ToolNumberMode.Input || Integer?.Mode is ToolNumberMode.Drag or ToolNumberMode.Slider
                 ? "Drag/slide for quick adjustment; Ctrl-click for exact entry. The drag range is not a validation limit."
                 : "Enter an exact value. Production validation runs outside drawing.";
         var help = new ToolHelp(label, impact.Reason, interaction);
-        Property = new(id, label, Units(id), help: help);
+        Property = new(id, label, help: help);
         if (impact.Effect is ConfigurationEffect.Reset or ConfigurationEffect.Relaunch)
-            unappliedProperty = new(id, label + "*", Units(id), help: help);
+            unappliedProperty = new(id, label + "*", help: help);
         WidgetId = Encoding.UTF8.GetBytes("##" + id);
         (string Label, JsonElement Value)[] presets = id switch
         {
@@ -85,10 +92,10 @@ internal sealed class ConfigurationFieldPresentation
     private static string Units(string path) => path.AsSpan(path.LastIndexOf('.') + 1) switch
     {
         "speed" or "moveSpeed" or "descentSpeed" or "maximumDescentSpeed" => "units/s",
-        "radius" or "size" or "columnPitch" => "game units",
-        "width" or "height" when path.StartsWith("window.", StringComparison.Ordinal) || path.StartsWith("inspector.", StringComparison.Ordinal) => "physical px",
-        "width" or "height" => "game units",
-        "invulnerabilitySeconds" or "rampSeconds" or "rowInterval" or "minimumRowInterval" or "durationSeconds" => "seconds",
-        "fireRate" => "shots/s", "updateHz" or "contactHertz" => "Hz", "frameRateLimit" => "fps · 0 = Unlimited", _ => ""
+        "radius" or "size" or "columnPitch" => "units",
+        "width" or "height" when path.StartsWith("window.", StringComparison.Ordinal) || path.StartsWith("inspector.", StringComparison.Ordinal) => "px",
+        "width" or "height" => "units",
+        "invulnerabilitySeconds" or "rampSeconds" or "rowInterval" or "minimumRowInterval" or "durationSeconds" => "s",
+        "fireRate" => "shots/s", "updateHz" or "contactHertz" => "Hz", "frameRateLimit" => "fps", _ => ""
     };
 }
