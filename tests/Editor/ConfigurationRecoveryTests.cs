@@ -40,6 +40,11 @@ public sealed class ConfigurationRecoveryTests
             shmup.Set("ball.speed", -1); workspace.Process(_ => { });
             var liveAttempt = workspace.LastOutcome;
             Assert.Equal(ConfigurationOutcomeOrigin.LiveApply, liveAttempt!.Origin);
+            workspace.Request(ConfigurationAction.Apply); workspace.Process(_ => throw new Exception("Invalid draft must not apply"));
+            Assert.False(workspace.LastOutcome!.Succeeded);
+            Assert.Equal(ConfigurationAction.Apply, workspace.LastOutcome.Action);
+            liveAttempt = workspace.LastOutcome;
+            Assert.Contains("Source changed externally", workspace.Status); // Failed Apply must not replace failed Save.
             shmup.RestoreSource(["ball", "speed"]); workspace.Process(_ => throw new Exception("Recovery apply"));
             Assert.Same(liveAttempt, workspace.LastOutcome);
             Assert.Contains("Source changed externally", workspace.Status);
@@ -78,6 +83,17 @@ public sealed class ConfigurationRecoveryTests
         Assert.Equal(action, workspace.LastOutcome!.Action);
         Assert.Equal(ConfigurationOutcomeOrigin.UserOperation, workspace.LastOutcome.Origin);
         Assert.False(workspace.LastOutcome.Succeeded);
+    }
+
+    [Fact]
+    public void InvalidCommandCannotGrowFailureStorageOrReplacePendingCommand()
+    {
+        var workspace = ConfigurationWorkspaceTests.Create();
+        workspace.Request(ConfigurationAction.Discard);
+        Assert.Throws<ArgumentOutOfRangeException>(() => workspace.Request((ConfigurationAction)int.MaxValue));
+        workspace.Process(_ => { });
+        Assert.Equal(ConfigurationAction.Discard, workspace.LastOutcome!.Action);
+        Assert.True(workspace.LastOutcome.Succeeded);
     }
 
     [Fact]

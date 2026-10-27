@@ -4,9 +4,9 @@
     "net10.0": {
       "CrushKit.Brutal.ImGui": {
         "type": "Direct",
-        "requested": "[0.1.0-preview.13, )",
-        "resolved": "0.1.0-preview.13",
-        "contentHash": "JoMGRcOkFxWYqZ+oPnQGCZfrJCkbmvRLU26o/lisK1DWJsoljHWFr4zM5IlDYsCBy0qFrn+3zp7DaK6YjQJPFA==",
+        "requested": "[0.1.0-preview.14, )",
+        "resolved": "0.1.0-preview.14",
+        "contentHash": "TwXX9OvCf6iEj2Q19FnS3mf6DEhKLoDlybkAn1oOndpXTrWO9v+0Nex+4x/Qe7cq1GSxSYs+aMPAO6vSsIdyNQ==",
         "dependencies": {
           "Ahwoo.BRUTAL.ImGui": "2026.10.3",
           "Ahwoo.BRUTAL.ImGui.Backends": "2026.10.3",

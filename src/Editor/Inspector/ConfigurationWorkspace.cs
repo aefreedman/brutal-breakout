@@ -134,14 +134,16 @@ public sealed class ConfigurationWorkspace
     public ConfigurationOutcome? LastOutcome { get; private set; }
     private long outcomeSequence;
     private string normalStatus = "";
-    private string? liveFailure, operationFailure, externalFailure;
-    private ConfigurationAction failedOperation;
+    private string? liveFailure, externalFailure;
+    // One bounded slot per command: an unrelated failure/recovery cannot erase a Save conflict.
+    private readonly string?[] operationFailures = new string?[Enum.GetValues<ConfigurationAction>().Length];
     private void PublishOutcome(ConfigurationAction action, string message, bool succeeded, ConfigurationOutcomeOrigin origin) =>
         LastOutcome = new(++outcomeSequence, action, succeeded, message.Contains("warning:", StringComparison.OrdinalIgnoreCase), message) { Origin = origin };
     private void RefreshStatus()
     {
         string? failures = externalFailure;
-        if (operationFailure is not null) failures = failures is null ? operationFailure : failures + "\n" + operationFailure;
+        foreach (var failure in operationFailures)
+            if (failure is not null) failures = failures is null ? failure : failures + "\n" + failure;
         if (liveFailure is not null) failures = failures is null ? liveFailure : failures + "\n" + liveFailure;
         Status = failures ?? normalStatus;
     }
@@ -149,7 +151,8 @@ public sealed class ConfigurationWorkspace
     {
         normalStatus = message;
         // An unrelated successful operation must not make a failed save/conflict disappear.
-        if (failedOperation == action || action == ConfigurationAction.Reload) operationFailure = null;
+        if (action == ConfigurationAction.Reload) Array.Clear(operationFailures);
+        else operationFailures[(int)action] = null;
         if (action == ConfigurationAction.Apply) liveFailure = null;
         RefreshStatus();
     }
@@ -225,7 +228,11 @@ public sealed class ConfigurationWorkspace
         appliedCandidate = Validate(Capture(false));
     }
     internal static bool Equivalent(string a, string b) => a == b || JsonNode.DeepEquals(JsonNode.Parse(a), JsonNode.Parse(b));
-    public void Request(ConfigurationAction action) => request = action;
+    public void Request(ConfigurationAction action)
+    {
+        if (!Enum.IsDefined(action)) throw new ArgumentOutOfRangeException(nameof(action));
+        request = action;
+    }
     public bool IsChanged(Candidate candidate, string section) =>
         documents.Any(d => d.Section == section && !Equivalent(d.Applied, candidate.Texts[section]));
     public void ReportFailure(Exception error)
@@ -303,8 +310,9 @@ public sealed class ConfigurationWorkspace
         }
         catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException)
         {
-            failedOperation = action; operationFailure = "Rejected: " + error.Message; RefreshStatus();
-            PublishOutcome(action, operationFailure, false, ConfigurationOutcomeOrigin.UserOperation);
+            string failure = "Rejected: " + error.Message;
+            operationFailures[(int)action] = failure; RefreshStatus();
+            PublishOutcome(action, failure, false, ConfigurationOutcomeOrigin.UserOperation);
         }
     }
     private Dictionary<string, string> Merged(bool reset)

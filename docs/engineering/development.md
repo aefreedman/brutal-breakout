@@ -41,7 +41,7 @@ The editor-free app uses its own `src/App/packages.shipping.lock.json` and `Brut
 
 Public checkout/CI builds use the exact CrushKit source commit in `.github/crushkit-revision`, with `UseCrushKitProjects=true` and an explicit `CrushKitRoot`. The [README source quick start](../../README.md#quick-start-source-build) does not require a local feed. Committed `packages.source.lock.json` files lock this graph; do not regenerate ordinary package locks when changing source references. `.github/scripts/ci.ps1` checks the kit commit, restores in locked mode, builds and runs the headless test baseline. It is source integration evidence, not package-consumer or GPU validation.
 
-The existing package mode remains the default when the source property is absent: `CrushKitImGuiVersion` is `0.1.0-preview.13` and the other modules use `CrushKitVersion` `0.1.0-preview.12`. These packages are unpublished; use the exact existing local packages rather than repacking those immutable versions. Public package hosting/release is deferred.
+The existing package mode remains the default when the source property is absent: `CrushKitImGuiVersion` is `0.1.0-preview.14` and the other modules use `CrushKitVersion` `0.1.0-preview.12`. These packages are unpublished; use the exact existing local packages rather than repacking those immutable versions. Public package hosting/release is deferred.
 
 For coordinated source edits, opt into neighboring project references without changing normal package lock files:
 

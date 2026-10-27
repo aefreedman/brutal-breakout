@@ -627,7 +627,7 @@
         "type": "Project",
         "dependencies": {
           "BrutalBreakout.Runtime": "[1.0.0, )",
-          "CrushKit.Brutal.ImGui": "[0.1.0-preview.13, )"
+          "CrushKit.Brutal.ImGui": "[0.1.0-preview.14, )"
         }
       },
       "brutalbreakout.input": {
