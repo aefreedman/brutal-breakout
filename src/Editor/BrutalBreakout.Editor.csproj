@@ -8,7 +8,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="BrutalBreakout.Editor.Tests" />
     <ProjectReference Include="../Runtime/Game/BrutalBreakout.Runtime.csproj" />
-    <PackageReference Include="CrushKit.Brutal.ImGui" Version="$(CrushKitVersion)" Condition="'$(UseCrushKitProjects)' != 'true'" />
+    <PackageReference Include="CrushKit.Brutal.ImGui" Version="$(CrushKitImGuiVersion)" Condition="'$(UseCrushKitProjects)' != 'true'" />
     <ProjectReference Include="$(CrushKitRoot)/src/CrushKit.Brutal.ImGui/CrushKit.Brutal.ImGui.csproj" Condition="'$(UseCrushKitProjects)' == 'true'" />
   </ItemGroup>
 </Project>
