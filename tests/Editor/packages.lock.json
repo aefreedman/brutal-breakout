@@ -451,8 +451,8 @@
       },
       "CrushKit.Brutal.ImGui": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.14",
-        "contentHash": "TwXX9OvCf6iEj2Q19FnS3mf6DEhKLoDlybkAn1oOndpXTrWO9v+0Nex+4x/Qe7cq1GSxSYs+aMPAO6vSsIdyNQ==",
+        "resolved": "0.1.0-preview.15",
+        "contentHash": "6FcFo9hDATDBxc7vQi+7A0aIyhvsSLrtUNG79Efo9WdyBz+Ypg9ib98Sg70k5FX9ohHUBnwuwG6EZb3/VRzoKA==",
         "dependencies": {
           "Ahwoo.BRUTAL.ImGui": "2026.10.3",
           "Ahwoo.BRUTAL.ImGui.Backends": "2026.10.3",
@@ -689,7 +689,7 @@
         "type": "Project",
         "dependencies": {
           "BrutalBreakout.Runtime": "[1.0.0, )",
-          "CrushKit.Brutal.ImGui": "[0.1.0-preview.14, )"
+          "CrushKit.Brutal.ImGui": "[0.1.0-preview.15, )"
         }
       },
       "brutalbreakout.input": {
