@@ -370,16 +370,16 @@
       },
       "CrushKit.Brutal.Audio": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.10",
-        "contentHash": "wjsHMa3O01WiRJ7J7YPeT6PY2zz+UexlfXD+16N247lXEfx1EtJ98AkHZFDiNVK9ZON4ZIYQWOphi/wKyWH5NQ==",
+        "resolved": "0.1.0-preview.11",
+        "contentHash": "scGUxnrWq+FRjDpk1urzDMWALj1J+8ut8Ei+vIkiWn0AE+2WqZvU3bXfsrjlVUbNFoUFHPTIZUzfcVTrTMutAA==",
         "dependencies": {
           "Ahwoo.BRUTAL.Sdl.Mixer": "[2026.10.3]"
         }
       },
       "CrushKit.Brutal.Draw2D": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.10",
-        "contentHash": "5l885ycdo17Qhbd4AovaIVIs7D30jzMAJwzscjhegSie5esX0u2PtpKGdbv7HzBw8bHdUEavU9nE3RtYUQ861A==",
+        "resolved": "0.1.0-preview.11",
+        "contentHash": "xuT/+tq5ybBPPufkIkCpeed/KDiQI0wD2kwsXuzywfvNG3xlaHr5VesXFiaP9sADQlFDyDY9SadK408L1R4DTw==",
         "dependencies": {
           "Ahwoo.BRUTAL.Numerics": "2026.10.2",
           "Ahwoo.BRUTAL.Render.Mesh": "2026.10.2"
@@ -387,8 +387,8 @@
       },
       "CrushKit.Brutal.Ecs": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.10",
-        "contentHash": "dDC0hARHx2PPdJ48PEsjGdyE4tPRqK/42D8FBcAIzHsPYGYzAZvpRRVrh4PDF3D2w93LlDxQ4kCIIlO557vuLw==",
+        "resolved": "0.1.0-preview.11",
+        "contentHash": "5eGhRI50fBkandaEgwBB/oe3G2C6MNq24/U3fm1E9wuFn2ullhtiZC13NJb99vz1JJ4wsia2TM30NuO+W0HWuw==",
         "dependencies": {
           "Arch": "[2.1.0]",
           "ZeroAllocJobScheduler": "[1.1.2]"
@@ -396,8 +396,8 @@
       },
       "CrushKit.Brutal.Input": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.10",
-        "contentHash": "h8iS/lxzRAVlm+JTgYYnC54WWYt1l/Lp+ejbPwWqnUPJUJATRyINqJYxlv9BuO8/QWKl4k1IBO0iNpkWom3S+A==",
+        "resolved": "0.1.0-preview.11",
+        "contentHash": "AM63YwRJlxVl/RTQDZQWGD7kndlDmWerOZ1dXupvMP48tAoXBenVWvw1drrQH0zBD51sjXtLI1Y/zJRcvybpXA==",
         "dependencies": {
           "Ahwoo.BRUTAL.Glfw": "[2026.10.5]",
           "Ahwoo.BRUTAL.Numerics": "[2026.10.2]"
@@ -405,8 +405,8 @@
       },
       "CrushKit.Brutal.Physics": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.10",
-        "contentHash": "pCs2BbomP4CTQ5G5k3TBUzogzBaxmD745Jk/OHw8sC47+q3al0v8d4GLrGl+ZQsK3Dc28634yMNoUEztoasKgA==",
+        "resolved": "0.1.0-preview.11",
+        "contentHash": "BlJJqb0orpC3mRPQmMhRxQabWW/GWFkSyEsqZgijhG+a7buIdkMiFmaXJEcfe9F7i7C6sthAMsselJIqU3oq7g==",
         "dependencies": {
           "Ahwoo.BRUTAL.Box2D": "[2026.10.2]",
           "ZeroAllocJobScheduler": "[1.1.2]"
@@ -414,8 +414,8 @@
       },
       "CrushKit.Brutal.Vulkan": {
         "type": "Transitive",
-        "resolved": "0.1.0-preview.10",
-        "contentHash": "JYvjHCmk9RhEohMpxkDHxbK/Qdgw9V4FEjnRwmGH3w+BX/m1FyblSlUCeT7UWydDwqmJBcYtcS/K89UTbN8UXg==",
+        "resolved": "0.1.0-preview.11",
+        "contentHash": "gSVyIdMAXycdpZFbZPBD15n9OYqRRiHSrWvg2pwa2Klv9W8TgP1KsbfEhaVVGviu5eiIBy00yxB6QLd8ZC7QBA==",
         "dependencies": {
           "Ahwoo.BRUTAL.Core": "2026.10.4",
           "Ahwoo.BRUTAL.Glfw": "2026.10.5",
@@ -426,7 +426,7 @@
           "Ahwoo.BRUTAL.Vulkan": "2026.10.3",
           "Ahwoo.BRUTAL.Vulkan.Abstractions": "2026.10.3",
           "Ahwoo.BRUTAL.Vulkan.Vma": "2026.10.3",
-          "CrushKit.Brutal.Draw2D": "0.1.0-preview.10"
+          "CrushKit.Brutal.Draw2D": "0.1.0-preview.11"
         }
       },
       "Microsoft.CodeCoverage": {
@@ -617,13 +617,13 @@
         "type": "Project",
         "dependencies": {
           "BrutalBreakout.Simulation": "[1.0.0, )",
-          "CrushKit.Brutal.Audio": "[0.1.0-preview.10, )"
+          "CrushKit.Brutal.Audio": "[0.1.0-preview.11, )"
         }
       },
       "brutalbreakout.input": {
         "type": "Project",
         "dependencies": {
-          "CrushKit.Brutal.Input": "[0.1.0-preview.10, )"
+          "CrushKit.Brutal.Input": "[0.1.0-preview.11, )"
         }
       },
       "brutalbreakout.runtime": {
@@ -632,15 +632,15 @@
           "BrutalBreakout.Audio": "[1.0.0, )",
           "BrutalBreakout.Input": "[1.0.0, )",
           "BrutalBreakout.Simulation": "[1.0.0, )",
-          "CrushKit.Brutal.Draw2D": "[0.1.0-preview.10, )",
-          "CrushKit.Brutal.Vulkan": "[0.1.0-preview.10, )"
+          "CrushKit.Brutal.Draw2D": "[0.1.0-preview.11, )",
+          "CrushKit.Brutal.Vulkan": "[0.1.0-preview.11, )"
         }
       },
       "brutalbreakout.simulation": {
         "type": "Project",
         "dependencies": {
-          "CrushKit.Brutal.Ecs": "[0.1.0-preview.10, )",
-          "CrushKit.Brutal.Physics": "[0.1.0-preview.10, )"
+          "CrushKit.Brutal.Ecs": "[0.1.0-preview.11, )",
+          "CrushKit.Brutal.Physics": "[0.1.0-preview.11, )"
         }
       }
     }

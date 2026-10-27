@@ -39,6 +39,7 @@ var cleanupSelfTest = args.Contains("--cleanup-self-test");
 if (smokeTest || cleanupSelfTest) VerifyCleanupFailureHandling();
 if (cleanupSelfTest) return;
 LoadedWindowConfiguration windowConfiguration;
+LoadedRenderingConfiguration renderingConfiguration;
 LoadedPhysicsConfiguration? physics;
 LoadedExecutionConfiguration? execution;
 LoadedGameplayConfiguration? gameplay;
@@ -55,6 +56,7 @@ LoadedInspectorConfiguration? inspectorConfiguration;
 try
 {
     windowConfiguration = WindowConfiguration.LoadForMode(args, AppContext.BaseDirectory, Environment.CurrentDirectory);
+    renderingConfiguration = RenderingConfiguration.LoadForMode(args, AppContext.BaseDirectory, Environment.CurrentDirectory);
     physics = PhysicsConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     execution = ExecutionConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
     gameplay = GameplayConfiguration.LoadForMode(args, !gallery, AppContext.BaseDirectory, Environment.CurrentDirectory);
@@ -74,7 +76,7 @@ try
 #endif
     if (overlaySmokeTest && overlays?.Settings.Enabled != true)
         throw new ArgumentException("Overlay smoke requires enabled overlays.");
-    ConfigurationValidation.Validate(physics, gameplay, shmup, trails, style, overlays);
+    ConfigurationValidation.Validate(physics, gameplay, shmup, trails, style, overlays, renderingConfiguration);
     Console.WriteLine(windowConfiguration.Describe());
     if (physics is not null) Console.WriteLine(physics.Describe());
     if (execution is not null) Console.WriteLine(execution.Describe());
@@ -132,7 +134,7 @@ try
     {
 #if BREAKOUT_EDITOR
         var gameplayControls = new GameplayControls(inspectorConfiguration!.GameplayWindow);
-        var configurationPaths = new Dictionary<string, string> { ["window"] = windowConfiguration.Path,
+        var configurationPaths = new Dictionary<string, string> { ["window"] = windowConfiguration.Path, ["rendering"] = renderingConfiguration.Path,
             ["inspector"] = inspectorConfiguration.Path };
         if (overlays is not null) configurationPaths["overlay"] = overlays.Path;
         if (physics is not null) configurationPaths["physics"] = physics.Path;
@@ -164,6 +166,7 @@ try
         if (overlays is not null) renderer.ConfigureOverlay(overlays.Settings);
 #endif
         using var shapes = new ShapeDrawList();
+        using var shmupRendering = new ShmupRendering(renderingConfiguration.Settings);
         Console.WriteLine(hiddenSmokeTest ? "Smoke: hidden GPU shape/resize validation (no minimize/restore)." :
             gallery ? "Close the window to exit. Expect twelve panels of Vulkan primitives (see README)." :
             "Breakout: leave the lower zone, hit something, return below the line to catch; release/repress to relaunch. R restarts. See README.");
@@ -210,6 +213,7 @@ try
         ShmupSession? presentationSmokeRun = null;
         long presentationSmokeTick = -1;
         bool presentationSmokeImmediate = false, presentationSmokeFifo = false;
+        bool meshSmokeDefault = false, meshSmokeTriangles = false, meshSmokeShared = false;
 #endif
         var staleFrameRegressionPassed = false;
         var resizeRequested = false;
@@ -256,12 +260,15 @@ try
                 var document = configurationWorkspace.Documents.Single(d => d.Section == "window");
                 document.Set("vsync", shmupFrames == 11);
                 document.Set("frameRateLimit", shmupFrames == 9 ? 60 : 0);
+                configurationWorkspace.Documents.Single(d => d.Section == "rendering").Set("path",
+                    shmupFrames == 9 ? "cpuBuiltTriangles" : "sharedMeshes");
             }
             if (shmupSmokeTest && shmupFrames == 15)
             {
                 configurationControls.Visible = true;
                 configurationControls.SetGroupOpen("shmup", true);
                 configurationControls.SetGroupOpen("shmup.ball", true);
+                configurationControls.SetGroupOpen("rendering", true);
                 configurationControls.SetGroupOpen("shmup.brick", true);
             }
             if (shmupSmokeTest && shmupFrames is 16 or 18)
@@ -296,9 +303,12 @@ try
                 if (candidate.ResetRequired)
                     modes.Reconfigure(nextPhysics.Settings, nextGameplay.Settings, nextShmup.Settings,
                         nextInput.Settings, nextExecution.Settings, nextTrails.Settings);
-                else
+                else if (new[] { "physics", "execution", "gameplay", "shmup", "input", "trails" }
+                    .Any(section => configurationWorkspace.IsChanged(candidate, section)))
                     modes.ApplyTuning(nextPhysics.Settings, nextGameplay.Settings, nextShmup.Settings,
                         nextInput.Settings, nextExecution.Settings, nextTrails.Settings);
+                if (configurationWorkspace.IsChanged(candidate, "rendering"))
+                    shmupRendering.ApplyPath(candidate.Get<LoadedRenderingConfiguration>("rendering")!.Settings.Path);
                 if (configurationWorkspace.IsChanged(candidate, "window"))
                 {
                     var nextWindow = candidate.Get<LoadedWindowConfiguration>("window")!;
@@ -333,7 +343,8 @@ try
                     presentationSmokeTick != modes.Shmup!.Simulation.Snapshot.Tick || !modes.Paused ||
                     windowConfiguration.Settings.VSync != (shmupFrames == 11) ||
                     windowConfiguration.Settings.FrameRateLimit != (shmupFrames == 9 ? 60 : 0) ||
-                    renderer.VSync != windowConfiguration.Settings.VSync)
+                    renderer.VSync != windowConfiguration.Settings.VSync ||
+                    shmupRendering.Path != (shmupFrames == 9 ? ShmupRenderingPath.CpuBuiltTriangles : ShmupRenderingPath.SharedMeshes))
                     throw new InvalidOperationException("Live presentation policy replaced/advanced the paused run or failed publication.");
             }
             if (shmupSmokeTest && shmupFrames == 16)
@@ -409,7 +420,7 @@ try
                 if (shmupFrames >= 70 && shmupSmokeStage == 3)
                 {
 #if BREAKOUT_EDITOR
-                    if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered || !configurationSmokeApplied || !configurationSmokeRejected || !configurationSmokeReset || !presentationSmokeImmediate || !presentationSmokeFifo || configurationControls.DrawCount < 2 || configurationControls.ScalarDrawCount == 0 || configurationControls.FirstVisibleField is null)
+                    if (gameplayControls.DrawCount < 2 || !callbackFailureRecovered || !configurationSmokeApplied || !configurationSmokeRejected || !configurationSmokeReset || !presentationSmokeImmediate || !presentationSmokeFifo || !meshSmokeDefault || !meshSmokeTriangles || !meshSmokeShared || configurationControls.DrawCount < 2 || configurationControls.ScalarDrawCount == 0 || configurationControls.FirstVisibleField is null)
                         throw new InvalidOperationException("Shmup smoke did not recover and redraw after the inspector callback failure.");
 #endif
                     if (shmupViewports.Count < 2 || !shmupSawBalls || !shmupSawBricks || !shmupSawAim || (trails!.Settings.Enabled && (!shmupSawTrails || shmupTrailViewports.Count < 2)))
@@ -573,6 +584,7 @@ try
             var framesBeforeDraw = renderer.PresentedFrames;
             var framebuffer = window.FramebufferSize;
             ShapeFrame? frame = null;
+            OrderedShapeFrame? orderedFrame = null;
             BallSandbox.GeometryEvidence gameplayGeometry = default;
             ShmupPresentation.GeometryEvidence shmupGeometry = default;
             ShapeShowcase.DecorativeEvidence decorative = default;
@@ -580,8 +592,8 @@ try
             if (!wasIconified && framebuffer.X > 0 && framebuffer.Y > 0)
             {
                 frame = gallery ? ShapeShowcase.Build(shapes, framebuffer.X, framebuffer.Y, out decorative) :
-                    shmupSession is not null ? ShmupPresentation.Build(shapes, shmupSession.Simulation.Snapshot, shmupSession.Settings,
-                        colors!.Settings, style!.Settings, framebuffer.X, framebuffer.Y, out shmupGeometry, shmupSession.Trails) :
+                    shmupSession is not null ? shmupRendering.Build(shapes, shmupSession.Simulation.Snapshot, shmupSession.Settings,
+                        colors!.Settings, style!.Settings, framebuffer.X, framebuffer.Y, out shmupGeometry, out orderedFrame, shmupSession.Trails) :
                     BallSandbox.Build(shapes, (gameplayScript?.Session ?? session!).Simulation, colors!.Settings, style!.Settings, now.TotalSeconds,
                         framebuffer.X + (injectStaleFrame ? 1 : 0), framebuffer.Y, out gameplayGeometry);
                 if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
@@ -612,11 +624,22 @@ try
                 renderer.SetOverlayFrame(overlayFrame);
             }
             var previousOverlay = renderer.OverlayEvidence;
-            var geometryPresented = renderer.Draw(frame, colors?.Settings.Background ?? ShapeShowcase.Background);
+            var geometryPresented = orderedFrame is { } sharedFrame
+                ? renderer.Draw(sharedFrame, colors?.Settings.Background ?? ShapeShowcase.Background)
+                : renderer.Draw(frame, colors?.Settings.Background ?? ShapeShowcase.Background);
             if (geometryPresented) presentedGeometryFrames++;
 #if BREAKOUT_EDITOR
+            if (shmupSmokeTest && !meshSmokeDefault && shmupFrames < 9 && geometryPresented && orderedFrame is { } initialMeshes && initialMeshes.Instances.Length > 0)
+            {
+                meshSmokeDefault = true;
+                Console.WriteLine($"Shared mesh default receipt: instances={initialMeshes.Instances.Length}; sameLimits={ReferenceEquals(initialMeshes.Limits, renderingConfiguration.Settings.Limits)}.");
+            }
             if (shmupSmokeTest && shmupFrames is 9 or 11)
             {
+                if (!geometryPresented || (shmupFrames == 9 ? orderedFrame is not null : orderedFrame is null || orderedFrame.Value.Instances.Length == 0))
+                    throw new InvalidOperationException("Live rendering path did not submit the requested geometry representation.");
+                if (shmupFrames == 9) meshSmokeTriangles = true; else meshSmokeShared = true;
+                Console.WriteLine($"Rendering path receipt: path={shmupRendering.Path}; instances={orderedFrame?.Instances.Length ?? 0}; sameRun=True; paused=True; tick={presentationSmokeTick}; noSave=True.");
                 var expected = shmupFrames == 9 ? Brutal.VulkanApi.VkPresentModeKHR.ImmediateKHR : Brutal.VulkanApi.VkPresentModeKHR.FifoKHR;
                 if (renderer.EffectivePresentMode != expected)
                     throw new InvalidOperationException("Swapchain did not apply the explicit present mode.");

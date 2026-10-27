@@ -1,0 +1,10 @@
+{
+  "path": "sharedMeshes",
+  "limits": {
+    "meshCount": 128,
+    "cpuBytes": 8388608,
+    "gpuBytes": 8388608,
+    "instances": 8192,
+    "operations": 16384
+  }
+}

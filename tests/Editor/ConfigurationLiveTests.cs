@@ -38,6 +38,55 @@ public sealed class ConfigurationLiveTests
     }
 
     [Fact]
+    public void RenderingChoiceRoundTripSaveReloadDiscardAndRejectionNeverTouchesPausedWorld()
+    {
+        WithHost((w, host) =>
+        {
+            var session = host.Shmup!;
+            var view = new ShmupViewport(1280, 720, 1280, 720, session.Settings.Arena);
+            var input = new InputSnapshot { Focused = true };
+            session.Advance(input, 0, view);
+            for (int n = 0; n < 12; n++) session.Advance(input with { KeyboardPrimary = true }, .01, view);
+            host.TogglePause();
+            var snapshot = session.Simulation.Snapshot; var simulation = session.Simulation;
+            var history = session.Trails!; int points = history.PointCount, ticks = session.TotalTicks;
+            var document = Doc(w, "rendering"); string source = File.ReadAllText(document.Path);
+            var policy = RenderingConfiguration.Load(document.Path).Settings;
+            using var rendering = new ShmupRendering(policy);
+            void Commit(ConfigurationWorkspace.Candidate c)
+            {
+                Assert.False(c.ResetRequired);
+                Assert.All(new[] { "physics", "execution", "gameplay", "shmup", "input", "trails" }, s => Assert.False(w.IsChanged(c, s)));
+                rendering.ApplyPath(c.Get<LoadedRenderingConfiguration>("rendering")!.Settings.Path);
+                Assert.Same(session, host.Shmup); Assert.Same(simulation, session.Simulation);
+                Assert.Same(snapshot, simulation.Snapshot); Assert.Same(history, session.Trails);
+                Assert.Equal(points, history.PointCount); Assert.Equal(ticks, session.TotalTicks); Assert.True(host.Paused);
+                Assert.Same(policy.Limits, rendering.Limits);
+            }
+            Assert.Equal(ConfigurationEffect.Live, ConfigurationImpact.For("rendering.path").Effect);
+            Assert.Equal(ConfigurationEffect.Relaunch, ConfigurationImpact.For("rendering.limits.instances").Effect);
+            document.Set("path", "cpuBuiltTriangles"); w.Process(Commit);
+            Assert.Equal(ShmupRenderingPath.CpuBuiltTriangles, rendering.Path);
+            Assert.Equal(source, File.ReadAllText(document.Path)); Assert.True(document.Unsaved); Assert.False(document.Pending);
+            document.Set("path", "sharedMeshes"); w.Process(Commit);
+            Assert.Equal(ShmupRenderingPath.SharedMeshes, rendering.Path);
+            document.Set("path", "invalid"); w.Process(Commit);
+            Assert.Equal(ShmupRenderingPath.SharedMeshes, rendering.Path); Assert.StartsWith("Rejected:", w.Status);
+            w.Request(ConfigurationAction.Discard); w.Process(Commit);
+            document.Set("path", "cpuBuiltTriangles"); w.Process(Commit);
+            w.Request(ConfigurationAction.Save); w.Process(Commit);
+            Assert.Equal(ShmupRenderingPath.CpuBuiltTriangles, RenderingConfiguration.Load(document.Path).Settings.Path);
+            document.Set("path", "sharedMeshes"); w.Process(Commit);
+            w.Request(ConfigurationAction.Reload); w.Process(Commit);
+            Assert.Equal(ShmupRenderingPath.CpuBuiltTriangles, rendering.Path);
+            document.Set("path", "sharedMeshes"); w.Process(Commit);
+            w.Request(ConfigurationAction.Discard); w.Process(Commit);
+            Assert.Equal(ShmupRenderingPath.CpuBuiltTriangles, rendering.Path);
+            Assert.Empty(w.PendingResetFields); Assert.Empty(w.PendingRelaunchFields);
+        });
+    }
+
+    [Fact]
     public void AutomaticPausedMixedLiveFutureResetAndRelaunchRetainsRunHistoryAndExactSettingsReferences()
     {
         WithHost((w, host) =>

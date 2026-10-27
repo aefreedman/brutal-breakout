@@ -7,7 +7,7 @@ public sealed class ConfigurationWorkspaceTests
 {
     internal static Dictionary<string, string> Paths(string? root = null) => new[]
     {
-        "window", "physics", "execution", "gameplay", "shmup", "input", "trails", "colors", "style", "audio", "overlay", "inspector"
+        "window", "rendering", "physics", "execution", "gameplay", "shmup", "input", "trails", "colors", "style", "audio", "overlay", "inspector"
     }.ToDictionary(s => s, s => Path.Combine(root ?? AppContext.BaseDirectory, "Config", s + ".json"));
     internal static ConfigurationWorkspace Create() => new(Paths(), true);
     internal static ConfigurationWorkspace.Document Doc(ConfigurationWorkspace workspace, string section) => workspace.Documents.Single(d => d.Section == section);

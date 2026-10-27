@@ -22,7 +22,13 @@ public static class ShmupPresentation
     internal static OrderedShapeFrame BuildBaked(ShapeDrawList draw,ShmupSnapshot snapshot,ShmupSettings settings,
         ColorScheme colors,PresentationStyle style,int width,int height,BallTrailHistory? trails,BakedPresentationMeshes baked)
     {
-        BuildCore(draw,snapshot,settings,colors,style,width,height,out _,trails,baked,out var ordered);return ordered;
+        return BuildBaked(draw,snapshot,settings,colors,style,width,height,trails,baked,out _);
+    }
+    internal static OrderedShapeFrame BuildBaked(ShapeDrawList draw,ShmupSnapshot snapshot,ShmupSettings settings,
+        ColorScheme colors,PresentationStyle style,int width,int height,BallTrailHistory? trails,BakedPresentationMeshes baked,
+        out GeometryEvidence evidence)
+    {
+        BuildCore(draw,snapshot,settings,colors,style,width,height,out evidence,trails,baked,out var ordered);return ordered;
     }
     private static ShapeFrame BuildCore(ShapeDrawList draw,ShmupSnapshot snapshot,ShmupSettings settings,
         ColorScheme colors,PresentationStyle style,int width,int height,out GeometryEvidence evidence,

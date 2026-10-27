@@ -4,7 +4,7 @@ using CrushKit.Brutal.Draw2D;
 
 namespace BrutalBreakout.Presentation;
 
-/// <summary>Explicit comparison-path owner, not a production mode/default or simulation entity cache.</summary>
+/// <summary>Bounded app-lifetime geometry owner, independent of simulation entities and borrowed frames.</summary>
 internal sealed class BakedPresentationMeshes : IDisposable
 {
     internal OrderedShapeDrawList Draw { get; }
@@ -24,6 +24,9 @@ internal sealed class BakedPresentationMeshes : IDisposable
     {
         Draw.BeginFrame();
         if(ReferenceEquals(geometry,next))return;
+        // Configuration reparsing may replace an equal-valued immutable geometry object.
+        // Compare authoritative decompositions only at that boundary, never on the stable frame path.
+        if(geometry is not null && Equivalent(geometry,next)){geometry=next;return;}
         for(int k=1;k<=20;k++)Draw.InvalidateMesh(k);
         var sources=new MeshRectangle[20][];var maximums=new double[20];
         for(int s=0;s<5;s++)for(int q=0;q<4;q++)
@@ -38,6 +41,12 @@ internal sealed class BakedPresentationMeshes : IDisposable
             sources[k]=source;
         }
         rectangles=sources;bounds=maximums;geometry=next;
+    }
+    private static bool Equivalent(ShmupBrickGeometry a,ShmupBrickGeometry b)
+    {
+        for(int s=0;s<5;s++)for(int q=0;q<4;q++)
+            if(!a.Rectangles((ShmupBrickShape)s,q).SequenceEqual(b.Rectangles((ShmupBrickShape)s,q)))return false;
+        return true;
     }
     internal bool Brick(ShapeDrawList draw,ShmupBrickShape shape,int turns,double2 position,LinearColor color)
     {

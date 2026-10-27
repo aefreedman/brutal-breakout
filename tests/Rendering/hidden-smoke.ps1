@@ -156,6 +156,11 @@ try {
     }
     if ($sizes.Count -lt 2) { throw 'Missing distinct nonempty resize viewports.' }
     } elseif ($Mode -eq 'Shmup') {
+        if ($output -notmatch 'Shared mesh default receipt: instances=[1-9]\d*; sameLimits=True\.' -or
+            $output -notmatch 'Rendering path receipt: path=CpuBuiltTriangles; instances=0; sameRun=True; paused=True; tick=\d+; noSave=True\.' -or
+            $output -notmatch 'Rendering path receipt: path=SharedMeshes; instances=[1-9]\d*; sameRun=True; paused=True; tick=\d+; noSave=True\.') {
+            throw 'Missing default shared instances or live triangle-to-shared rendering without reset/save.'
+        }
         if ($output -notmatch 'Presentation policy receipt: effective=ImmediateKHR; cap=60; sameRun=True; paused=True; tick=\d+; noSave=True\.' -or
             $output -notmatch 'Presentation policy receipt: effective=FifoKHR; cap=0; sameRun=True; paused=True; tick=\d+; noSave=True\.') {
             throw 'Missing live VSync/cap mode-switch receipts without reset/save.'

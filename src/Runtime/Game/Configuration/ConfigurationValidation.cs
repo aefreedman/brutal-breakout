@@ -8,8 +8,16 @@ public static class ConfigurationValidation
 {
     public static void Validate(LoadedPhysicsConfiguration? physics, LoadedGameplayConfiguration? gameplay,
         LoadedShmupConfiguration? shmup, LoadedBallTrailConfiguration? trails,
-        LoadedPresentationStyleConfiguration? style, LoadedOverlayConfiguration? overlay)
+        LoadedPresentationStyleConfiguration? style, LoadedOverlayConfiguration? overlay, LoadedRenderingConfiguration? rendering = null)
     {
+        if (rendering is not null && shmup is not null)
+        {
+            try { rendering.Settings.Validate(shmup.Settings); }
+            catch (ArgumentException error)
+            {
+                throw new ArgumentException($"Rendering configuration '{rendering.Path}' cannot cover Shmup configuration '{shmup.Path}': {error.Message}", error);
+            }
+        }
         if (trails is not null && shmup is not null) BallTrailConfiguration.ValidateCapacity(trails, shmup);
         if (style is not null && gameplay is not null) style.Settings.Validate(gameplay.Settings);
         if (physics is not null && gameplay is not null) GameplayConfiguration.ValidatePhysics(gameplay, physics);

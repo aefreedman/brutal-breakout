@@ -62,7 +62,7 @@ public class BakedPresentationTests
         Assert.NotEqual(square,l);Assert.Equal(2,owner.Draw.MeshBakes);
         for(int i=0;i<1000;i++)
         {
-            draw.BeginFrame(1280,720);owner.Begin(new ShmupBrickGeometry(10,14+i*.0001));
+            draw.BeginFrame(1280,720);owner.Begin(new ShmupBrickGeometry(10,14+(i+1)*.0001));
             Assert.True(owner.Brick(draw,ShmupBrickShape.T,i%4,new(100,200),new(.2f,.4f,.6f)));
             owner.Draw.Finish(draw);Assert.Equal(1,owner.Draw.CpuMeshCount);Assert.InRange(owner.Draw.CpuMeshBytes,8192,Limits().CpuBytes);
         }

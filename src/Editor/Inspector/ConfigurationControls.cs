@@ -11,6 +11,7 @@ namespace BrutalBreakout.Editor;
 /// <summary>Native scalar widgets over authoritative JSON. No I/O, validation or resource changes occur in Draw.</summary>
 public sealed class ConfigurationControls
 {
+    private static readonly string[] RenderingPaths = ["sharedMeshes", "cpuBuiltTriangles"];
     public ConfigurationWorkspace Workspace { get; }
     public bool Visible { get; set; }
     public int DrawCount { get; private set; }
@@ -93,7 +94,7 @@ public sealed class ConfigurationControls
                 Ui.TextWrapped("Geometry: game units; speed: units/sec; duration: seconds; angles: quarter turns. LIVE applies at the next owner update, even paused. FUTURE changes new-spawn/next-reset defaults only. RESET rebuilds structural worlds only on explicit request. RELAUNCH rebuilds font/render resources after saving. Invalid live edits keep last valid tuning. Reload/Discard stage source and valid live values take effect automatically. Save never resets. Generic arrays edit existing entries only."u8);
             }
             if (Workspace.RuntimeDiagnostic is { } diagnostic) Ui.TextWrapped(Bytes(diagnostic));
-            string[] order = ["shmup", "gameplay", "colors", "trails", "style", "audio", "physics", "execution", "input", "window", "overlay", "inspector"];
+            string[] order = ["shmup", "gameplay", "rendering", "colors", "trails", "style", "audio", "physics", "execution", "input", "window", "overlay", "inspector"];
             foreach (var document in Workspace.Documents.OrderBy(d => Array.IndexOf(order, d.Section)))
             {
                 string state = (document.Unsaved ? "unsaved" : "saved") + " | " +
@@ -125,6 +126,24 @@ public sealed class ConfigurationControls
                 else if (node.ValueKind == JsonValueKind.Array)
                 {
                     if (Group(id, Label(key))) DrawArray(document, node, id, key);
+                }
+                else if (id == "rendering.path" && node.ValueKind == JsonValueKind.String)
+                {
+                    string selected = node.GetString()!;
+                    Ui.TextWrapped("Rendering path [LIVE]"u8);
+                    Ui.SetItemTooltip(Bytes(ConfigurationImpact.For(id).Reason));
+                    Ui.SetNextItemWidth(-1);
+                    static string Name(string value) => value == "sharedMeshes" ? "Shared meshes" : value == "cpuBuiltTriangles" ? "CPU-built triangles" : value;
+                    if (Ui.BeginCombo(Bytes("##" + id), Bytes(Name(selected)), ImGuiComboFlags.None))
+                    {
+                        try
+                        {
+                            foreach (string value in RenderingPaths)
+                                if (Ui.Selectable(Bytes(Name(value)), value == selected, ImGuiSelectableFlags.None, default))
+                                    EditValue(document, editKeys, JsonValue.Create(value));
+                        }
+                        finally { Ui.EndCombo(); }
+                    }
                 }
                 else if (path == "colors.roles" && node.ValueKind == JsonValueKind.String)
                 {

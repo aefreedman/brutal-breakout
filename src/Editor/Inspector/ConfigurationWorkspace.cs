@@ -163,6 +163,7 @@ public sealed class ConfigurationWorkspace
                 "colors" => text => ColorSchemeConfiguration.Load(path, text),
                 "style" => text => PresentationStyleConfiguration.Load(path, text),
                 "audio" => text => AudioConfiguration.Load(path, text),
+                "rendering" => text => RenderingConfiguration.Load(path, text),
                 "window" => text => WindowConfiguration.Load(path, text),
                 "overlay" => text => OverlayConfiguration.Load(path, text),
                 "inspector" => text => InspectorConfiguration.Load(path, text),
@@ -196,7 +197,8 @@ public sealed class ConfigurationWorkspace
                 ? appliedCandidate.loaded[d.Section] : d.Load(texts[d.Section])), texts);
         ConfigurationValidation.Validate(candidate.Get<LoadedPhysicsConfiguration>("physics"), candidate.Get<LoadedGameplayConfiguration>("gameplay"),
             candidate.Get<LoadedShmupConfiguration>("shmup"), candidate.Get<LoadedBallTrailConfiguration>("trails"),
-            candidate.Get<LoadedPresentationStyleConfiguration>("style"), candidate.Get<LoadedOverlayConfiguration>("overlay"));
+            candidate.Get<LoadedPresentationStyleConfiguration>("style"), candidate.Get<LoadedOverlayConfiguration>("overlay"),
+            candidate.Get<LoadedRenderingConfiguration>("rendering"));
         if (candidate.Get<LoadedOverlayConfiguration>("overlay") is { } overlay) InspectorHost.Validate(overlay.Settings);
         return candidate;
     }
