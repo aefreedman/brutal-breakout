@@ -1,6 +1,6 @@
 # brutal-breakout
 
-A Windows-first 2D game built with C# and [BRUTAL](https://github.com/ahwootech/BRUTAL): brick clearing with the Unity prototype's **catch line → aim → separate relaunch** interaction, plus an optional Shmup hybrid mode. It uses a small direct Vulkan renderer, not a general engine.
+Breakout inspired 2D game prototypes built with C# and [BRUTAL](https://github.com/ahwootech/BRUTAL).
 
 ## Requirements
 
