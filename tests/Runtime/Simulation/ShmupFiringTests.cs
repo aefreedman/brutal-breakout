@@ -124,6 +124,29 @@ public sealed class ShmupFiringTests
     }
 
     [Fact]
+    public void RoundedFinalGridBoundaryStopsAtOneTickWith481IntervalsAndTickStartBirth()
+    {
+        var physics = TestSettings.Baseline;
+        var settings = ShmupSettingsTests.Settings(threshold: 1, speed: 86460, descent: 30);
+        Assert.Equal(481, Math.Ceiling((settings.Ball.Speed + 30) * physics.StepSeconds / (settings.Ball.Radius / 2)));
+        using var native = new NativeShmupArena(physics, settings, new(1, 64, 1));
+        native.ActivateBrick(0, new(400, 0));
+        int births = 0;
+        native.Step(30, new(640, 696), new(640, 696), [0], offset =>
+        {
+            Assert.Equal(0, offset);
+            births++;
+            native.ActivateBall(0, new(640, 696), new(0, -1));
+        });
+        Assert.Equal(1, births);
+        Assert.Equal(481, native.LastIntervalCount);
+        double travel = 696 - native.BallPosition(0).Y;
+        Assert.InRange(travel, 720.45, 720.55); // speed * one remaining tick = 720.5
+        Assert.InRange(travel / settings.Ball.Speed, physics.StepSeconds - 1e-6, physics.StepSeconds + 1e-6);
+        Assert.InRange(native.BrickPosition(0).Y, .2499, .2501); // descent * one tick = .25
+    }
+
+    [Fact]
     public void LateBirthCannotCollideWithEarlierBrickPath()
     {
         var settings = ShmupSettingsTests.Settings(threshold: 1, bounce: false, speed: 1, descent: 12000);

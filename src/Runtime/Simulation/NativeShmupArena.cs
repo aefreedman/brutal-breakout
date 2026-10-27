@@ -383,7 +383,9 @@ internal sealed class NativeShmupArena : IDisposable
             // Previous interval's jobs, event traversal and expiry have all completed here.
             while (shot < births.Length && births[shot] <= elapsed + tolerance)
                 birth!(births[shot++]);
-            double end = grid * physics.StepSeconds / intervals;
+            // Pin the final grid boundary: multiply/divide rounding can otherwise
+            // leave elapsed below the tick end and admit an extra full interval.
+            double end = grid == intervals ? physics.StepSeconds : grid * physics.StepSeconds / intervals;
             if (shot < births.Length && births[shot] < end - tolerance) end = births[shot];
             else grid++;
             double dt = end - elapsed;
