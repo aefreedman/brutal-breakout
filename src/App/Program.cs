@@ -328,7 +328,7 @@ try
             }
             if (configurationControls.DrainClipboardText() is { } clipboardText)
             {
-                try { Glfw.SetClipboard(clipboardText); configurationFeedback.Copied(frameStart); }
+                try { Glfw.SetClipboard(clipboardText); configurationWorkspace.ClearReportedFailure(); configurationFeedback.Copied(frameStart); }
                 catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException) { configurationWorkspace.ReportFailure(error); }
             }
             configurationWorkspace.InactiveModeSection = modes?.Mode == GameplayMode.Shmup ? "gameplay" : modes?.Mode == GameplayMode.Breakout ? "shmup" : null;

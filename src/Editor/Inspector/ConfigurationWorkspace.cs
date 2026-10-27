@@ -6,7 +6,11 @@ using CrushKit.Brutal.ImGui;
 namespace BrutalBreakout.Editor;
 
 public enum ConfigurationAction { None, Apply, Save, Discard, Reload }
-public sealed record ConfigurationOutcome(long Sequence, ConfigurationAction Action, bool Succeeded, bool Warning, string Message);
+public enum ConfigurationOutcomeOrigin { UserOperation, LiveApply, External }
+public sealed record ConfigurationOutcome(long Sequence, ConfigurationAction Action, bool Succeeded, bool Warning, string Message)
+{
+    public ConfigurationOutcomeOrigin Origin { get; init; }
+}
 
 /// <summary>App-specific registry. Draft JSON retains asset spellings; production loaders own every schema and rule.</summary>
 public sealed class ConfigurationWorkspace
@@ -129,8 +133,31 @@ public sealed class ConfigurationWorkspace
     public string Status { get; private set; } = "Valid safe edits apply automatically. Save and structural reset are separate.";
     public ConfigurationOutcome? LastOutcome { get; private set; }
     private long outcomeSequence;
-    private void PublishOutcome(ConfigurationAction action) => LastOutcome = new(++outcomeSequence, action,
-        !Status.StartsWith("Rejected:", StringComparison.Ordinal), Status.Contains("warning:", StringComparison.OrdinalIgnoreCase), Status);
+    private string normalStatus = "";
+    private string? liveFailure, operationFailure, externalFailure;
+    private ConfigurationAction failedOperation;
+    private void PublishOutcome(ConfigurationAction action, string message, bool succeeded, ConfigurationOutcomeOrigin origin) =>
+        LastOutcome = new(++outcomeSequence, action, succeeded, message.Contains("warning:", StringComparison.OrdinalIgnoreCase), message) { Origin = origin };
+    private void RefreshStatus()
+    {
+        string? failures = externalFailure;
+        if (operationFailure is not null) failures = failures is null ? operationFailure : failures + "\n" + operationFailure;
+        if (liveFailure is not null) failures = failures is null ? liveFailure : failures + "\n" + liveFailure;
+        Status = failures ?? normalStatus;
+    }
+    private void OperationSucceeded(ConfigurationAction action, string message)
+    {
+        normalStatus = message;
+        // An unrelated successful operation must not make a failed save/conflict disappear.
+        if (failedOperation == action || action == ConfigurationAction.Reload) operationFailure = null;
+        if (action == ConfigurationAction.Apply) liveFailure = null;
+        RefreshStatus();
+    }
+    private void RejectLive(string message, bool publish)
+    {
+        liveFailure = message; RefreshStatus();
+        if (publish) PublishOutcome(ConfigurationAction.None, message, false, ConfigurationOutcomeOrigin.LiveApply);
+    }
     private long revision, lastAttempt = -1;
     private string? inactiveModeSection, liveContextRevision;
     private Action<Candidate>? preflightLive;
@@ -172,7 +199,7 @@ public sealed class ConfigurationWorkspace
     internal Action<string> DeleteTemporaryFile { get; set; } = File.Delete;
     public ConfigurationWorkspace(IReadOnlyDictionary<string, string> paths, bool runtimeAvailable)
     {
-        RuntimeAvailable = runtimeAvailable;
+        RuntimeAvailable = runtimeAvailable; normalStatus = Status;
         documentView = documents.AsReadOnly();
         foreach (var (section, path) in paths)
         {
@@ -201,7 +228,13 @@ public sealed class ConfigurationWorkspace
     public void Request(ConfigurationAction action) => request = action;
     public bool IsChanged(Candidate candidate, string section) =>
         documents.Any(d => d.Section == section && !Equivalent(d.Applied, candidate.Texts[section]));
-    public void ReportFailure(Exception error) { Status = "Rejected: " + error.Message; PublishOutcome(ConfigurationAction.None); }
+    public void ReportFailure(Exception error)
+    {
+        externalFailure = "Rejected: " + error.Message; RefreshStatus();
+        PublishOutcome(ConfigurationAction.None, externalFailure, false, ConfigurationOutcomeOrigin.External);
+    }
+    /// <summary>The reporting owner explicitly clears an external failure only after its operation recovers.</summary>
+    public void ClearReportedFailure() { externalFailure = null; RefreshStatus(); }
     private Dictionary<string, string> Capture(bool runtimeOnly) => documents.ToDictionary(d => d.Section,
         d => runtimeOnly && !d.Runtime ? d.Applied : d.Text, StringComparer.Ordinal);
 
@@ -229,29 +262,22 @@ public sealed class ConfigurationWorkspace
     /// <summary>Owner update only. Captures independent strings before validating/allocating; no native work in Draw.</summary>
     public void Process(Action<Candidate> apply)
     {
-        var action = request; long beforeAttempt = lastAttempt, beforeOutcome = outcomeSequence;
-        ProcessCore(apply);
-        // Successful drags are intentionally quiet. Explicit operations and genuinely new failed attempts are events.
-        if (beforeOutcome == outcomeSequence && (action != ConfigurationAction.None ||
-            lastAttempt != beforeAttempt && Status.StartsWith("Rejected:", StringComparison.Ordinal))) PublishOutcome(action);
-    }
-    private void ProcessCore(Action<Candidate> apply)
-    {
         var action = request; request = ConfigurationAction.None;
         if (action == ConfigurationAction.None) { AutoApply(apply); return; }
         try
         {
+            string result;
             switch (action)
             {
                 case ConfigurationAction.Discard:
                     foreach (var d in documents) d.Discard();
-                    Status = "Discarded drafts to source; valid live values apply automatically.";
+                    result = "Discarded drafts to source; valid live values apply automatically.";
                     break;
                 case ConfigurationAction.Reload:
                     var disk = documents.ToDictionary(d => d.Section, d => File.ReadAllText(d.Path));
                     Validate(disk, reuseApplied: false);
                     foreach (var d in documents) d.Reload(disk[d.Section]);
-                    Status = "Reloaded sources; valid live values apply automatically. Structural/relaunch values remain pending.";
+                    result = "Reloaded sources; valid live values apply automatically. Structural/relaunch values remain pending.";
                     break;
                 case ConfigurationAction.Apply:
                     if (!RuntimeAvailable) throw new InvalidOperationException("Runtime Apply is unavailable in showcase/sandbox modes.");
@@ -259,20 +285,27 @@ public sealed class ConfigurationWorkspace
                     candidate.ResetRequired = PendingResetFields.Count > 0;
                     apply(candidate);
                     Commit(candidate);
-                    Status = candidate.ResetRequired ? "Runtime applied; structural reset completed (mode/pause kept). Not saved. Relaunch drafts NOT applied."
+                    result = candidate.ResetRequired ? "Runtime applied; structural reset completed (mode/pause kept). Not saved. Relaunch drafts NOT applied."
                         : "Runtime applied live; run retained. Not saved. Relaunch drafts NOT applied.";
                     break;
                 case ConfigurationAction.Save:
                     var texts = Capture(false);
                     Validate(texts, reuseApplied: false);
                     var cleanupWarning = Save(texts);
-                    Status = "Saved changed sources. Save does NOT reset or apply structural/relaunch fields.";
-                    if (cleanupWarning is not null) Status += " " + cleanupWarning;
+                    result = "Saved changed sources. Save does NOT reset or apply structural/relaunch fields.";
+                    if (cleanupWarning is not null) result += " " + cleanupWarning;
                     break;
+                default: throw new ArgumentOutOfRangeException(nameof(action));
             }
+            OperationSucceeded(action, result);
+            if (action is ConfigurationAction.Discard or ConfigurationAction.Reload) AutoApply(apply, publishFailure: false);
+            PublishOutcome(action, result, true, ConfigurationOutcomeOrigin.UserOperation);
         }
-        catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException) { ReportFailure(error); return; }
-        if (action is ConfigurationAction.Discard or ConfigurationAction.Reload) AutoApply(apply);
+        catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException)
+        {
+            failedOperation = action; operationFailure = "Rejected: " + error.Message; RefreshStatus();
+            PublishOutcome(action, operationFailure, false, ConfigurationOutcomeOrigin.UserOperation);
+        }
     }
     private Dictionary<string, string> Merged(bool reset)
     {
@@ -284,13 +317,21 @@ public sealed class ConfigurationWorkspace
         foreach (var d in documents) d.Applied = candidate.Texts[d.Section];
         appliedCandidate = candidate;
     }
-    private void AutoApply(Action<Candidate> apply)
+    private void AutoApply(Action<Candidate> apply, bool publishFailure = true)
     {
         if (!RuntimeAvailable) return;
         if (revision == lastAttempt) return;
         lastAttempt = revision; // Includes invalid attempts: unchanged invalid frames do not parse/load/allocate again.
         var texts = Merged(false);
-        if (documents.All(d => Equivalent(d.Applied, texts[d.Section]))) return;
+        if (documents.All(d => Equivalent(d.Applied, texts[d.Section])))
+        {
+            if (liveFailure is not null)
+            {
+                liveFailure = null; normalStatus = "Live draft recovered; valid runtime values retained. Save/reset/relaunch are separate.";
+                RefreshStatus();
+            }
+            return;
+        }
         try
         {
             Candidate candidate;
@@ -327,17 +368,19 @@ public sealed class ConfigurationWorkspace
                     }
                 }
                 if (documents.All(d => Equivalent(d.Applied, accepted[d.Section])))
-                { Status = "Rejected: live values pending against current structural settings: " + pending; return; }
+                { RejectLive("Rejected: live values pending against current structural settings: " + pending, publishFailure); return; }
                 candidate = ValidateLive(accepted);
                 if (documents.All(d => Equivalent(texts[d.Section], accepted[d.Section]))) pending = null;
             }
             apply(candidate);
             Commit(candidate);
-            Status = pending is null ? "Runtime applied live; run retained. Save/reset/relaunch are separate."
-                : "Rejected: some live values remain pending against current structural settings: " + pending + ". Other valid live edits applied.";
+            normalStatus = "Runtime applied live; run retained. Save/reset/relaunch are separate.";
+            if (pending is null) { liveFailure = null; RefreshStatus(); }
+            else RejectLive("Rejected: some live values remain pending against current structural settings: " + pending + ". Other valid live edits applied.", publishFailure);
             lastAttempt = revision;
         }
-        catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException) { ReportFailure(error); }
+        catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException)
+        { RejectLive("Rejected: " + error.Message, publishFailure); }
     }
     private string? Save(Dictionary<string, string> texts)
     {

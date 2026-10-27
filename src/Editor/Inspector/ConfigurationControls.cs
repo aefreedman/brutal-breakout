@@ -43,6 +43,21 @@ public sealed class ConfigurationControls
     internal (float2 Minimum, float2 Maximum, bool Visible) RelaunchNoticeBounds { get; private set; }
     internal (float2 Minimum, float2 Maximum, bool Visible) RuntimeDiagnosticBounds { get; private set; }
     internal float2 NavigationOrigin { get; private set; }
+    internal (float2 Minimum, float2 Maximum, bool Visible) StatusDetailsBounds { get; private set; }
+    internal (float2 Minimum, float2 Maximum, bool Visible) RuntimeDetailsBounds { get; private set; }
+    internal ConfigurationDiagnosticPresentation? StatusPresentation { get; private set; }
+    internal ConfigurationDiagnosticPresentation? RuntimePresentation { get; private set; }
+    private string? presentedStatus, presentedRuntime;
+    private void RefreshDiagnostics()
+    {
+        if (!string.Equals(presentedStatus, Workspace.Status, StringComparison.Ordinal))
+        { presentedStatus = Workspace.Status; StatusPresentation = new(presentedStatus); }
+        if (!string.Equals(presentedRuntime, Workspace.RuntimeDiagnostic, StringComparison.Ordinal))
+        {
+            presentedRuntime = Workspace.RuntimeDiagnostic;
+            RuntimePresentation = presentedRuntime is null ? null : new(presentedRuntime, runtime: true);
+        }
+    }
     public void SelectCategory(string id)
     {
         int index = Array.FindIndex(categories, category => category.Id == id);
@@ -103,7 +118,7 @@ public sealed class ConfigurationControls
     public void Draw()
     {
         if (!Visible) return;
-        DrawCount++;
+        DrawCount++; RefreshDiagnostics();
         FirstVisibleField = null; FirstVisibleAction = null;
         foreach (var document in Workspace.Documents)
         {
@@ -196,10 +211,7 @@ public sealed class ConfigurationControls
         ToolLayout.SameLineIfFits("Help"u8);
         if (Ui.Button("Help"u8)) groups["$help"] = !groups.GetValueOrDefault("$help");
         Feedback?.DrawSummary();
-        bool rejected = Workspace.Status.StartsWith("Rejected:", StringComparison.Ordinal);
-        Text(rejected ? Workspace.Status : Workspace.Status.Contains("warning:", StringComparison.OrdinalIgnoreCase)
-            ? Workspace.Status : "Live edits; Save is separate.", rejected ? InspectorTone.Error :
-                Workspace.Status.Contains("warning:", StringComparison.OrdinalIgnoreCase) ? InspectorTone.Warning : InspectorTone.Secondary);
+        Text(StatusPresentation!.SummaryUtf8, StatusPresentation.Tone);
         StatusBounds = CurrentItemBounds();
         if (!Workspace.RuntimeAvailable) Ui.TextWrapped("Live tuning unavailable in this mode."u8);
         if (Workspace.PendingResetFields.Count > 0)
@@ -212,9 +224,9 @@ public sealed class ConfigurationControls
             Text($"Relaunch required: {Workspace.PendingRelaunchFields.Count} field(s).", InspectorTone.Warning);
             RelaunchNoticeBounds = CurrentItemBounds();
         }
-        if (Workspace.RuntimeDiagnostic is { } diagnostic)
+        if (RuntimePresentation is { } runtime)
         {
-            Text(diagnostic, InspectorTone.Warning);
+            Text(runtime.SummaryUtf8, InspectorTone.Warning);
             RuntimeDiagnosticBounds = CurrentItemBounds();
         }
         Ui.Separator();
@@ -222,7 +234,15 @@ public sealed class ConfigurationControls
     private void DrawPolicyHelp()
     {
         ToolLayout.Heading("Help / pending reasons"u8);
-        Ui.TextWrapped(Bytes(Workspace.Status));
+        StatusPresentation!.DrawDetails("##persistent.status"u8);
+        StatusDetailsBounds = CurrentItemBounds();
+        RuntimeDetailsBounds = default;
+        if (RuntimePresentation is { } runtime)
+        {
+            Ui.TextWrapped("Runtime diagnostic"u8);
+            runtime.DrawDetails("##persistent.runtime"u8);
+            RuntimeDetailsBounds = CurrentItemBounds();
+        }
         Ui.TextWrapped("LIVE: next owner update, even paused. FUTURE: new spawns/reset defaults. RESET: explicit structural rebuild. RELAUNCH: save then restart the app. Save never resets. Reload/Discard restore source drafts. Generic arrays keep their length."u8);
         foreach (var field in Workspace.PendingResetFields) Ui.TextWrapped(Bytes(field));
         foreach (var field in Workspace.PendingRelaunchFields) Ui.TextWrapped(Bytes(field));
@@ -460,9 +480,10 @@ public sealed class ConfigurationControls
             case ToolFieldActionKind.Preset: document.Set(keys, description.PresetValue(action.PresetIndex)); widgetErrors.Remove(description.Property.Id); break;
         }
     }
-    private void Text(string message, InspectorTone tone)
+    private void Text(string message, InspectorTone tone) => Text(Bytes(message), tone);
+    private void Text(ReadOnlySpan<byte> message, InspectorTone tone)
     {
-        if (Theme is null) Ui.TextWrapped(Bytes(message)); else Theme.TextWrapped(Bytes(message), tone);
+        if (Theme is null) Ui.TextWrapped(message); else Theme.TextWrapped(message, tone);
     }
     private void RecordField(string id)
     {

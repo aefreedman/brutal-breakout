@@ -108,6 +108,55 @@ public sealed class ConfigurationPolishNativeTests
             Assert.NotSame(retained, cache["shmup.ball.speed"]);
         });
     }
+    [Theory]
+    [InlineData(160)] [InlineData(240)]
+    public void LongPersistentDiagnosticsUseCachedSafeSummariesInTinyPanels(int height)
+    {
+        var workspace = new ConfigurationWorkspace(new Dictionary<string, string> { ["window"] = ConfigurationWorkspaceTests.Paths()["window"] }, true);
+        string raw = string.Concat(Enumerable.Repeat("Long 😀 diagnostic\0\uD800x\uDC00", 1000)) + "TAIL";
+        workspace.ReportFailure(new IOException("Source changed externally: " + raw));
+        workspace.RuntimeDiagnostic = raw;
+        var controls = new ConfigurationControls(workspace, new(0, 0, 180, height)) { Visible = true };
+        Context(() =>
+        {
+            Frame(controls); Frame(controls);
+            var status = controls.StatusPresentation!; var runtime = controls.RuntimePresentation!;
+            Assert.Equal("Source conflict — open Help.", status.Summary);
+            Assert.InRange(status.Summary.Length, 1, 32); Assert.InRange(runtime.Summary.Length, 1, 32);
+            Assert.Contains(raw, workspace.Status); Assert.Equal(raw, workspace.RuntimeDiagnostic);
+            Assert.DoesNotContain('\0', status.Details); Assert.EndsWith("TAIL", status.Details);
+            Assert.True(new System.Text.UTF8Encoding(false, true).GetByteCount(status.Details) > 0);
+            Assert.InRange(controls.StatusBounds.Maximum.Y - controls.StatusBounds.Minimum.Y, 1, Ui.GetFontSize() * 3);
+            Assert.InRange(controls.RuntimeDiagnosticBounds.Maximum.Y - controls.RuntimeDiagnosticBounds.Minimum.Y, 1, Ui.GetFontSize() * 3);
+            for (int i = 0; i < 8; i++) Frame(controls);
+            Assert.Same(status, controls.StatusPresentation); Assert.Same(runtime, controls.RuntimePresentation);
+            controls.SetGroupOpen("$help", true);
+            for (int i = 0; i < 8; i++) Frame(controls, () => Ui.SetScrollY(Ui.GetScrollMaxY()));
+            Assert.True(controls.StatusDetailsBounds.Maximum.X > controls.StatusDetailsBounds.Minimum.X);
+            workspace.RuntimeDiagnostic = "Recovered runtime warning."; Frame(controls);
+            Assert.NotSame(runtime, controls.RuntimePresentation); Assert.Same(status, controls.StatusPresentation);
+        }, width: 180, height: height);
+    }
+
+    [Fact]
+    public void FullSanitizedDiagnosticsArePassedToActualScrollingReadOnlyWidgets()
+    {
+        var workspace = ConfigurationWorkspaceTests.Create();
+        string raw = string.Concat(Enumerable.Repeat("line 😀\0\uD800x\uDC00\n", 1000)) + "TAIL";
+        workspace.ReportFailure(new IOException(raw)); workspace.RuntimeDiagnostic = raw;
+        var controls = new ConfigurationControls(workspace, new(0, 0, 900, 650)) { Visible = true };
+        controls.SetGroupOpen("$help", true);
+        Context(() =>
+        {
+            Frame(controls); Frame(controls);
+            Assert.True(controls.StatusDetailsBounds.Visible);
+            Assert.True(controls.RuntimeDetailsBounds.Visible);
+            Assert.EndsWith("TAIL", controls.StatusPresentation!.Details);
+            Assert.EndsWith("TAIL", controls.RuntimePresentation!.Details);
+            Assert.True(controls.StatusDetailsBounds.Maximum.Y - controls.StatusDetailsBounds.Minimum.Y <= Ui.GetFrameHeight() * 6 + 1);
+            Assert.True(controls.BodyScrollMax > 0); // Details/policy remain in the selected independently scrolling body.
+        });
+    }
     private static void SelectAll(ConfigurationControls controls)
     {
         var io = Ui.GetIO(); io.AddKeyEvent(ImGuiKey.Mod_Ctrl, true); io.AddKeyEvent(ImGuiKey.A, true); Frame(controls);
@@ -119,19 +168,25 @@ public sealed class ConfigurationPolishNativeTests
         io.AddMouseButtonEvent(0, true); Frame(controls);
         io.AddMouseButtonEvent(0, false); Frame(controls);
     }
-    private static void Frame(ConfigurationControls controls)
+    private static void Frame(ConfigurationControls controls, Action? shellEdit = null)
     {
         Ui.NewFrame(); int windows = Ui.GetCurrentContext().CurrentWindowStack.Count;
         controls.Draw(); Assert.Equal(windows, Ui.GetCurrentContext().CurrentWindowStack.Count);
-        Assert.True(Ui.GetCurrentContext().CurrentTable.IsNull()); Ui.Render();
+        Assert.True(Ui.GetCurrentContext().CurrentTable.IsNull());
+        if (shellEdit is not null)
+        {
+            Ui.Begin("Configuration"u8);
+            try { shellEdit(); } finally { Ui.End(); }
+        }
+        Ui.Render();
     }
-    private static void Context(Action test)
+    private static void Context(Action test, int width = 1280, int height = 720)
     {
         var previous = Ui.GetCurrentContext(); var context = Ui.CreateContext();
         try
         {
             var io = Ui.GetIO(); io.IniFilename = default; io.LogFilename = default;
-            io.DisplaySize = new float2(1280, 720); io.DeltaTime = 1f / 60;
+            io.DisplaySize = new float2(width, height); io.DeltaTime = 1f / 60;
             io.BackendFlags |= ImGuiBackendFlags.RendererHasTextures;
             var settings = InspectorConfiguration.Load(ConfigurationWorkspaceTests.Paths()["inspector"]).Settings;
             InspectorFont.Load(io, settings.FontPath, settings.FontSize);
