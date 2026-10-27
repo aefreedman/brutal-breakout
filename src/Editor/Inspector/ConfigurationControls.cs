@@ -35,6 +35,13 @@ public sealed class ConfigurationControls
     internal float BodyScrollY { get; private set; }
     internal float2 BodyMinimum { get; private set; }
     internal float2 BodyMaximum { get; private set; }
+    // Native item evidence for short-viewport reachability regressions, never retained as ImGui objects.
+    internal (float2 Minimum, float2 Maximum, bool Visible) ResetActionBounds { get; private set; }
+    internal (float2 Minimum, float2 Maximum, bool Visible) StatusBounds { get; private set; }
+    internal (float2 Minimum, float2 Maximum, bool Visible) ResetNoticeBounds { get; private set; }
+    internal (float2 Minimum, float2 Maximum, bool Visible) RelaunchNoticeBounds { get; private set; }
+    internal (float2 Minimum, float2 Maximum, bool Visible) RuntimeDiagnosticBounds { get; private set; }
+    internal float2 NavigationOrigin { get; private set; }
     public void SelectCategory(string id)
     {
         int index = Array.FindIndex(categories, category => category.Id == id);
@@ -85,8 +92,9 @@ public sealed class ConfigurationControls
         Ui.SetNextWindowPos(viewport.Pos + position / scale, condition);
         Ui.SetNextWindowSize(size / scale, condition);
         bool visible = Visible;
-        bool expanded = Ui.Begin("Configuration"u8, ref visible, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoCollapse |
-            ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
+        // The body normally owns scrolling, but a wrapped header/navigation can exceed a short display.
+        // Keep native shell overflow scrolling available instead of stranding its actions or critical notices.
+        bool expanded = Ui.Begin("Configuration"u8, ref visible, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoCollapse);
         Visible = visible;
         try
         {
@@ -100,13 +108,14 @@ public sealed class ConfigurationControls
             if (!expanded) return;
             DrawActionsAndStatus();
             if (categories.Length == 0) { Ui.TextWrapped("No configuration sources selected."u8); return; }
+            NavigationOrigin = Ui.GetCursorScreenPos();
             using var body = ToolLayout.Categories("configuration.categories"u8, categories, ref selectedCategory, Ui.GetFontSize() * 18);
             CategorySidebarVisible = body.IsWide;
             if (!body.ContentVisible) return;
             Ui.PushID(Bytes(categories[selectedCategory].Id));
             try
             {
-                // Only the selected settings body scrolls. Navigation, actions and critical status stay reachable.
+                // The selected settings body scrolls independently; the shell scrolls only on height overflow.
                 bool childVisible = Ui.BeginChild("##settings.body"u8, new float2(0), ImGuiChildFlags.None, ImGuiWindowFlags.None);
                 try
                 {
@@ -132,8 +141,11 @@ public sealed class ConfigurationControls
         }
         finally { Ui.End(); }
     }
+    private static (float2 Minimum, float2 Maximum, bool Visible) CurrentItemBounds() =>
+        (Ui.GetItemRectMin(), Ui.GetItemRectMax(), Ui.IsItemVisible());
     private void DrawActionsAndStatus()
     {
+        ResetActionBounds = ResetNoticeBounds = RelaunchNoticeBounds = RuntimeDiagnosticBounds = default;
         if (Ui.Button("Save changed"u8)) Workspace.Request(ConfigurationAction.Save);
         Ui.SetItemTooltip("Save validates all selected sources. It never resets or applies structural fields."u8);
         ToolLayout.SameLineIfFits("Discard"u8);
@@ -145,7 +157,11 @@ public sealed class ConfigurationControls
         {
             ToolLayout.SameLineIfFits("Reset & apply"u8);
             Ui.BeginDisabled(!Workspace.RuntimeAvailable);
-            try { if (Ui.Button("Reset & apply"u8)) Workspace.Request(ConfigurationAction.Apply); }
+            try
+            {
+                if (Ui.Button("Reset & apply"u8)) Workspace.Request(ConfigurationAction.Apply);
+                ResetActionBounds = CurrentItemBounds();
+            }
             finally { Ui.EndDisabled(); }
             Ui.SetItemTooltip("Explicit structural reset; keeps mode/pause. Does not save or apply relaunch fields."u8);
         }
@@ -155,12 +171,23 @@ public sealed class ConfigurationControls
         Ui.TextWrapped(rejected ? "Rejected operation. Open Help for details."u8
             : Workspace.Status.Contains("warning:", StringComparison.OrdinalIgnoreCase)
                 ? "Source cleanup warning. Open Help for details."u8 : "Live edits; Save is separate."u8);
+        StatusBounds = CurrentItemBounds();
         if (!Workspace.RuntimeAvailable) Ui.TextWrapped("Live tuning unavailable in this mode."u8);
         if (Workspace.PendingResetFields.Count > 0)
+        {
             Ui.TextWrapped(Bytes($"Reset required: {Workspace.PendingResetFields.Count} field(s)."));
+            ResetNoticeBounds = CurrentItemBounds();
+        }
         if (Workspace.PendingRelaunchFields.Count > 0)
+        {
             Ui.TextWrapped(Bytes($"Relaunch required: {Workspace.PendingRelaunchFields.Count} field(s)."));
-        if (Workspace.RuntimeDiagnostic is { } diagnostic) Ui.TextWrapped(Bytes(diagnostic));
+            RelaunchNoticeBounds = CurrentItemBounds();
+        }
+        if (Workspace.RuntimeDiagnostic is { } diagnostic)
+        {
+            Ui.TextWrapped(Bytes(diagnostic));
+            RuntimeDiagnosticBounds = CurrentItemBounds();
+        }
         Ui.Separator();
     }
     private void DrawPolicyHelp()

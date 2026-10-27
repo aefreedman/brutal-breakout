@@ -29,7 +29,8 @@ public sealed class ConfigurationControlsNativeTests
             controls.SelectCategory("shmup");
             Frame(controls); var initial = Frame(controls);
             Assert.True(initial.ScrollMax > 0);
-            Assert.Equal(new float2(settings.ConfigurationWindow.Width, settings.ConfigurationWindow.Height), initial.Size);
+            Assert.Equal(new float2(Math.Min(settings.ConfigurationWindow.Width, width),
+                Math.Min(settings.ConfigurationWindow.Height, height)), initial.Size);
             Frame(controls, () => { Ui.SetWindowPos(new float2(90, 45)); Ui.SetWindowSize(new float2(300, 360)); });
             Frame(controls);
             controls.Visible = false; Frame(controls); controls.Visible = true;
@@ -61,6 +62,7 @@ public sealed class ConfigurationControlsNativeTests
         Context(960, 540, 1, () =>
         {
             Frame(controls); var window = Frame(controls);
+            Assert.True(controls.CategorySidebarVisible); // Shipped bounds show the category-first wide layout.
             var field = Assert.IsType<(string Path, float2 Minimum, float2 Maximum)>(controls.FirstVisibleField);
             Assert.StartsWith("shmup.ball.", field.Path);
             // Recorded only when native IsItemVisible() confirms intersection with the actual clipping viewport.
@@ -171,6 +173,83 @@ public sealed class ConfigurationControlsNativeTests
         });
     }
 
+    [Theory]
+    [InlineData(180, 240)]
+    [InlineData(180, 160)]
+    public void ShortDisplayShellScrollMakesActionsNavigationAndCriticalNoticesReachable(int width, int height)
+    {
+        var workspace = ConfigurationWorkspaceTests.Create();
+        var physics = ConfigurationWorkspaceTests.Doc(workspace, "physics");
+        physics.Set("maxCatchUpSteps", physics.Draft.GetProperty("maxCatchUpSteps"u8).GetInt32() + 1);
+        var inspector = ConfigurationWorkspaceTests.Doc(workspace, "inspector");
+        inspector.Set("fontSize", inspector.Draft.GetProperty("fontSize"u8).GetDouble() + 1);
+        workspace.RuntimeDiagnostic = "Runtime warning:\nDevice unavailable.\nSilent fallback.\nUnsaved changes.\nRetry after reload.\nEnd of warning.";
+        workspace.ReportFailure(new InvalidOperationException("Rejected short-display fixture."));
+        var controls = new ConfigurationControls(workspace, new(0, 0, width, 240)) { Visible = true };
+        Context(width, height, 1, () =>
+        {
+            Frame(controls); Frame(controls); var shell = Frame(controls);
+            Assert.Equal(new float2(width, height), shell.Size); // No minimum larger than the actual display.
+            Assert.True(shell.ShellScrollMax > 0, "Overflow must expose native shell scrolling.");
+            var io = Ui.GetIO();
+            float clientTop = shell.Position.Y + Ui.GetFrameHeight();
+            float clientBottom = shell.Position.Y + shell.Size.Y - Ui.GetStyle().WindowPadding.Y;
+            bool statusSeen = false, resetSeen = false, relaunchSeen = false, diagnosticStartSeen = false, diagnosticEndSeen = false;
+            bool FullyVisible((float2 Minimum, float2 Maximum, bool Visible) item) =>
+                item.Visible && item.Minimum.Y >= clientTop && item.Maximum.Y <= clientBottom;
+            void ObserveNotices()
+            {
+                statusSeen |= FullyVisible(controls.StatusBounds);
+                resetSeen |= FullyVisible(controls.ResetNoticeBounds);
+                relaunchSeen |= FullyVisible(controls.RelaunchNoticeBounds);
+                var diagnostic = controls.RuntimeDiagnosticBounds;
+                diagnosticStartSeen |= diagnostic.Visible && diagnostic.Minimum.Y >= clientTop && diagnostic.Minimum.Y < clientBottom;
+                diagnosticEndSeen |= diagnostic.Visible && diagnostic.Maximum.Y > clientTop && diagnostic.Maximum.Y <= clientBottom;
+            }
+            void Wheel(float direction)
+            {
+                // The shell's scrollbar strip cannot be covered by the independent settings child.
+                io.AddMousePosEvent(shell.Position.X + shell.Size.X - 3, clientTop + 10); Frame(controls);
+                io.AddMouseWheelEvent(0, direction); Frame(controls); Frame(controls);
+            }
+            void Click(float2 point)
+            {
+                io.AddMousePosEvent(point.X, point.Y); Frame(controls);
+                io.AddMouseButtonEvent(0, true); Frame(controls);
+                io.AddMouseButtonEvent(0, false); Frame(controls);
+            }
+            bool navigationHit = false;
+            for (int step = 0; step < 100; step++)
+            {
+                ObserveNotices();
+                float comboTop = controls.NavigationOrigin.Y + Ui.GetStyle().CellPadding.Y;
+                if (statusSeen && resetSeen && relaunchSeen && diagnosticStartSeen && diagnosticEndSeen &&
+                    comboTop >= clientTop && comboTop + Ui.GetFrameHeight() <= clientBottom)
+                {
+                    Click(new float2(controls.NavigationOrigin.X + 20, comboTop + Ui.GetFrameHeight() / 2));
+                    navigationHit = Ui.GetCurrentContext().OpenPopupStack.Count > 0;
+                    if (navigationHit) break;
+                }
+                Wheel(-0.25f);
+            }
+            Assert.True(statusSeen, "Rejected status must be reachable by native scrolling.");
+            Assert.True(resetSeen, "Pending reset notice must be reachable by native scrolling.");
+            Assert.True(relaunchSeen, "Pending relaunch notice must be reachable by native scrolling.");
+            Assert.True(diagnosticStartSeen && diagnosticEndSeen, "All lines of the runtime diagnostic must be reachable.");
+            Assert.True(navigationHit, "The scrolled-to category selector must open through an actual mouse click.");
+            Assert.True(Frame(controls).ParentScroll > 0);
+            Click(shell.Position + new float2(width / 2f, 10)); // Dismiss the popup through the title bar.
+            for (int step = 0; step < 100 && !FullyVisible(controls.ResetActionBounds); step++) Wheel(0.25f);
+            Assert.True(FullyVisible(controls.ResetActionBounds), "The reset action must remain recoverable after scrolling back.");
+            Click((controls.ResetActionBounds.Minimum + controls.ResetActionBounds.Maximum) / 2);
+            bool applied = false;
+            workspace.Process(candidate => { applied = candidate.ResetRequired; });
+            Assert.True(applied, "Actual reset-button hit must enqueue the owner-update command.");
+            Assert.Empty(workspace.PendingResetFields);
+            Assert.NotEmpty(workspace.PendingRelaunchFields); // Reset does not apply resource settings or save sources.
+        });
+    }
+
     private static void OpenChildren(ConfigurationControls controls, System.Text.Json.JsonElement node, string path)
     {
         if (node.ValueKind == System.Text.Json.JsonValueKind.Object)
@@ -183,14 +262,14 @@ public sealed class ConfigurationControlsNativeTests
             for (int i = 0; i < node.GetArrayLength(); i++)
             { controls.SetGroupOpen(path + "." + i, true); OpenChildren(controls, node[i], path + "." + i); }
     }
-    private static (float2 Position, float2 Size, float ScrollMax, float ParentScroll) Frame(ConfigurationControls controls, Action? edit = null)
+    private static (float2 Position, float2 Size, float ScrollMax, float ParentScroll, float ShellScrollMax) Frame(ConfigurationControls controls, Action? edit = null)
     {
         Ui.NewFrame();
         int before = Ui.GetCurrentContext().CurrentWindowStack.Count;
         controls.Draw();
         Assert.Equal(before, Ui.GetCurrentContext().CurrentWindowStack.Count);
         Ui.Begin("Configuration"u8);
-        var result = (Ui.GetWindowPos(), Ui.GetWindowSize(), controls.BodyScrollMax, Ui.GetScrollY());
+        var result = (Ui.GetWindowPos(), Ui.GetWindowSize(), controls.BodyScrollMax, Ui.GetScrollY(), Ui.GetScrollMaxY());
         try { edit?.Invoke(); } finally { Ui.End(); }
         Ui.Render(); return result;
     }
