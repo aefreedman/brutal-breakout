@@ -7,6 +7,8 @@
 - Panel **Restart** starts a fresh run, including while paused. Restart and mode switching preserve manual pause. Pause transitions discard accumulated time, pending actions and sound tails; release fire/action before using it again after resuming. **R** remains a restart shortcut while running.
 - Builds without the inspector retain Start pause and keyboard R restart. Physical Select/Share labels depend on the controller's standardized mapping.
 
+Configuration controls show subdued units/effects below their labels. Drag common quantities for quick adjustment or Ctrl-click for exact entry; window dimensions and the frame cap still require Enter. The visible **...** button provides **Restore from source**, **Copy value** and relevant presets. Restoring one field does not discard unrelated edits or save/reset the run. Brief operation feedback is separate from persistent rejection/pending warnings. The Window category explains requested versus effective VSync and that an **Unlimited** cap does not disable synchronization.
+
 ## Breakout rules and controls
 
 - Aim with **WASD / arrows / left stick / mouse movement**. Active keyboard direction wins over stick, then moved/clicked mouse; a stationary unused mouse does not override direction input. Centered stick preserves the last aim. Initial aim comes from `Config/gameplay.json` (the shipped file points up).

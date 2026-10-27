@@ -14,8 +14,15 @@ public sealed class GameplayControls
     public GameplayWindowSettings Settings { get; }
     private float2 physicalPosition, physicalSize, lastScale;
 
-    public GameplayControls(GameplayWindowSettings settings)
+    public InspectorTheme? Theme { get; }
+    private ToolDoubleEditor? widthEditor;
+    private static readonly ToolHelp WidthHelp = new("Widen play area", "Widen only; restart resets width.", "Slide or Ctrl-click for an exact game-unit width.");
+    private static readonly ToolHelp PausedWidthHelp = new("Widen play area", "The current width is retained while paused.", "", "Resume to widen.");
+    private static readonly ToolHelp MaximumWidthHelp = new("Widen play area", "The current width is retained.", "", "Maximum width reached; restart resets width.");
+    public GameplayControls(GameplayWindowSettings settings) : this(settings, null) { }
+    public GameplayControls(GameplayWindowSettings settings, InspectorTheme? theme)
     {
+        Theme = theme;
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
         physicalPosition = new(settings.Left, settings.Top);
         physicalSize = new(settings.Width, settings.Height);
@@ -36,8 +43,11 @@ public sealed class GameplayControls
     public void Synchronize(GameplayMode mode, double width, ShmupArenaSettings arena, bool paused = false, double? runMinimumWidth = null)
     {
         ArgumentNullException.ThrowIfNull(arena);
+        double minimum = runMinimumWidth ?? arena.InitialPlayAreaWidth;
+        if (widthEditor is null || MinimumWidth != minimum || MaximumWidth != arena.Width)
+            widthEditor = minimum < arena.Width ? ToolDoubleEditor.Slider(minimum, arena.Width, "%.3f") : ToolDoubleEditor.Input("%.17g");
         (Mode, Width, Arena, Paused) = (mode, width, arena, paused);
-        MinimumWidth = runMinimumWidth ?? arena.InitialPlayAreaWidth;
+        MinimumWidth = minimum;
     }
     public (GameplayMode? Mode, double? Width, bool Restart, bool TogglePause) Drain()
     {
@@ -91,7 +101,8 @@ public sealed class GameplayControls
             if (!expanded) return;
 
             Ui.AlignTextToFramePadding();
-            Ui.Text(Paused ? "Paused"u8 : "Running"u8);
+            if (Theme is null) Ui.Text(Paused ? "Paused"u8 : "Running"u8);
+            else Theme.TextWrapped(Paused ? "Paused"u8 : "Running"u8, Paused ? InspectorTone.Warning : InspectorTone.Success);
             SameLineIfFits(Paused ? "Resume"u8 : "Pause"u8);
             if (Ui.Button(Paused ? "Resume"u8 : "Pause"u8)) RequestPauseToggle();
             SameLineIfFits("Restart"u8);
@@ -123,20 +134,16 @@ public sealed class GameplayControls
                 ToolLayout.Heading("Play area"u8);
                 Ui.Text(Encoding.UTF8.GetBytes($"Current width: {Width:F0}"));
                 Ui.Text(Encoding.UTF8.GetBytes($"Maximum width: {MaximumWidth:F0}"));
-                Ui.BeginDisabled(Paused || Width >= MaximumWidth);
-                try
+                double width = Width;
+                bool enabled = !Paused && Width < MaximumWidth;
+                var help = Paused ? PausedWidthHelp : Width >= MaximumWidth ? MaximumWidthHelp : WidthHelp;
+                Ui.SetNextItemWidth(-1);
+                if (ToolControls.EditDouble("##Widen area"u8, ref width, widthEditor!, enabled, help))
                 {
-                    float width = (float)Width;
-                    Ui.SetNextItemWidth(-1);
-                    if (Ui.SliderFloat("##Widen area"u8, ref width, (float)MinimumWidth, (float)MaximumWidth))
-                    {
-                        double requested = Math.Clamp(width, Width, MaximumWidth);
-                        if (requested > Width) RequestWiden(requested);
-                    }
+                    double requested = Math.Clamp(width, Width, MaximumWidth);
+                    if (requested > Width) RequestWiden(requested);
                 }
-                finally { Ui.EndDisabled(); }
-                Ui.TextWrapped(Paused ? "Resume to widen"u8 : Width >= MaximumWidth
-                    ? "Maximum width reached; restart resets width."u8 : "Widen only; restart resets width."u8);
+                if (enabled) Ui.TextWrapped("Widen only; restart resets width."u8);
             }
         }
         finally { Ui.End(); }

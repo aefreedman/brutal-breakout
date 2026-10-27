@@ -4,6 +4,41 @@
   "visible": false,
   "diagnosticsVisible": false,
   "historyCapacity": 240,
+  "feedback": {
+    "capacity": 4,
+    "maxTextCharacters": 2048,
+    "successSeconds": 3,
+    "informationSeconds": 5
+  },
+  "theme": {
+    "colors": {
+      "text": [0.94, 0.95, 0.97, 1],
+      "mutedText": [0.58, 0.63, 0.69, 1],
+      "window": [0.045, 0.055, 0.07, 0.98],
+      "surface": [0.095, 0.12, 0.15, 1],
+      "popup": [0.065, 0.08, 0.10, 1],
+      "border": [0.22, 0.27, 0.33, 1],
+      "accent": [0.13, 0.30, 0.43, 1],
+      "accentHovered": [0.18, 0.40, 0.57, 1],
+      "accentActive": [0.24, 0.56, 0.77, 1],
+      "success": [0.43, 0.77, 0.55, 1],
+      "warning": [0.95, 0.72, 0.32, 1],
+      "error": [0.98, 0.42, 0.40, 1]
+    },
+    "metrics": {
+      "windowPaddingEm": [0.4, 0.4],
+      "framePaddingEm": [0.22, 0.11],
+      "itemSpacingEm": [0.36, 0.18],
+      "innerSpacingEm": [0.18, 0.18],
+      "cellPaddingEm": [0.18, 0.09],
+      "roundingEm": 0.14,
+      "borderEm": 0.045,
+      "scrollbarEm": 0.64,
+      "grabMinEm": 0.55,
+      "indentEm": 0.95,
+      "disabledAlpha": 0.65
+    }
+  },
   "left": 392,
   "top": 16,
   "width": 440,

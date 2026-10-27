@@ -143,7 +143,7 @@ try
     ResourceLifetime.Run(() =>
     {
 #if BREAKOUT_EDITOR
-        var gameplayControls = new GameplayControls(inspectorConfiguration!.GameplayWindow);
+        var gameplayControls = new GameplayControls(inspectorConfiguration!.GameplayWindow, inspectorConfiguration.Theme);
         var configurationPaths = new Dictionary<string, string> { ["window"] = windowConfiguration.Path, ["rendering"] = renderingConfiguration.Path,
             ["inspector"] = inspectorConfiguration.Path };
         if (overlays is not null) configurationPaths["overlay"] = overlays.Path;
@@ -157,7 +157,9 @@ try
         if (style is not null) configurationPaths["style"] = style.Path;
         if (audioConfiguration is not null) configurationPaths["audio"] = audioConfiguration.Path;
         var configurationWorkspace = new ConfigurationWorkspace(configurationPaths, !gallery && !gameplaySmokeTest);
-        var configurationControls = new ConfigurationControls(configurationWorkspace, inspectorConfiguration.ConfigurationWindow);
+        var configurationFeedback = new ConfigurationFeedback(inspectorConfiguration.Feedback, inspectorConfiguration.Theme);
+        var configurationControls = new ConfigurationControls(configurationWorkspace, inspectorConfiguration.ConfigurationWindow,
+            inspectorConfiguration.Theme) { Feedback = configurationFeedback };
         string? audioApplyDiagnostic = null;
         var callbackFailure = new InvalidOperationException("Injected hidden-smoke inspector callback failure.");
         bool callbackFailureInjected = false, callbackFailureRecovered = false;
@@ -171,7 +173,7 @@ try
                 callbackFailureInjected = true;
                 throw callbackFailure; // Balanced UI scopes; failure must occur before Vulkan image acquisition.
             }
-        }, overlaySmokeTest ? null : frameHistory); // Image smoke isolates the explicit preview from history layout.
+        }, overlaySmokeTest ? null : frameHistory, inspectorConfiguration.Theme); // Same validated immutable recipe, including after retirement.
         gameplayControls.OpenConfiguration = () => { configurationControls.Visible = true; uiInspector.DiagnosticsVisible = false; };
         gameplayControls.ToggleDiagnostics = () =>
         {
@@ -251,6 +253,7 @@ try
 #if BREAKOUT_EDITOR
         long elapsedObservationId = 0;
         double? previousElapsedObservation = null;
+        (int Cap, bool VSync, Brutal.VulkanApi.VkPresentModeKHR? Mode)? lastPresentationFacts = null;
 #endif
         while (!window.ShouldClose)
         {
@@ -323,6 +326,11 @@ try
                 configurationWorkspace.Documents.Single(d => d.Section == "shmup").Set("capacity.maxBalls", shmup!.Settings.Capacity.MaxBalls + 1);
                 configurationWorkspace.Request(ConfigurationAction.Apply);
             }
+            if (configurationControls.DrainClipboardText() is { } clipboardText)
+            {
+                try { Glfw.SetClipboard(clipboardText); configurationFeedback.Copied(frameStart); }
+                catch (Exception error) when (error is not OutOfMemoryException and not StackOverflowException) { configurationWorkspace.ReportFailure(error); }
+            }
             configurationWorkspace.InactiveModeSection = modes?.Mode == GameplayMode.Shmup ? "gameplay" : modes?.Mode == GameplayMode.Breakout ? "shmup" : null;
             configurationWorkspace.SetLiveContext((object?)modes?.Shmup ?? modes?.Breakout,
                 modes?.Shmup?.Simulation.Snapshot.Width ?? 0);
@@ -374,6 +382,14 @@ try
                     lastElapsed = timer.Elapsed;
                 }
             });
+            configurationFeedback.Update(frameStart, configurationWorkspace.LastOutcome);
+            var presentationFacts = (windowConfiguration.Settings.FrameRateLimit, renderer.VSync, renderer.EffectivePresentMode);
+            if (lastPresentationFacts != presentationFacts)
+            {
+                configurationControls.SetPresentationFacts(presentationFacts.FrameRateLimit, presentationFacts.VSync,
+                    presentationFacts.EffectivePresentMode?.ToString());
+                lastPresentationFacts = presentationFacts;
+            }
             if (shmupSmokeTest && shmupFrames is 9 or 11)
             {
                 if (!ReferenceEquals(presentationSmokeRun, modes!.Shmup) ||

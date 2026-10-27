@@ -59,8 +59,27 @@ public sealed class ConfigurationControls
     private readonly List<string> editKeys = [];
     private readonly Dictionary<string, bool> groups = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> widgetErrors = new(StringComparer.Ordinal);
-    public ConfigurationControls(ConfigurationWorkspace workspace, GameplayWindowSettings settings)
+    private readonly Dictionary<string, ConfigurationFieldPresentation> presentation = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, byte[]> groupLabels = new(StringComparer.Ordinal);
+    private readonly Dictionary<ConfigurationWorkspace.Document, long> sourceRevisions = [];
+    private string? pendingClipboard;
+    public InspectorTheme? Theme { get; }
+    public ConfigurationFeedback? Feedback { get; set; }
+    public string? PresentationSummary { get; private set; }
+    public void SetPresentationFacts(int frameCap, bool requestedVSync, string? effectiveMode)
     {
+        string cap = frameCap == 0 ? "Unlimited (no application cap)" : $"{frameCap} fps";
+        string requested = requestedVSync ? "On (FIFO)" : "Off (Immediate; tearing possible)";
+        string effective = effectiveMode switch { "FifoKHR" => "FIFO", "ImmediateKHR" => "Immediate", null => "not created yet", _ => effectiveMode };
+        bool pending = effectiveMode is not null && effectiveMode != (requestedVSync ? "FifoKHR" : "ImmediateKHR");
+        PresentationSummary = $"Frame cap: {cap}. Requested VSync: {requested}. Effective present mode: {effective}{(pending ? " (requested change pending)" : "")}. Unlimited does not disable VSync.";
+    }
+    internal (string Path, float2 Minimum, float2 Maximum)? FirstVisibleAction { get; private set; }
+    public string? DrainClipboardText() { var text = pendingClipboard; pendingClipboard = null; return text; }
+    public ConfigurationControls(ConfigurationWorkspace workspace, GameplayWindowSettings settings) : this(workspace, settings, null) { }
+    public ConfigurationControls(ConfigurationWorkspace workspace, GameplayWindowSettings settings, InspectorTheme? theme)
+    {
+        Theme = theme;
         Workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
         position = new(settings.Left, settings.Top); size = new(settings.Width, settings.Height);
         var available = CategoryDefinitions.Select(definition => (definition.Category,
@@ -75,7 +94,8 @@ public sealed class ConfigurationControls
     private bool Group(string key, string label)
     {
         Ui.SetNextItemOpen(groups.GetValueOrDefault(key), ImGuiCond.Always);
-        bool open = Ui.CollapsingHeader(Bytes(label + "###" + key));
+        if (!groupLabels.TryGetValue(key, out var encoded)) groupLabels.Add(key, encoded = Bytes(label + "###" + key));
+        bool open = Ui.CollapsingHeader(encoded);
         groups[key] = open;
         return open;
     }
@@ -84,7 +104,12 @@ public sealed class ConfigurationControls
     {
         if (!Visible) return;
         DrawCount++;
-        FirstVisibleField = null;
+        FirstVisibleField = null; FirstVisibleAction = null;
+        foreach (var document in Workspace.Documents)
+        {
+            if (!sourceRevisions.TryGetValue(document, out long revision) || revision != document.SourceRevision)
+            { presentation.Clear(); groupLabels.Clear(); sourceRevisions[document] = document.SourceRevision; }
+        }
         var scale = Ui.GetIO().DisplayFramebufferScale;
         var viewport = Ui.GetMainViewport();
         var condition = lastScale != default && scale != lastScale ? ImGuiCond.Always : ImGuiCond.Once;
@@ -123,12 +148,14 @@ public sealed class ConfigurationControls
                     BodyMinimum = Ui.GetWindowPos(); BodyMaximum = BodyMinimum + Ui.GetWindowSize();
                     if (childVisible)
                     {
+                        if (categories[selectedCategory].Id == "window" && PresentationSummary is { } summary) Text(summary, InspectorTone.Secondary);
+                        if (Feedback is { Count: > 0 } && Group("$feedback", "Recent actions")) Feedback.Draw();
                         if (groups.GetValueOrDefault("$help")) DrawPolicyHelp();
                         foreach (var document in categoryDocuments[selectedCategory])
                         {
                             if (categoryDocuments[selectedCategory].Length > 1) ToolLayout.Heading(Bytes(DocumentTitle(document.Section)));
-                            Ui.TextWrapped(Bytes((document.Unsaved ? "Unsaved changes" : "Source saved") + " | " +
-                                (document.Pending ? "Pending fields" : "Applied")));
+                            Text((document.Unsaved ? "Unsaved changes" : "Source saved") + " | " +
+                                (document.Pending ? "Pending fields" : "Applied"), document.Pending ? InspectorTone.Warning : InspectorTone.Secondary);
                             if (Group(document.Section + ".$source", "Source path")) Ui.TextWrapped(Bytes(document.Path));
                             editKeys.Clear();
                             DrawDocument(document);
@@ -168,25 +195,26 @@ public sealed class ConfigurationControls
         }
         ToolLayout.SameLineIfFits("Help"u8);
         if (Ui.Button("Help"u8)) groups["$help"] = !groups.GetValueOrDefault("$help");
+        Feedback?.DrawSummary();
         bool rejected = Workspace.Status.StartsWith("Rejected:", StringComparison.Ordinal);
-        Ui.TextWrapped(rejected ? "Rejected operation. Open Help for details."u8
-            : Workspace.Status.Contains("warning:", StringComparison.OrdinalIgnoreCase)
-                ? "Source cleanup warning. Open Help for details."u8 : "Live edits; Save is separate."u8);
+        Text(rejected ? Workspace.Status : Workspace.Status.Contains("warning:", StringComparison.OrdinalIgnoreCase)
+            ? Workspace.Status : "Live edits; Save is separate.", rejected ? InspectorTone.Error :
+                Workspace.Status.Contains("warning:", StringComparison.OrdinalIgnoreCase) ? InspectorTone.Warning : InspectorTone.Secondary);
         StatusBounds = CurrentItemBounds();
         if (!Workspace.RuntimeAvailable) Ui.TextWrapped("Live tuning unavailable in this mode."u8);
         if (Workspace.PendingResetFields.Count > 0)
         {
-            Ui.TextWrapped(Bytes($"Reset required: {Workspace.PendingResetFields.Count} field(s)."));
+            Text($"Reset required: {Workspace.PendingResetFields.Count} field(s).", InspectorTone.Warning);
             ResetNoticeBounds = CurrentItemBounds();
         }
         if (Workspace.PendingRelaunchFields.Count > 0)
         {
-            Ui.TextWrapped(Bytes($"Relaunch required: {Workspace.PendingRelaunchFields.Count} field(s)."));
+            Text($"Relaunch required: {Workspace.PendingRelaunchFields.Count} field(s).", InspectorTone.Warning);
             RelaunchNoticeBounds = CurrentItemBounds();
         }
         if (Workspace.RuntimeDiagnostic is { } diagnostic)
         {
-            Ui.TextWrapped(Bytes(diagnostic));
+            Text(diagnostic, InspectorTone.Warning);
             RuntimeDiagnosticBounds = CurrentItemBounds();
         }
         Ui.Separator();
@@ -235,9 +263,10 @@ public sealed class ConfigurationControls
             if (id == "rendering.circleDetail.mode")
             {
                 string selected = node.GetString()!;
-                using var row = ToolLayout.PropertyRow(Bytes(id), "Circle detail [LIVE]"u8, Ui.GetFontSize() * 7,
-                    Bytes(ConfigurationImpact.For(id).Reason));
+                var description = Presentation(id, "Circle detail", humanLabel: true);
+                using var row = ToolLayout.PropertyRow(description.Property, Ui.GetFontSize() * 7);
                 if (!row.ContentVisible) return;
+                ToolFieldActions.ReserveControlWidth();
                 if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected == "automatic" ? "Automatic" : "Fixed side count"), ImGuiComboFlags.None))
                 {
                     try
@@ -248,22 +277,23 @@ public sealed class ConfigurationControls
                     }
                     finally { Ui.EndCombo(); }
                 }
-                ScalarDrawCount++; RecordField(id);
+                ScalarDrawCount++; RecordField(id); DrawFieldActions(document, node, description);
             }
             else if (node.ValueKind == JsonValueKind.Object)
             {
-                if (Group(id, Label(key))) { Ui.Indent(); try { DrawObject(document, node, id); } finally { Ui.Unindent(); } }
+                if (Group(id, Presentation(id, key).Property.Label)) { Ui.Indent(); try { DrawObject(document, node, id); } finally { Ui.Unindent(); } }
             }
             else if (node.ValueKind == JsonValueKind.Array)
             {
-                if (Group(id, Label(key))) DrawArray(document, node, id, key);
+                if (Group(id, Presentation(id, key).Property.Label)) DrawArray(document, node, id, key);
             }
             else if (id == "rendering.path" && node.ValueKind == JsonValueKind.String)
             {
                 string selected = node.GetString()!;
-                using var row = ToolLayout.PropertyRow(Bytes(id), "Rendering path [LIVE]"u8, Ui.GetFontSize() * 7,
-                    Bytes(ConfigurationImpact.For(id).Reason));
+                var description = Presentation(id, "Rendering path", humanLabel: true);
+                using var row = ToolLayout.PropertyRow(description.Property, Ui.GetFontSize() * 7);
                 if (!row.ContentVisible) return;
+                ToolFieldActions.ReserveControlWidth();
                 static string Name(string value) => value == "sharedMeshes" ? "Shared meshes" : value == "cpuBuiltTriangles" ? "CPU-built triangles" : value;
                 if (Ui.BeginCombo(Bytes("##" + id), Bytes(Name(selected)), ImGuiComboFlags.None))
                 {
@@ -275,14 +305,15 @@ public sealed class ConfigurationControls
                     }
                     finally { Ui.EndCombo(); }
                 }
-                ScalarDrawCount++; RecordField(id);
+                ScalarDrawCount++; RecordField(id); DrawFieldActions(document, node, description);
             }
             else if (path == "colors.roles" && node.ValueKind == JsonValueKind.String)
             {
                 string selected = node.GetString()!;
-                using var row = ToolLayout.PropertyRow(Bytes(id), Bytes(Label(key) + " [LIVE]"), Ui.GetFontSize() * 7,
-                    Bytes(ConfigurationImpact.For(id).Reason));
+                var description = Presentation(id, key);
+                using var row = ToolLayout.PropertyRow(description.Property, Ui.GetFontSize() * 7);
                 if (!row.ContentVisible) return;
+                ToolFieldActions.ReserveControlWidth();
                 if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected), ImGuiComboFlags.None))
                 {
                     try
@@ -294,16 +325,16 @@ public sealed class ConfigurationControls
                     }
                     finally { Ui.EndCombo(); }
                 }
-                ScalarDrawCount++; RecordField(id);
+                ScalarDrawCount++; RecordField(id); DrawFieldActions(document, node, description);
             }
-            else DrawValue(node, id, Label(key), value => EditValue(document, editKeys, value));
+            else DrawValue(document, node, id, key);
         }
         finally { editKeys.RemoveAt(editKeys.Count - 1); }
     }
     private void DrawArray(ConfigurationWorkspace.Document document, JsonElement array, string path, string key)
     {
         var impact = ConfigurationImpact.For(path);
-        Ui.TextWrapped(Bytes(impact.Effect.ToString().ToUpperInvariant()));
+        Text(impact.Effect.ToString(), InspectorTone.Secondary);
         Ui.SetItemTooltip(Bytes(impact.Reason));
         if (key is "shapes" or "quarterTurns")
         {
@@ -323,6 +354,7 @@ public sealed class ConfigurationControls
                     EditValue(document, editKeys, replacement);
                 }
             }
+            DrawFieldActions(document, array, Presentation(path, key));
             return;
         }
         for (int i = 0; i < array.GetArrayLength(); i++)
@@ -333,43 +365,50 @@ public sealed class ConfigurationControls
             {
                 if (array[i].ValueKind == JsonValueKind.Object)
                 {
-                    if (Group(id, $"Item {i + 1}")) DrawObject(document, array[i], id);
+                    if (Group(id, Presentation(id, key, arrayIndex: i).Property.Label)) DrawObject(document, array[i], id);
                 }
-                else DrawValue(array[i], id, $"Item {i + 1}", value => EditValue(document, editKeys, value));
+                else DrawValue(document, array[i], id, key, i);
             }
             finally { editKeys.RemoveAt(editKeys.Count - 1); }
         }
         Ui.TextWrapped("Array entries are edited in place; list length is preserved."u8);
+        DrawFieldActions(document, array, Presentation(path, key));
     }
-    private void DrawValue(JsonElement value, string id, string label, Action<JsonNode> set)
+    private void DrawValue(ConfigurationWorkspace.Document document, JsonElement value, string id, string key, int arrayIndex = -1)
     {
         if (value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) return;
         ScalarDrawCount++;
-        var impact = ConfigurationImpact.For(id);
-        using var row = ToolLayout.PropertyRow(Bytes(id), Bytes(label + Unit(id) + " [" + impact.Effect.ToString().ToUpperInvariant() + "]"),
-            Ui.GetFontSize() * 7, Bytes(impact.Reason));
+        var description = Presentation(id, key, arrayIndex: arrayIndex);
+        using var row = ToolLayout.PropertyRow(description.Property, Ui.GetFontSize() * 7);
         if (!row.ContentVisible) return;
-        var widget = Bytes("##" + id);
+        ToolFieldActions.ReserveControlWidth();
+        var widget = description.WidgetId;
         switch (value.ValueKind)
         {
-            case System.Text.Json.JsonValueKind.True:
-            case System.Text.Json.JsonValueKind.False:
+            case JsonValueKind.True:
+            case JsonValueKind.False:
                 bool boolean = value.GetBoolean();
-                if (Ui.Checkbox(widget, ref boolean)) set(JsonValue.Create(boolean)!);
+                if (Ui.Checkbox(widget, ref boolean)) EditValue(document, editKeys, JsonValue.Create(boolean));
                 break;
-            case System.Text.Json.JsonValueKind.Number:
-                // Never infer integral schema types from lexical JSON values (e.g. speed: 576).
-                double number = value.GetDouble();
-                if (Ui.InputDouble(widget, ref number, 0, 0, "%.8g"u8,
-                    id is "window.width" or "window.height" or "window.frameRateLimit" ? ImGuiInputTextFlags.EnterReturnsTrue : ImGuiInputTextFlags.None))
+            case JsonValueKind.Number:
+                var flags = description.CommitOnEnter ? ImGuiInputTextFlags.EnterReturnsTrue : ImGuiInputTextFlags.None;
+                if (description.Integer is { } integer && value.TryGetInt64(out long whole))
                 {
-                    if (double.IsFinite(number)) { set(JsonValue.Create(number)!); widgetErrors.Remove(id); }
-                    else widgetErrors[id] = "Enter a finite number; NaN/Infinity was not staged.";
+                    if (ToolControls.EditInt64(widget, ref whole, integer, help: description.Property.Help, inputFlags: flags))
+                    { EditValue(document, editKeys, JsonValue.Create(whole)); widgetErrors.Remove(id); }
                 }
-                RecordField(id);
-                if (widgetErrors.TryGetValue(id, out var error)) Ui.TextWrapped(Bytes(error));
-                return;
-            case System.Text.Json.JsonValueKind.String:
+                else
+                {
+                    // Nonintegral drafts for integer schema fields stay exact and repairable, never silently cast.
+                    double number = value.GetDouble();
+                    if (ToolControls.EditDouble(widget, ref number, description.Real, help: description.Property.Help, inputFlags: flags))
+                    {
+                        if (double.IsFinite(number)) { EditValue(document, editKeys, JsonValue.Create(number)); widgetErrors.Remove(id); }
+                        else widgetErrors[id] = "Enter a finite number; NaN/Infinity was not staged.";
+                    }
+                }
+                break;
+            case JsonValueKind.String:
                 string text = value.GetString()!;
                 if (id.StartsWith("colors.palette.", StringComparison.Ordinal) && text.Length == 7 && text[0] == '#' &&
                     int.TryParse(text.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgb))
@@ -378,7 +417,7 @@ public sealed class ConfigurationControls
                     if (Ui.ColorEdit3(widget, ref color, ImGuiColorEditFlags.None))
                     {
                         static int Channel(float c) => (int)MathF.Round(Math.Clamp(c, 0, 1) * 255);
-                        set(JsonValue.Create($"#{Channel(color.X):X2}{Channel(color.Y):X2}{Channel(color.Z):X2}")!);
+                        EditValue(document, editKeys, JsonValue.Create($"#{Channel(color.X):X2}{Channel(color.Y):X2}{Channel(color.Z):X2}"));
                     }
                 }
                 else
@@ -388,29 +427,52 @@ public sealed class ConfigurationControls
                     if (Ui.InputText(widget, buffer, ImGuiInputTextFlags.None, (ImGuiInputTextCallback?)null, default))
                     {
                         int length = Array.IndexOf(buffer, (byte)0);
-                        set(JsonValue.Create(Encoding.UTF8.GetString(buffer, 0, length < 0 ? buffer.Length : length))!);
+                        EditValue(document, editKeys, JsonValue.Create(Encoding.UTF8.GetString(buffer, 0, length < 0 ? buffer.Length : length)));
                     }
                 }
                 break;
         }
         RecordField(id);
+        DrawFieldActions(document, value, description);
+        if (widgetErrors.TryGetValue(id, out var error)) Text(error, InspectorTone.Error);
+    }
+    private ConfigurationFieldPresentation Presentation(string id, string key, bool humanLabel = false, int arrayIndex = -1)
+    {
+        if (!presentation.TryGetValue(id, out var value)) presentation.Add(id,
+            value = new(id, humanLabel ? key : arrayIndex >= 0 ? $"Item {arrayIndex + 1}" : Label(key)));
+        return value;
+    }
+    private void DrawFieldActions(ConfigurationWorkspace.Document document, JsonElement value, ConfigurationFieldPresentation description)
+    {
+        var action = ToolFieldActions.Draw(description.Property.IdUtf8, document.CanRestoreSource(editKeys), true,
+            description.Presets, restoreLabel: "Restore from source"u8);
+        if (FirstVisibleAction is null && Ui.IsItemVisible())
+            FirstVisibleAction = (description.Property.Id, Ui.GetItemRectMin(), Ui.GetItemRectMax());
+        ExecuteFieldAction(document, editKeys, value, description, action);
+    }
+    internal void ExecuteFieldAction(ConfigurationWorkspace.Document document, IReadOnlyList<string> keys, JsonElement value,
+        ConfigurationFieldPresentation description, ToolFieldAction action)
+    {
+        switch (action.Kind)
+        {
+            case ToolFieldActionKind.Restore: document.RestoreSource(keys); widgetErrors.Remove(description.Property.Id); break;
+            case ToolFieldActionKind.Copy: pendingClipboard = value.GetRawText(); break;
+            case ToolFieldActionKind.Preset: document.Set(keys, description.PresetValue(action.PresetIndex)); widgetErrors.Remove(description.Property.Id); break;
+        }
+    }
+    private void Text(string message, InspectorTone tone)
+    {
+        if (Theme is null) Ui.TextWrapped(Bytes(message)); else Theme.TextWrapped(Bytes(message), tone);
     }
     private void RecordField(string id)
     {
         if (FirstVisibleField is null && Ui.IsItemVisible())
             FirstVisibleField = (id, Ui.GetItemRectMin(), Ui.GetItemRectMax());
     }
-    private static string Unit(string path) => path.AsSpan(path.LastIndexOf('.') + 1) switch
-    {
-        "speed" or "moveSpeed" or "descentSpeed" or "maximumDescentSpeed" => " (units/s)",
-        "radius" or "size" or "columnPitch" or "width" or "height" when !path.StartsWith("window.", StringComparison.Ordinal) && !path.StartsWith("inspector.", StringComparison.Ordinal) => " (units)",
-        "invulnerabilitySeconds" or "rampSeconds" or "rowInterval" or "minimumRowInterval" => " (s)",
-        "fireRate" => " (shots/s)", "updateHz" => " (Hz)", _ => ""
-    };
     private static string Label(string key)
     {
         if (key == "vsync") return "VSync";
-        if (key == "frameRateLimit") return "Frame rate cap (0 unlimited)";
+        if (key == "frameRateLimit") return "Frame rate cap";
         var result = new StringBuilder();
         foreach (char c in key) { if (char.IsUpper(c)) result.Append(' '); result.Append(c); }
         if (result.Length > 0) result[0] = char.ToUpperInvariant(result[0]);

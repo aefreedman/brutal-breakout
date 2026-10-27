@@ -6,6 +6,7 @@ using CrushKit.Brutal.ImGui;
 namespace BrutalBreakout.Editor;
 
 public enum ConfigurationAction { None, Apply, Save, Discard, Reload }
+public sealed record ConfigurationOutcome(long Sequence, ConfigurationAction Action, bool Succeeded, bool Warning, string Message);
 
 /// <summary>App-specific registry. Draft JSON retains asset spellings; production loaders own every schema and rule.</summary>
 public sealed class ConfigurationWorkspace
@@ -24,6 +25,7 @@ public sealed class ConfigurationWorkspace
         private readonly Action changed;
         private static readonly JsonSerializerOptions TextOptions = new() { WriteIndented = true };
         public long Revision { get; private set; }
+        public long SourceRevision { get; private set; }
         internal int SerializationCount { get; private set; }
         internal int ParseCount { get; private set; }
         public JsonElement Draft
@@ -41,7 +43,7 @@ public sealed class ConfigurationWorkspace
         internal string Source
         {
             get => source;
-            set { if (source == value) return; source = value; sourceNode = Parse(value); unsaved = null; changed(); }
+            set { if (source == value) return; source = value; sourceNode = Parse(value); SourceRevision++; unsaved = null; changed(); }
         }
         internal string Applied
         {
@@ -77,6 +79,24 @@ public sealed class ConfigurationWorkspace
             else parent[last] = owned;
             Invalidate(); return true;
         }
+        /// <summary>Checks the selected in-memory source snapshot; no file I/O or display-path splitting.</summary>
+        public bool CanRestoreSource(IReadOnlyList<string> keys) =>
+            TryFind(sourceNode, keys, out var saved) && TryFind(draft, keys, out var current) && !JsonNode.DeepEquals(saved, current);
+        /// <summary>Stages only this literal-key field from the selected source. Save, reset and apply remain separate.</summary>
+        public bool RestoreSource(IReadOnlyList<string> keys) =>
+            TryFind(sourceNode, keys, out var saved) && TryFind(draft, keys, out _) && Set(keys, saved);
+        private static bool TryFind(JsonNode root, IReadOnlyList<string> keys, out JsonNode? value)
+        {
+            value = root;
+            if (keys.Count == 0) return false;
+            foreach (string key in keys)
+            {
+                if (value is JsonObject obj) { if (!obj.TryGetPropertyValue(key, out value)) return false; }
+                else if (value is JsonArray array && int.TryParse(key, out int index) && (uint)index < (uint)array.Count) value = array[index];
+                else return false;
+            }
+            return true;
+        }
         public bool Set(string path, JsonElement value) => Set(path, JsonNode.Parse(value.GetRawText()));
         public bool Set(IReadOnlyList<string> keys, JsonElement value) => Set(keys, JsonNode.Parse(value.GetRawText()));
         private static JsonNode? Child(JsonNode node, string key) => node is JsonArray array
@@ -107,6 +127,10 @@ public sealed class ConfigurationWorkspace
     private ConfigurationAction request;
     private Candidate? appliedCandidate;
     public string Status { get; private set; } = "Valid safe edits apply automatically. Save and structural reset are separate.";
+    public ConfigurationOutcome? LastOutcome { get; private set; }
+    private long outcomeSequence;
+    private void PublishOutcome(ConfigurationAction action) => LastOutcome = new(++outcomeSequence, action,
+        !Status.StartsWith("Rejected:", StringComparison.Ordinal), Status.Contains("warning:", StringComparison.OrdinalIgnoreCase), Status);
     private long revision, lastAttempt = -1;
     private string? inactiveModeSection, liveContextRevision;
     private Action<Candidate>? preflightLive;
@@ -177,7 +201,7 @@ public sealed class ConfigurationWorkspace
     public void Request(ConfigurationAction action) => request = action;
     public bool IsChanged(Candidate candidate, string section) =>
         documents.Any(d => d.Section == section && !Equivalent(d.Applied, candidate.Texts[section]));
-    public void ReportFailure(Exception error) => Status = "Rejected: " + error.Message;
+    public void ReportFailure(Exception error) { Status = "Rejected: " + error.Message; PublishOutcome(ConfigurationAction.None); }
     private Dictionary<string, string> Capture(bool runtimeOnly) => documents.ToDictionary(d => d.Section,
         d => runtimeOnly && !d.Runtime ? d.Applied : d.Text, StringComparer.Ordinal);
 
@@ -204,6 +228,14 @@ public sealed class ConfigurationWorkspace
     }
     /// <summary>Owner update only. Captures independent strings before validating/allocating; no native work in Draw.</summary>
     public void Process(Action<Candidate> apply)
+    {
+        var action = request; long beforeAttempt = lastAttempt, beforeOutcome = outcomeSequence;
+        ProcessCore(apply);
+        // Successful drags are intentionally quiet. Explicit operations and genuinely new failed attempts are events.
+        if (beforeOutcome == outcomeSequence && (action != ConfigurationAction.None ||
+            lastAttempt != beforeAttempt && Status.StartsWith("Rejected:", StringComparison.Ordinal))) PublishOutcome(action);
+    }
+    private void ProcessCore(Action<Candidate> apply)
     {
         var action = request; request = ConfigurationAction.None;
         if (action == ConfigurationAction.None) { AutoApply(apply); return; }
