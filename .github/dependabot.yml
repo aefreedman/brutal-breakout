@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        patterns: ["*"]
+# NuGet automation waits for a public immutable CrushKit feed.
+# Dependabot cannot restore the private local-feed package graph or
+# obtain the separately checked-out kit source for the CI-only graph.

@@ -1,0 +1,29 @@
+BRUTAL linking exception for Breakout
+
+Additional permission under section 7 of the GNU General Public License,
+version 3:
+
+The copyright holders of the Breakout code to which this notice applies
+grant you additional permission to link or combine that code with the
+BRUTAL game development framework distributed by Ahwoo Limited under the
+BRUTAL License v1.0, including its managed and native framework packages
+and modified versions of that framework remaining under that licence,
+and to convey the resulting combination. This permission applies even
+where the conditions of the BRUTAL License v1.0 would otherwise prevent
+conveyance of that combination under the GNU GPL.
+
+This exception does not relicense BRUTAL or its third-party components,
+and does not waive their licence conditions, including applicable product
+credits, logo display and NOTICE distribution requirements. You must have
+permission to use and distribute those components under their own licences.
+
+The exception applies only to the Breakout material whose copyright
+holders grant it. It is not a general exception for unrelated non-GPL
+software. The GNU GPL continues to govern the covered Breakout code,
+including its Corresponding Source obligations; this permission does not
+require BRUTAL itself to be relicensed under the GNU GPL.
+
+Recipients may remove this additional permission as allowed by GNU GPL
+section 7. If you contribute modifications, state whether you extend this
+permission to your contributions; it does not automatically grant rights
+in material whose copyright holders have not authorized it.

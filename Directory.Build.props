@@ -4,6 +4,8 @@
     <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
     <!-- Isolate both restore intermediates and binaries for the editor-free app. -->
     <ArtifactsProjectName Condition="'$(MSBuildProjectName)' == 'BrutalBreakout.App' and '$(EnableEditor)' == 'false'">$(MSBuildProjectName).shipping</ArtifactsProjectName>
+    <!-- Keep opt-in source builds reproducible without changing package or private dev locks. -->
+    <NuGetLockFilePath Condition="'$(UseCrushKitProjects)' == 'true' and '$(NuGetLockFilePath)' == ''">$(MSBuildProjectDirectory)/packages.source.lock.json</NuGetLockFilePath>
     <CrushKitVersion>0.1.0-preview.12</CrushKitVersion>
     <CrushKitImGuiVersion>0.1.0-preview.13</CrushKitImGuiVersion>
     <CrushKitRoot Condition="'$(CrushKitRoot)' == ''">$(MSBuildThisFileDirectory)../../crushkit-brutal</CrushKitRoot>

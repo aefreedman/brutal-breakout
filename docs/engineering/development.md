@@ -35,7 +35,9 @@ The editor-free app uses its own `src/App/packages.shipping.lock.json` and `Brut
 
 ## Edit CrushKit locally
 
-Normal builds consume real packages. The changed ImGui module is pinned through `CrushKitImGuiVersion` (`0.1.0-preview.13`); the other kit modules use `CrushKitVersion` (`0.1.0-preview.12`). Build the matching kit branch's packages into the configured local feed before normal locked restore. During isolated worktree development, an explicit temporary NuGet configuration may point at the owned kit package output; never overwrite another session's shared preview packages.
+Public checkout/CI builds use the exact CrushKit source commit in `.github/crushkit-revision`, with `UseCrushKitProjects=true` and an explicit `CrushKitRoot`. The [README source quick start](../../README.md#quick-start-source-build) does not require a local feed. Committed `packages.source.lock.json` files lock this graph; do not regenerate ordinary package locks when changing source references. `.github/scripts/ci.ps1` checks the kit commit, restores in locked mode, builds and runs the headless test baseline. It is source integration evidence, not package-consumer or GPU validation.
+
+The existing package mode remains the default when the source property is absent: `CrushKitImGuiVersion` is `0.1.0-preview.13` and the other modules use `CrushKitVersion` `0.1.0-preview.12`. These packages are unpublished; use the exact existing local packages rather than repacking those immutable versions. Public package hosting/release is deferred.
 
 For coordinated source edits, opt into neighboring project references without changing normal package lock files:
 
@@ -44,7 +46,7 @@ dotnet restore -p:UseCrushKitProjects=true -p:NuGetLockFilePath=packages.dev.loc
 dotnet build --no-restore -p:UseCrushKitProjects=true -p:NuGetLockFilePath=packages.dev.lock.json
 ```
 
-Set `CrushKitRoot` explicitly if the kit checkout is elsewhere. Use the same properties on test/run commands. Development lock files are ignored; switch back with normal locked restore. Do not overwrite a shared/published NuGet version: bump it and update consumer lock files. Repacking an unpublished version requires deliberately refreshing only that version's kit cache entries and reevaluating its lock hashes; the kit's `tools/verify-packages.ps1` avoids stale-cache ambiguity with an isolated consumer cache.
+Set `CrushKitRoot` explicitly if the kit checkout is elsewhere. Use the same properties on test/run commands. Explicit `packages.dev.lock.json` files are ignored for private coordinated edits; omitting that override selects the committed source locks. Switch back to package mode with normal locked restore and the existing local feed. Do not overwrite a shared/published NuGet version: bump it and update consumer lock files. Repacking an unpublished version requires deliberately refreshing only that version's kit cache entries and reevaluating its lock hashes; the kit's `tools/verify-packages.ps1` avoids stale-cache ambiguity with an isolated consumer cache.
 
 The renderer/geometry/shaders and optional inspector now live in CrushKit, not this repository. Breakout retains gameplay, configuration loading/JSON, overlay label/diagnostic content, input bindings/aim priorities, audio cue/event mapping and licensed game assets. CrushKit owns raw input sampling/edge/deadzone helpers and generic clip/device/bounded-voice mechanics; Input/Audio depend on neither graphics nor one another. The renderer no longer knows about balls/bricks; `OverlayHost` supplies those details as text. The kit's Vulkan package alone has no ImGui dependency; this application explicitly configures `ImGuiInspector` with its separately validated `InspectorSettings`; text `OverlaySettings` no longer require any inspector assets. HUD and inspector JSON are independently strict; their immutable settings objects are passed unchanged to their respective consumers.
 
@@ -69,6 +71,8 @@ Dependency versions are authoritative in the project files and `packages.lock.js
 
 ## Repository and release
 
-The private GitHub remote uses HTTPS: `https://github.com/aefreedman/brutal-breakout.git`.
+The public GitHub source repository uses HTTPS: `https://github.com/aefreedman/brutal-breakout.git`. Its compatible source dependency is https://github.com/aefreedman/crushkit-brutal. Source publication retains existing history; normal Git author metadata and historical machine paths are intentionally retained with owner approval.
+
+Original Breakout material is GPL-3.0-or-later with the BRUTAL linking exception; see [licensing scope](../../LICENSING.md). The app copies its licence, exception and scope notice into build/publish output. Release still requires corresponding-source delivery and exact dependency/provenance review; existing asset and third-party licences remain unchanged.
 
 Before distribution review the current [BRUTAL license](https://github.com/ahwootech/BRUTAL) and all third-party notices. BRUTAL requires copyright attribution in credits, its logo before gameplay, and a shipped `NOTICE.txt`; those release assets are not implemented here.
