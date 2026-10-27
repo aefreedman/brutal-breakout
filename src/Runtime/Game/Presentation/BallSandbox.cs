@@ -16,7 +16,7 @@ public static class BallSandbox
     }
 
     public static ShapeFrame Build(ShapeDrawList draw, BallSimulation simulation, ColorScheme colors,
-        PresentationStyle style, double renderSeconds, int width, int height, out GeometryEvidence evidence)
+        PresentationStyle style, double renderSeconds, int width, int height, out GeometryEvidence evidence, CircleDetail? circleDetail = null)
     {
         ArgumentNullException.ThrowIfNull(colors);
         ArgumentNullException.ThrowIfNull(style);
@@ -68,7 +68,7 @@ public static class BallSandbox
             AimGeometry.Draw(draw, state.Position, state.AimDirection, radius, hit, next, style, colors.Aim);
         }
         int aimEnd = draw.IndexCount;
-        if (playing) draw.FillDisc(center, radius, colors.Ball);
+        if (playing) draw.FillDisc(center, radius, colors.Ball, circleDetail);
         int ballEnd = draw.IndexCount;
         if (playing && state.Phase == BallPhase.Aiming)
         {

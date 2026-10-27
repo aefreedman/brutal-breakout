@@ -250,7 +250,7 @@ public class ShmupShapeTests
     {
         var basis = Settings(bounce: false, width: 140, speed: 60000, descent: 1, bricks: 1);
         var s = new ShmupSettings(basis.Arena, basis.Avatar,
-            new(3, 60000, 12, 10, false, 100), basis.Brick, basis.Difficulty, basis.Noise, basis.Capacity);
+            new(3, 60000, 12, 10, false, 100, 64), basis.Brick, basis.Difficulty, basis.Noise, basis.Capacity);
         using var sim = Sim(s);
         sim.SpawnBrick(new(640, 300), ShmupBrickShape.T); sim.SpawnBall(new(640, 282), new(1, 0)); sim.Step();
         Assert.InRange(sim.Snapshot.Bricks[0].Health, 10, 80);

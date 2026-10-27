@@ -11,15 +11,17 @@ public sealed class RenderingSettings
 {
     public ShmupRenderingPath Path { get; }
     public BakedMeshLimits Limits { get; }
-    public RenderingSettings(ShmupRenderingPath path, BakedMeshLimits limits)
+    public CircleDetail CircleDetail { get; }
+    public RenderingSettings(ShmupRenderingPath path, BakedMeshLimits limits, CircleDetail circleDetail)
     {
         ArgumentNullException.ThrowIfNull(limits);
+        ArgumentNullException.ThrowIfNull(circleDetail);
         if (!Enum.IsDefined(path)) throw new ArgumentOutOfRangeException(nameof(path));
         // Admission/ABI bounds, not fallback defaults. Include the producer's fixed selection reservation.
         if (limits.MeshCount > 4096 || limits.CpuBytes < 8192 || limits.CpuBytes > 268_435_456 ||
             limits.GpuBytes > 268_435_456 || limits.Instances > 1_000_000 || limits.Operations > 1_000_000)
             throw new ArgumentOutOfRangeException(nameof(limits), "Rendering budgets exceed supported allocation bounds.");
-        Path = path; Limits = limits;
+        Path = path; Limits = limits; CircleDetail = circleDetail;
     }
     public void Validate(ShmupSettings settings)
     {
@@ -33,19 +35,27 @@ public sealed record LoadedRenderingConfiguration(string Path, RenderingSettings
 public static class RenderingConfiguration
 {
     private sealed record LimitsFile(int MeshCount, long CpuBytes, long GpuBytes, int Instances, int Operations);
-    private sealed record RenderingFile(string Path, LimitsFile Limits);
+    private sealed record CircleDetailFile(string Mode, int FixedSides);
+    private sealed record RenderingFile(string Path, LimitsFile Limits, CircleDetailFile CircleDetail);
     public static LoadedRenderingConfiguration Load(string path, string? jsonText = null)
     {
         var loaded = ConfigurationFile.Load<RenderingFile, RenderingSettings>(path, "rendering", d =>
         {
             ArgumentNullException.ThrowIfNull(d.Limits);
+            ArgumentNullException.ThrowIfNull(d.CircleDetail);
+            var detailMode = d.CircleDetail.Mode switch
+            {
+                "automatic" => CircleDetailMode.Automatic,
+                "fixedSideCount" => CircleDetailMode.FixedSideCount,
+                _ => throw new ArgumentException("Circle detail mode must be automatic or fixedSideCount.")
+            };
             var mode = d.Path switch
             {
                 "sharedMeshes" => ShmupRenderingPath.SharedMeshes,
                 "cpuBuiltTriangles" => ShmupRenderingPath.CpuBuiltTriangles,
                 _ => throw new ArgumentException("Rendering path must be sharedMeshes or cpuBuiltTriangles.")
             };
-            return new(mode, new(d.Limits.MeshCount, d.Limits.CpuBytes, d.Limits.GpuBytes, d.Limits.Instances, d.Limits.Operations));
+            return new(mode, new(d.Limits.MeshCount, d.Limits.CpuBytes, d.Limits.GpuBytes, d.Limits.Instances, d.Limits.Operations), new(detailMode, d.CircleDetail.FixedSides));
         }, jsonText);
         return new(loaded.Path, loaded.Settings);
     }

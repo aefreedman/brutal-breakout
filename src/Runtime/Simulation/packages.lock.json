@@ -4,9 +4,9 @@
     "net10.0": {
       "CrushKit.Brutal.Ecs": {
         "type": "Direct",
-        "requested": "[0.1.0-preview.11, )",
-        "resolved": "0.1.0-preview.11",
-        "contentHash": "5eGhRI50fBkandaEgwBB/oe3G2C6MNq24/U3fm1E9wuFn2ullhtiZC13NJb99vz1JJ4wsia2TM30NuO+W0HWuw==",
+        "requested": "[0.1.0-preview.12, )",
+        "resolved": "0.1.0-preview.12",
+        "contentHash": "OXuRtiLLeWIDQH423hKf9gQ0S9NG0Hezi3HQC7IGRxiQvgJ6xM9hTTWAT/Sun4l2TGaYb5Bh/y7O3O+fJNyNjQ==",
         "dependencies": {
           "Arch": "[2.1.0]",
           "ZeroAllocJobScheduler": "[1.1.2]"
@@ -14,9 +14,9 @@
       },
       "CrushKit.Brutal.Physics": {
         "type": "Direct",
-        "requested": "[0.1.0-preview.11, )",
-        "resolved": "0.1.0-preview.11",
-        "contentHash": "BlJJqb0orpC3mRPQmMhRxQabWW/GWFkSyEsqZgijhG+a7buIdkMiFmaXJEcfe9F7i7C6sthAMsselJIqU3oq7g==",
+        "requested": "[0.1.0-preview.12, )",
+        "resolved": "0.1.0-preview.12",
+        "contentHash": "XPvtbz/4axk9239JzTw6tXrQnqWwx6ixmHQsKg0UcpWtzZLatda+zjpWjn9X05hpDAivpk3cu9QTex8xM+ZBDA==",
         "dependencies": {
           "Ahwoo.BRUTAL.Box2D": "[2026.10.2]",
           "ZeroAllocJobScheduler": "[1.1.2]"

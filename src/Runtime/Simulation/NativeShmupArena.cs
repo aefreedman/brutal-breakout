@@ -345,7 +345,8 @@ internal sealed class NativeShmupArena : IDisposable
         var secondOrigin = hit.Position + hit.Normal;
         return new(hit, InsideScreen(secondOrigin) ? Query(secondOrigin, hit.ReflectedDirection) : default);
     }
-    internal unsafe void Step(double descentSpeed, double2 previousAvatar, double2 avatar)
+    internal unsafe void Step(double descentSpeed, double2 previousAvatar, double2 avatar,
+        ReadOnlySpan<double> births = default, Action<double>? birth = null)
     {
         Guard();
         foreach (var p in tickHits) BrickHits[p.Ball, p.Brick] = 0;
@@ -371,10 +372,27 @@ internal sealed class NativeShmupArena : IDisposable
         // still detect arbitrarily thin crossed bricks, including relative kinematic movement.
         int intervals = (int)Math.Ceiling(
             (settings.Ball.Speed + descentSpeed) * physics.StepSeconds / (settings.Ball.Radius / 2));
-        LastIntervalCount = Math.Max(1, intervals);
-        double dt = physics.StepSeconds / LastIntervalCount;
-        for (int step = 0; step < Math.Max(1, intervals); step++)
+        intervals = Math.Max(1, intervals);
+        LastIntervalCount = 0;
+        double elapsed = 0, tolerance = physics.StepSeconds * 1e-9;
+        int grid = 1, shot = 0;
+        // Merge births into the original adaptive grid, never replacing or coarsening it.
+        // Each iteration consumes a grid boundary or birth, hence <= intervals + births.Length.
+        for (int boundary = 0; boundary < intervals + births.Length && elapsed < physics.StepSeconds; boundary++)
         {
+            // Previous interval's jobs, event traversal and expiry have all completed here.
+            while (shot < births.Length && births[shot] <= elapsed + tolerance)
+                birth!(births[shot++]);
+            // Pin the final grid boundary: multiply/divide rounding can otherwise
+            // leave elapsed below the tick end and admit an extra full interval.
+            double end = grid == intervals ? physics.StepSeconds : grid * physics.StepSeconds / intervals;
+            if (shot < births.Length && births[shot] < end - tolerance) end = births[shot];
+            else grid++;
+            double dt = end - elapsed;
+            if (!(dt > 0) || !float.IsFinite(1f / ((float)dt / physics.Substeps)))
+                throw new InvalidOperationException("Unrepresentable firing integration interval.");
+            elapsed = end;
+            LastIntervalCount++;
             foreach (var p in intervalHits) intervalBrickHits[p.Ball, p.Brick] = false;
             intervalHits.Clear(); Array.Clear(intervalWallHits); Array.Clear(brickInteraction);
             if (!settings.Ball.BounceOnBricks)

@@ -35,7 +35,7 @@ The editor-free app uses its own `src/App/packages.shipping.lock.json` and `Brut
 
 ## Edit CrushKit locally
 
-Normal builds consume real packages. This branch pins the changed ImGui module through `CrushKitImGuiVersion` (`0.1.0-preview.13-imgui.1`); unchanged kit modules use `CrushKitVersion` (`0.1.0-preview.11`). Build the matching kit branch's packages into the configured local feed before normal locked restore. During isolated worktree development, an explicit temporary NuGet configuration may point at the owned kit package output; never overwrite another session's shared preview packages.
+Normal builds consume real packages. The changed ImGui module is pinned through `CrushKitImGuiVersion` (`0.1.0-preview.13`); the other kit modules use `CrushKitVersion` (`0.1.0-preview.12`). Build the matching kit branch's packages into the configured local feed before normal locked restore. During isolated worktree development, an explicit temporary NuGet configuration may point at the owned kit package output; never overwrite another session's shared preview packages.
 
 For coordinated source edits, opt into neighboring project references without changing normal package lock files:
 

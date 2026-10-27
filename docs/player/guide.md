@@ -26,6 +26,8 @@ In Shmup, move the circular avatar with the **left stick**, aim with the **right
 
 Keyboard/mouse fallback: **WASD/arrows** move, **mouse movement** aims, and hold **Space/left click** to fire; **R** restarts a running session, or use panel **Restart** while paused. **Start** pauses/resumes. Neutral aim retains the last direction. After focus loss, input reset or controller replacement, release fire before pressing again.
 
+Fire rate in **Configuration → SHMUP → ball → fireRate** is shots per second. Decimal rates and rates above the physics update rate are supported, with shots spaced within each update rather than spawned as a clump. `maxShotsPerTick` bounds attempted shots per update; a full ball pool drops attempts without storing a burst for later. Higher rates can increase physics work.
+
 Mixed square, **2×1**, **2×2**, **L** and **T** bricks descend with gaps. Each compound shape is one brick with shared HP; its cutouts remain open to balls, the avatar and aim previews.
 
 Spawn frequency and descent speed increase over gameplay time to configured caps. Bricks have 100 HP and balls deal 10 damage by default. The player has 100 HP; escaped bricks cost 10 HP each, while avatar contact causes damage followed by brief invulnerability. At zero HP the mode stops until explicitly restarted. The top/bottom screen edges have no rendered border.
@@ -33,5 +35,7 @@ Spawn frequency and descent speed increase over gameplay time to configured caps
 Shmup aim previews show the current walls and live bricks, not future moving-brick positions. Piercing mode does not preview brick bounces. Open exits show a line to the screen edge; uncertain hits show a short direction indicator.
 
 Shmup draws balls and compound bricks with **Shared meshes** by default. In **F1 / Select / Share → Gameplay → Configuration... → Rendering**, choose **CPU-built triangles** for the explicit alternate path, or switch back live—even paused, without restarting or saving. Save changed persists the choice; Reload/Discard restore source choices. The shapes, colors, trails and controls are the same. The Window category retains independent VSync and frame-cap controls. Categories appear beside the settings body in wide panels or in a selector above it in narrow panels; Save/Discard/Reload stay reachable while the body scrolls. Gameplay's Diagnostics button opens optional read-only technical details instead of cluttering normal tuning with a test image. See [configuration](../design/configuration.md#shmup-rendering-path) for startup-only mesh resource budgets.
+
+In **Configuration → RENDERING → Circle detail**, choose **Automatic** for size-dependent smoothness or **Fixed side count** to keep exactly the selected number of sides. Fixed counts are multiples of four from 8 to 4096; **Side count** appears in Fixed mode. Changes apply live, even paused, to filled balls in both game modes and both rendering paths. Low fixed counts intentionally look polygonal, but physics colliders remain circular. Very high counts still obey existing frame geometry budgets. Save remains explicit.
 
 Ball trails fade and taper behind live balls. Pause freezes their aging; restart and mode changes clear them. Shmup has firing, brick-hit, brick-destruction and player-damage sounds, with a loss cue at game over. Mute, focus loss and restart stop stale feedback.

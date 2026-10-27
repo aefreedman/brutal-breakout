@@ -36,6 +36,34 @@ public sealed class RenderingWorkspaceTests
         });
     }
     [Fact]
+    public void CircleEditsApplySameImmutablePolicyLiveAndDiscardWithoutSaving()
+    {
+        ConfigurationWorkspaceTests.WithCopy(root =>
+        {
+            var w = new ConfigurationWorkspace(ConfigurationWorkspaceTests.Paths(root), true);
+            var d = ConfigurationWorkspaceTests.Doc(w, "rendering");
+            var startup = RenderingConfiguration.Load(d.Path).Settings;
+            using var owner = new ShmupRendering(startup);
+            string original = File.ReadAllText(d.Path);
+            w.Process(_ => { });
+            void Commit(ConfigurationWorkspace.Candidate c)
+            {
+                var next=c.Get<LoadedRenderingConfiguration>("rendering")!.Settings;
+                owner.Apply(next); Assert.Same(next.CircleDetail,owner.CircleDetail);
+            }
+            ConfigurationControls.EditValue(d, new[] { "circleDetail", "mode" }, JsonValue.Create("fixedSideCount"));
+            ConfigurationControls.EditValue(d, new[] { "circleDetail", "fixedSides" }, JsonValue.Create(16));
+            w.Process(Commit);
+            Assert.Equal(16,owner.CircleDetail.FixedSides);Assert.Empty(w.PendingRelaunchFields);
+            Assert.Same(startup.Limits,owner.Limits);Assert.Equal(original,File.ReadAllText(d.Path));
+            d.Set("circleDetail.fixedSides",9);w.Request(ConfigurationAction.Save);w.Process(Commit);
+            Assert.StartsWith("Rejected:",w.Status);Assert.Equal(16,owner.CircleDetail.FixedSides);
+            w.Request(ConfigurationAction.Discard);w.Process(Commit);
+            Assert.Equal(CrushKit.Brutal.Draw2D.CircleDetailMode.Automatic,owner.CircleDetail.Mode);
+            Assert.Equal(original,File.ReadAllText(d.Path));
+        });
+    }
+    [Fact]
     public void ExternalRenderingEditsConflictAndReloadUsesStrictProductionLoader()
     {
         ConfigurationWorkspaceTests.WithCopy(root =>

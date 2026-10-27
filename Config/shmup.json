@@ -17,7 +17,8 @@
     "fireRate": 12,
     "damage": 10,
     "bounceOnBricks": true,
-    "maxWallHits": 20
+    "maxWallHits": 20,
+    "maxShotsPerTick": 64
   },
   "brick": {
     "size": 28.8,

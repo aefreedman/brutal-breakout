@@ -16,8 +16,8 @@ public static class ShmupPresentation
     public readonly record struct GeometryEvidence(int AimIndices, int TrailIndices);
     public static ShapeFrame Build(ShapeDrawList draw, ShmupSnapshot snapshot, ShmupSettings settings,
         ColorScheme colors, PresentationStyle style, int width, int height, out GeometryEvidence evidence,
-        BallTrailHistory? trails = null)
-        => BuildCore(draw,snapshot,settings,colors,style,width,height,out evidence,trails,null,out _);
+        BallTrailHistory? trails = null, CircleDetail? circleDetail = null)
+        => BuildCore(draw,snapshot,settings,colors,style,width,height,out evidence,trails,null,out _,circleDetail);
 
     internal static OrderedShapeFrame BuildBaked(ShapeDrawList draw,ShmupSnapshot snapshot,ShmupSettings settings,
         ColorScheme colors,PresentationStyle style,int width,int height,BallTrailHistory? trails,BakedPresentationMeshes baked)
@@ -26,13 +26,13 @@ public static class ShmupPresentation
     }
     internal static OrderedShapeFrame BuildBaked(ShapeDrawList draw,ShmupSnapshot snapshot,ShmupSettings settings,
         ColorScheme colors,PresentationStyle style,int width,int height,BallTrailHistory? trails,BakedPresentationMeshes baked,
-        out GeometryEvidence evidence)
+        out GeometryEvidence evidence, CircleDetail? circleDetail = null)
     {
-        BuildCore(draw,snapshot,settings,colors,style,width,height,out evidence,trails,baked,out var ordered);return ordered;
+        BuildCore(draw,snapshot,settings,colors,style,width,height,out evidence,trails,baked,out var ordered,circleDetail);return ordered;
     }
     private static ShapeFrame BuildCore(ShapeDrawList draw,ShmupSnapshot snapshot,ShmupSettings settings,
         ColorScheme colors,PresentationStyle style,int width,int height,out GeometryEvidence evidence,
-        BallTrailHistory? trails,BakedPresentationMeshes? baked,out OrderedShapeFrame ordered)
+        BallTrailHistory? trails,BakedPresentationMeshes? baked,out OrderedShapeFrame ordered,CircleDetail? circleDetail = null)
     {
         ordered=default;baked?.Begin(settings.Brick.Geometry);
         var viewport = new ShmupViewport(width, height, width, height, settings.Arena);
@@ -72,8 +72,8 @@ public static class ShmupPresentation
         foreach (var ball in snapshot.Balls)
         {
             var center=new float2((float)ball.Position.X,(float)ball.Position.Y);
-            if(baked is null)draw.FillDisc(center,(float)ball.Radius,colors.Ball);
-            else baked.Draw.Disc(draw,center,(float)ball.Radius,colors.Ball);
+            if(baked is null)draw.FillDisc(center,(float)ball.Radius,colors.Ball,circleDetail);
+            else baked.Draw.Disc(draw,center,(float)ball.Radius,colors.Ball,circleDetail);
         }
         var player = new float2((float)snapshot.PlayerPosition.X, (float)snapshot.PlayerPosition.Y);
         float radius = (float)settings.Avatar.Radius;

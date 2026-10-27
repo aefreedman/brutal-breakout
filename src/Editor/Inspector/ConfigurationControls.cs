@@ -13,6 +13,7 @@ namespace BrutalBreakout.Editor;
 public sealed class ConfigurationControls
 {
     private static readonly string[] RenderingPaths = ["sharedMeshes", "cpuBuiltTriangles"];
+    private static readonly string[] CircleModes = ["automatic", "fixedSideCount"];
     private static readonly string[] ShmupGroups = ["ball", "avatar", "brick", "difficulty", "noise", "arena", "capacity"];
     private static readonly (ToolCategory Category, string[] Sections)[] CategoryDefinitions =
     [
@@ -226,10 +227,30 @@ public sealed class ConfigurationControls
     private void DrawProperty(ConfigurationWorkspace.Document document, string key, JsonElement node, string path)
     {
         string id = path + "." + key;
+        if (id == "rendering.circleDetail.fixedSides" &&
+            document.Draft.GetProperty("circleDetail"u8).GetProperty("mode"u8).GetString() != "fixedSideCount") return;
         editKeys.Add(key);
         try
         {
-            if (node.ValueKind == JsonValueKind.Object)
+            if (id == "rendering.circleDetail.mode")
+            {
+                string selected = node.GetString()!;
+                using var row = ToolLayout.PropertyRow(Bytes(id), "Circle detail [LIVE]"u8, Ui.GetFontSize() * 7,
+                    Bytes(ConfigurationImpact.For(id).Reason));
+                if (!row.ContentVisible) return;
+                if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected == "automatic" ? "Automatic" : "Fixed side count"), ImGuiComboFlags.None))
+                {
+                    try
+                    {
+                        foreach (string value in CircleModes)
+                            if (Ui.Selectable(Bytes(value == "automatic" ? "Automatic" : "Fixed side count"), value == selected, ImGuiSelectableFlags.None, default))
+                                EditValue(document, editKeys, JsonValue.Create(value));
+                    }
+                    finally { Ui.EndCombo(); }
+                }
+                ScalarDrawCount++; RecordField(id);
+            }
+            else if (node.ValueKind == JsonValueKind.Object)
             {
                 if (Group(id, Label(key))) { Ui.Indent(); try { DrawObject(document, node, id); } finally { Ui.Unindent(); } }
             }

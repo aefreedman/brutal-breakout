@@ -32,7 +32,7 @@ public sealed class ShmupPublicationTests
                 var before = sim.Snapshot;
                 for (int tick = 0; tick < 3; tick++) { sim.Step(); Assert.NotSame(before, sim.Snapshot); before = sim.Snapshot; Retain(); }
                 var tuned = new ShmupSettings(settings.Arena, settings.Avatar,
-                    new(4, 2, settings.Ball.FireRate, settings.Ball.Damage, false, settings.Ball.MaxWallHits),
+                    new(4, 2, settings.Ball.FireRate, settings.Ball.Damage, false, settings.Ball.MaxWallHits, settings.Ball.MaxShotsPerTick),
                     settings.Brick, settings.Difficulty, settings.Noise, settings.Capacity);
                 sim.ApplyTuning(TestSettings.Baseline, tuned); Assert.NotSame(before, sim.Snapshot); Retain();
                 Assert.All(sim.Snapshot.Balls.ToArray(), b => Assert.Equal(4, b.Radius));

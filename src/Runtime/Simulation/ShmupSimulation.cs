@@ -20,6 +20,7 @@ public sealed class ShmupSimulation : IDisposable
     private double width, time, fireDelay, rowDelay, beltPhase, runMinimumWidth;
     private long beltRow, lastSpawnGridRow;
     private readonly ShmupAvatarController avatar;
+    private readonly Action<double> birth;
     private long tick, row, droppedBalls, droppedBricks;
     public ShmupSettings Settings { get; private set; }
     public PhysicsSettings Physics { get; private set; }
@@ -44,6 +45,7 @@ public sealed class ShmupSimulation : IDisposable
         (Physics, Settings, Execution) = (physics, settings, execution);
         ballStates = new(settings.Capacity.MaxBalls); brickStates = new(settings.Capacity.MaxBricks);
         avatar = new(settings);
+        birth = Fire;
         world = World.Create();
         try
         {
@@ -72,7 +74,7 @@ public sealed class ShmupSimulation : IDisposable
             avatar.ApplyTuning(settings, width);
             // Preserve fraction of an outstanding deadline; never reset elapsed time/grid phase.
             if (rowDelay > 0 && oldInterval != RowInterval) rowDelay = Math.Clamp(rowDelay / oldInterval * RowInterval, physics.StepSeconds, RowInterval);
-            if (fireDelay > 0 && oldFire != 1 / settings.Ball.FireRate) fireDelay = Math.Clamp(fireDelay / oldFire / settings.Ball.FireRate, physics.StepSeconds, 1 / settings.Ball.FireRate);
+            if (fireDelay > 0 && oldFire != 1 / settings.Ball.FireRate) fireDelay = Math.Clamp(fireDelay / oldFire / settings.Ball.FireRate, 0, 1 / settings.Ball.FireRate);
             Publish();
         }
     }
@@ -115,10 +117,10 @@ public sealed class ShmupSimulation : IDisposable
             avatar.Advance(command, dt, width);
             rowDelay -= dt;
             if (rowDelay <= 0) { SpawnRow(); rowDelay += RowInterval; }
-            fireDelay = Math.Max(0, fireDelay - dt);
-            if (command.FireHeld && fireDelay <= dt * 1e-9) { Fire(); fireDelay = 1 / Settings.Ball.FireRate; }
+            Span<double> births = stackalloc double[Settings.Ball.MaxShotsPerTick];
+            int count = ShmupFireSchedule.Fill(births, ref fireDelay, dt, 1 / Settings.Ball.FireRate, command.FireHeld);
             double speed = DescentSpeed;
-            native.Step(speed, avatar.PreviousPosition, avatar.Position);
+            native.Step(speed, avatar.PreviousPosition, avatar.Position, births[..count], birth);
             double travel = beltPhase + speed * dt;
             long rows = (long)Math.Floor(travel / Settings.Brick.ColumnPitch);
             beltPhase = travel % Settings.Brick.ColumnPitch;
@@ -171,10 +173,12 @@ public sealed class ShmupSimulation : IDisposable
             x ^= x >> 16; x *= 0x7feb352dU; x ^= x >> 15; x *= 0x846ca68bU; return x ^ (x >> 16);
         }
     }
-    private void Fire()
+    private void Fire(double offset)
     {
-        // Spawn at the avatar center: no own-body collision, and every firing direction remains inside the area.
-        if (SpawnBall(avatar.Position, avatar.Aim) < 0) droppedBalls++;
+        // Birth follows the same linear, clamped endpoint path as the native avatar sweep.
+        // In particular t=0 uses the previous pose, not the end-of-tick muzzle.
+        var emitter = avatar.PreviousPosition + (avatar.Position - avatar.PreviousPosition) * (offset / StepSeconds);
+        if (SpawnBall(emitter, avatar.Aim) < 0) droppedBalls++;
         else Events |= ShmupEvents.Fire;
     }
     internal int SpawnBall(double2 position, double2 direction)

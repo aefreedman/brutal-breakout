@@ -52,6 +52,8 @@ public sealed class ShmupConfigurationTests
     [InlineData("avatar", "invulnerabilitySeconds", -1)]
     [InlineData("ball", "fireRate", 0)]
     [InlineData("ball", "maxWallHits", 0)]
+    [InlineData("ball", "maxShotsPerTick", 0)]
+    [InlineData("ball", "maxShotsPerTick", 65)]
     [InlineData("brick", "health", -1)]
     [InlineData("noise", "gapThreshold", 2)]
     [InlineData("noise", "columnScale", 0)]
@@ -67,7 +69,7 @@ public sealed class ShmupConfigurationTests
     {
         using var files = new GameplayConfigurationTests.Files();
         var node = JsonNode.Parse(DefaultJson)!;
-        node["ball"]!["fireRate"] = 1000;
+        node["ball"]!["fireRate"] = 10000;
         var shmup = ShmupConfiguration.Load(files.Put(node.ToJsonString()));
         var physics = PhysicsConfiguration.Load(files.Put(GameplayConfigurationTests.Physics, "physics.json"));
         Assert.Throws<InvalidDataException>(() => ShmupConfiguration.ValidatePhysics(shmup, physics));

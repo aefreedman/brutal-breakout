@@ -250,6 +250,33 @@ public sealed class ConfigurationControlsNativeTests
         });
     }
 
+    [Fact]
+    public void MergedCircleDetailControlsOnlyShowFixedSidesInFixedMode()
+    {
+        var workspace = new ConfigurationWorkspace(new Dictionary<string, string>
+        { ["rendering"] = ConfigurationWorkspaceTests.Paths()["rendering"] }, true);
+        var document = ConfigurationWorkspaceTests.Doc(workspace, "rendering");
+        var controls = new ConfigurationControls(workspace, new(16, 16, 900, 600)) { Visible = true };
+        controls.SelectCategory("rendering");
+        controls.SetGroupOpen("rendering.circleDetail", true);
+        Context(1280, 720, 1, () =>
+        {
+            Frame(controls); Frame(controls);
+            int before = controls.ScalarDrawCount;
+            Frame(controls);
+            int automaticRows = controls.ScalarDrawCount - before;
+            document.Set("circleDetail.mode", "fixedSideCount");
+            before = controls.ScalarDrawCount;
+            Frame(controls);
+            Assert.Equal(automaticRows + 1, controls.ScalarDrawCount - before);
+            document.Set("circleDetail.mode", "automatic");
+            before = controls.ScalarDrawCount;
+            Frame(controls);
+            Assert.Equal(automaticRows, controls.ScalarDrawCount - before);
+            Assert.True(Ui.GetCurrentContext().CurrentTable.IsNull());
+        });
+    }
+
     private static void OpenChildren(ConfigurationControls controls, System.Text.Json.JsonElement node, string path)
     {
         if (node.ValueKind == System.Text.Json.JsonValueKind.Object)

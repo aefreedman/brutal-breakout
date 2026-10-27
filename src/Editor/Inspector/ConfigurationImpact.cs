@@ -10,6 +10,7 @@ public static class ConfigurationImpact
 {
     public static ConfigurationFieldImpact For(string path) => path switch
     {
+        var p when p.StartsWith("rendering.circleDetail.") => new(ConfigurationEffect.Live, "Filled ball tessellation on the next owner update, including while paused; physics, run and resource budgets unchanged. Save is separate."),
         "rendering.path" => new(ConfigurationEffect.Live, "Shared meshes or CPU-built triangles on the next owner update, including while paused. Retain the run, time, entities and bounded geometry cache; Save is separate."),
         var p when p.StartsWith("rendering.limits.") => new(ConfigurationEffect.Relaunch, "Immutable CPU/GPU mesh and instance/operation allocation bounds. Save then relaunch; no live native allocation policy replacement."),
         "window.vsync" => new(ConfigurationEffect.Live, "Enable FIFO synchronization, or disable using supported Immediate (tearing possible). Applies next owner update without resetting gameplay. The cap and VSync combine at the lower throughput; 0 cap does not disable VSync."),
@@ -22,7 +23,7 @@ public static class ConfigurationImpact
         var p when p.StartsWith("shmup.arena.") || p.StartsWith("shmup.capacity.") => new(ConfigurationEffect.Reset, "Logical bounds or fixed native/ECS pool topology requires reconstruction."),
         "shmup.ball.speed" => new(ConfigurationEffect.Live, "Existing active native velocities change magnitude, preserve direction/pose/contact streak; world speed cap updates too."),
         "shmup.ball.radius" => new(ConfigurationEffect.Live, "Update pooled native circle and wall geometry without replacing bodies; must fit current live width (widen first)."),
-        "shmup.ball.fireRate" => new(ConfigurationEffect.Live, "Preserve fractional firing deadline under the new rate; no immediate shot or held-input replay."),
+        "shmup.ball.fireRate" => new(ConfigurationEffect.Live, "Preserve fractional firing progress; shots are spaced within physics ticks, bounded by maxShotsPerTick. No missed-shot replay."),
         "shmup.ball.damage" => new(ConfigurationEffect.Live, "All existing and future balls use the new damage on subsequent hits; existing brick HP is not rescaled."),
         "shmup.ball.maxWallHits" => new(ConfigurationEffect.Live, "Existing streaks retained; the new limit is enforced on subsequent collision intervals."),
         "shmup.brick.escapeDamage" => new(ConfigurationEffect.Live, "Existing and future bricks use this damage when they escape; current HP is unchanged until an escape."),

@@ -13,7 +13,7 @@ public static class ShmupConfiguration
 {
     private sealed record ArenaFile(double Width, double Height, double InitialPlayAreaWidth);
     private sealed record AvatarFile(double Radius, double MoveSpeed, int Health, int ContactDamage, double InvulnerabilitySeconds);
-    private sealed record BallFile(double Radius, double Speed, double FireRate, int Damage, bool BounceOnBricks, int MaxWallHits);
+    private sealed record BallFile(double Radius, double Speed, double FireRate, int Damage, bool BounceOnBricks, int MaxWallHits, int MaxShotsPerTick);
     private sealed record BrickFile(double Size, double ColumnPitch, int Health, int EscapeDamage,
         string[] Shapes, int[] QuarterTurns);
     private sealed record DifficultyFile(double RowInterval, double MinimumRowInterval, double DescentSpeed,
@@ -37,7 +37,7 @@ public static class ShmupConfiguration
             var d = data.Difficulty; var n = data.Noise; var c = data.Capacity;
             return new(new(a.Width, a.Height, a.InitialPlayAreaWidth),
                 new(v.Radius, v.MoveSpeed, v.Health, v.ContactDamage, v.InvulnerabilitySeconds),
-                new(b.Radius, b.Speed, b.FireRate, b.Damage, b.BounceOnBricks, b.MaxWallHits),
+                new(b.Radius, b.Speed, b.FireRate, b.Damage, b.BounceOnBricks, b.MaxWallHits, b.MaxShotsPerTick),
                 new(r.Size, r.ColumnPitch, r.Health, r.EscapeDamage, ParseShapes(r.Shapes), r.QuarterTurns),
                 new(d.RowInterval, d.MinimumRowInterval, d.DescentSpeed, d.MaximumDescentSpeed,
                     d.RampSeconds, d.IntervalMultiplier, d.SpeedMultiplier),

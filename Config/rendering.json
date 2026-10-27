@@ -1,5 +1,6 @@
 {
   "path": "sharedMeshes",
+  "circleDetail": { "mode": "automatic", "fixedSides": 12 },
   "limits": {
     "meshCount": 128,
     "cpuBytes": 8388608,
