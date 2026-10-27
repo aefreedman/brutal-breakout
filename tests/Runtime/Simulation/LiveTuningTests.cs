@@ -9,7 +9,7 @@ public sealed class LiveTuningTests
     private static PhysicsSettings Physics => new(120, 4, 8, 120, 1);
     private static ShmupSettings Settings(double speed = 600, int health = 100, double radius = 3, int brickHealth = 100,
         double initialWidth = 432, bool bounce = true) => new(new(1280, 720, initialWidth),
-        new(11, 252, health, 10, .75), new(radius, speed, 12, 10, bounce, 20),
+        new(11, 252, health, 10, .75), new(radius, speed, 12, 10, bounce, 20, 64),
         new(28, 36, brickHealth, 10, [ShmupBrickShape.T], [1]), new(1.5, .35, 20, 80, 60, .9, 1.1), new(1, .25, .2, 1), new(4, 8));
 
     [Fact]

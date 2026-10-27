@@ -50,6 +50,40 @@ public sealed class ShmupSessionTests
     }
 
     [Fact]
+    public void HighRateBirthsPublishAndCaptureOncePerTickAndPauseRequiresRearm()
+    {
+        var basis = Settings();
+        var settings = new ShmupSettings(basis.Arena, basis.Avatar,
+            new(basis.Ball.Radius, basis.Ball.Speed, 300, basis.Ball.Damage,
+                basis.Ball.BounceOnBricks, basis.Ball.MaxWallHits, basis.Ball.MaxShotsPerTick),
+            basis.Brick, basis.Difficulty, new(1, .25, .2, 1), new(16, 8));
+        using var session = new ShmupSession(Physics, settings, TestSettings.Input, new(1, 64, 1),
+            new BallTrailSettings(true, 24, .18, 2, .5, 1024));
+        var view = View(settings);
+        session.Advance(Sample(), 0, view);
+        session.Advance(Sample(true), Physics.StepSeconds, view);
+        Assert.Equal(3, session.Simulation.Snapshot.Balls.Length);
+        Assert.Equal(3, session.Trails!.PointCount);
+        Assert.Equal(ShmupEvents.Fire, Assert.Single(session.DrainEvents().ToArray()));
+        var retained = session.Simulation.Snapshot;
+        session.Advance(Sample(true), 0, view);
+        Assert.Same(retained, session.Simulation.Snapshot);
+        Assert.Equal(3, session.Trails.PointCount);
+        session.SetPaused(true);
+        session.Advance(Sample(true), 100, view);
+        Assert.Same(retained, session.Simulation.Snapshot);
+        session.SetPaused(false);
+        session.Advance(Sample(true), 100, view);
+        session.Advance(Sample(true), Physics.StepSeconds, view);
+        Assert.Equal(3, session.Simulation.Snapshot.Balls.Length);
+        Assert.Equal(6, session.Trails.PointCount);
+        session.Advance(Sample(), Physics.StepSeconds, view);
+        session.Advance(Sample(true), Physics.StepSeconds, view);
+        Assert.Equal(6, session.Simulation.Snapshot.Balls.Length);
+        Assert.Equal(3, retained.Balls.Length);
+    }
+
+    [Fact]
     public void ReleasedFireOnZeroTickFrameDoesNotBecomeLatchedShot()
     {
         var settings = Settings(); using var session = Session(settings); var view = View(settings);

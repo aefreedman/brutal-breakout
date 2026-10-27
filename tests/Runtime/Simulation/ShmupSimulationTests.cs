@@ -94,7 +94,7 @@ public class ShmupSimulationTests
     {
         var basis = ShmupSettingsTests.Settings(bounce: false, threshold: 1, width: 100, speed: 60000, descent: 1, wallHits: 100, brickHealth: int.MaxValue);
         var settings = new ShmupSettings(basis.Arena, basis.Avatar,
-            new(basis.Ball.Radius, basis.Ball.Speed, basis.Ball.FireRate, int.MaxValue, false, basis.Ball.MaxWallHits),
+            new(basis.Ball.Radius, basis.Ball.Speed, basis.Ball.FireRate, int.MaxValue, false, basis.Ball.MaxWallHits, basis.Ball.MaxShotsPerTick),
             basis.Brick, basis.Difficulty, basis.Noise, basis.Capacity);
         using var sim = Create(settings);
         sim.SpawnBrick(new(640, 200)); sim.SpawnBall(new(640, 200), new(1, 0)); sim.Step();

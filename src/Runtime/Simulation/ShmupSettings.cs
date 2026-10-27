@@ -82,9 +82,16 @@ public sealed class ShmupSettings
         double gridTravel = Difficulty.MaximumDescentSpeed * physics.StepSeconds / Brick.ColumnPitch;
         if (!double.IsFinite(gridTravel) || gridTravel >= 65536)
             throw new ArgumentException("Descent travel exceeds the bounded grid phase budget.");
-        // At most one firing/row deadline per tick. Reject undersampling rather than silently drop time.
-        if (Ball.FireRate > physics.UpdateHz || Difficulty.MinimumRowInterval < physics.StepSeconds)
-            throw new ArgumentException("Firing and row intervals must be at least one physics tick.");
+        // Births within 1e-9 tick of a grid boundary share that boundary. Every other
+        // merged slice must remain representable, including its native solver inverse.
+        float minimumBirthSlice = (float)(physics.StepSeconds * 1e-9) / physics.Substeps;
+        if (minimumBirthSlice <= 0 || !float.IsFinite(1f / minimumBirthSlice))
+            throw new ArgumentException("Firing boundary precision requires representable native interval/substep inverses.");
+        double period = 1 / Ball.FireRate;
+        if (!double.IsFinite(period) || period <= 0 || Ball.FireRate * physics.StepSeconds > Ball.MaxShotsPerTick)
+            throw new ArgumentException("Firing rate exceeds ball.maxShotsPerTick attempts per physics tick, or its period is not representable.");
+        if (Difficulty.MinimumRowInterval < physics.StepSeconds)
+            throw new ArgumentException("Minimum row interval must be at least one physics tick.");
     }
 }
 
@@ -115,12 +122,14 @@ public sealed class ShmupBallSettings
 {
     public double Radius { get; } public double Speed { get; } public double FireRate { get; }
     public int Damage { get; } public bool BounceOnBricks { get; } public int MaxWallHits { get; }
-    public ShmupBallSettings(double radius, double speed, double fireRate, int damage, bool bounceOnBricks, int maxWallHits)
+    public int MaxShotsPerTick { get; }
+    public ShmupBallSettings(double radius, double speed, double fireRate, int damage, bool bounceOnBricks, int maxWallHits, int maxShotsPerTick)
     {
         ShmupValidation.Positive(radius, nameof(radius)); ShmupValidation.Positive(speed, nameof(speed));
         ShmupValidation.Positive(fireRate, nameof(fireRate)); ShmupValidation.Positive(damage, nameof(damage));
         ShmupValidation.Positive(maxWallHits, nameof(maxWallHits));
-        (Radius, Speed, FireRate, Damage, BounceOnBricks, MaxWallHits) = (radius, speed, fireRate, damage, bounceOnBricks, maxWallHits);
+        if (maxShotsPerTick is < 1 or > 64) throw new ArgumentOutOfRangeException(nameof(maxShotsPerTick), "Supported firing attempt budget is 1..64 per tick.");
+        (Radius, Speed, FireRate, Damage, BounceOnBricks, MaxWallHits, MaxShotsPerTick) = (radius, speed, fireRate, damage, bounceOnBricks, maxWallHits, maxShotsPerTick);
     }
 }
 public sealed class ShmupBrickSettings

@@ -8,8 +8,8 @@ public class ShmupSettingsTests
     internal static ShmupSettings Settings(bool bounce = true, int maxBalls = 32, int maxBricks = 128,
         int health = 100, double threshold = .35, double speed = 600, double descent = 30,
         double rowInterval = 1.5, double width = 600, int wallHits = 20, int brickHealth = 100,
-        double invulnerability = .75) => new(new(1280, 720, width), new(12, 250, health, 10, invulnerability),
-        new(3, speed, 12, 10, bounce, wallHits), new(32, 40, brickHealth, 10),
+        double invulnerability = .75, double fireRate = 12, int shotBudget = 64) => new(new(1280, 720, width), new(12, 250, health, 10, invulnerability),
+        new(3, speed, fireRate, 10, bounce, wallHits, shotBudget), new(32, 40, brickHealth, 10),
         new(rowInterval, Math.Min(rowInterval, .35), descent, Math.Max(descent, 120), 60, .9, 1.1),
         new(1, .25, .2, threshold), new(maxBalls, maxBricks));
 
@@ -28,7 +28,7 @@ public class ShmupSettingsTests
     {
         Assert.ThrowsAny<ArgumentException>(() => new ShmupArenaSettings(value, 720, 600));
         Assert.ThrowsAny<ArgumentException>(() => new ShmupAvatarSettings(12, value, 100, 10, .75));
-        Assert.ThrowsAny<ArgumentException>(() => new ShmupBallSettings(3, 600, value, 10, true, 20));
+        Assert.ThrowsAny<ArgumentException>(() => new ShmupBallSettings(3, 600, value, 10, true, 20, 64));
         Assert.ThrowsAny<ArgumentException>(() => new ShmupNoiseSettings(1, value, .2, .35));
     }
     [Fact]
@@ -42,7 +42,7 @@ public class ShmupSettingsTests
         Assert.ThrowsAny<ArgumentException>(() => new ShmupCapacitySettings(4096, 4096));
         Assert.ThrowsAny<ArgumentException>(() => new ShmupDifficultySettings(1, 2, 3, 12, 60, .9, 1.1));
         Assert.ThrowsAny<ArgumentException>(() => Settings(speed: double.MaxValue).ValidatePhysics(TestSettings.Baseline));
-        Assert.ThrowsAny<ArgumentException>(() => Settings().ValidatePhysics(new(10, 1, 1, 120, 1)));
+        Assert.ThrowsAny<ArgumentException>(() => Settings(fireRate: 641).ValidatePhysics(new(10, 1, 1, 120, 1)));
         Assert.ThrowsAny<ArgumentException>(() => Settings(rowInterval: .001).ValidatePhysics(TestSettings.Baseline));
     }
     [Theory]

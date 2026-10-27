@@ -38,7 +38,7 @@ public sealed class ShmupCallbackTests
         _ = b.Preview(new(640, 650), new(-1, -1)); Step(a); Step(b);
         Assert.Empty(b.HitPairs.ToArray()); // retained overlaps are not new entries
         var tuned = new ShmupSettings(settings.Arena, settings.Avatar,
-            new(10, 1, settings.Ball.FireRate, settings.Ball.Damage, false, settings.Ball.MaxWallHits),
+            new(10, 1, settings.Ball.FireRate, settings.Ball.Damage, false, settings.Ball.MaxWallHits, settings.Ball.MaxShotsPerTick),
             settings.Brick, settings.Difficulty, settings.Noise, settings.Capacity);
         a.ApplyTuning(TestSettings.Baseline, tuned, 600);
         Assert.InRange(double2.Distance(default, a.BallVelocity(1)), .9999, 1.0001);
