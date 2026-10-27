@@ -11,10 +11,17 @@ public sealed class ShmupRendering : IDisposable
     private bool disposed;
     public ShmupRenderingPath Path { get; private set; }
     public BakedMeshLimits Limits { get; }
+    public CircleDetail CircleDetail { get; private set; }
     public ShmupRendering(RenderingSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        Limits = settings.Limits; Path = settings.Path;
+        Limits = settings.Limits; Path = settings.Path; CircleDetail = settings.CircleDetail;
+    }
+    public void Apply(RenderingSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ApplyPath(settings.Path);
+        CircleDetail = settings.CircleDetail;
     }
     // Called on the owner update, never from Draw/ImGui. Resource limits remain startup-only.
     public void ApplyPath(ShmupRenderingPath path)
@@ -30,8 +37,8 @@ public sealed class ShmupRendering : IDisposable
         ObjectDisposedException.ThrowIf(disposed, this);
         ordered = null;
         if (Path == ShmupRenderingPath.CpuBuiltTriangles)
-            return ShmupPresentation.Build(draw, snapshot, settings, colors, style, width, height, out evidence, trails);
-        ordered = ShmupPresentation.BuildBaked(draw, snapshot, settings, colors, style, width, height, trails, meshes ??= new(Limits), out evidence);
+            return ShmupPresentation.Build(draw, snapshot, settings, colors, style, width, height, out evidence, trails, CircleDetail);
+        ordered = ShmupPresentation.BuildBaked(draw, snapshot, settings, colors, style, width, height, trails, meshes ??= new(Limits), out evidence, CircleDetail);
         return ordered.Value.Triangles;
     }
     public void Dispose()

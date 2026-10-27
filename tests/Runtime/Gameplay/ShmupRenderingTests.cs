@@ -43,11 +43,47 @@ public sealed class ShmupRenderingTests
         Assert.Throws<ObjectDisposedException>(() => owner.ApplyPath(ShmupRenderingPath.SharedMeshes));
     }
     [Fact]
+    public void ClassicFilledBallUsesExplicitCountWithoutChangingOtherGeometry()
+    {
+        using var simulation=new BallSimulation(TestSettings.Baseline,TestSettings.Gameplay,new(2,64,2));
+        using var draw=new ShapeDrawList();
+        BallSandbox.Build(draw,simulation,TestSettings.Colors,TestSettings.Style,0,1280,720,out var auto);
+        foreach(int n in new[]{8,12,16})
+        {
+            BallSandbox.Build(draw,simulation,TestSettings.Colors,TestSettings.Style,0,1280,720,out var fixedBall,new(CircleDetailMode.FixedSideCount,n));
+            Assert.Equal(n*3,fixedBall.BallIndices);
+            Assert.Equal(auto.BrickIndices,fixedBall.BrickIndices);Assert.Equal(auto.HeldRingIndices,fixedBall.HeldRingIndices);
+            Assert.Equal(auto.AimIndices,fixedBall.AimIndices);
+        }
+    }
+    [Fact]
+    public void ActualBallProducerUsesSamePolicyInBothPathsAndKeepsMeshesAcrossLiveEdits()
+    {
+        var settings=Settings();var startup=Rendering();var snapshot=Snapshot();
+        using var owner=new ShmupRendering(startup);using var draw=new ShapeDrawList();using var reference=new ShapeDrawList();
+        long first=0;
+        foreach(int n in new[]{12,16,12})
+        {
+            var detail=new CircleDetail(CircleDetailMode.FixedSideCount,n);
+            owner.Apply(new(ShmupRenderingPath.SharedMeshes,startup.Limits,detail));
+            owner.Build(draw,snapshot,settings,TestSettings.Colors,TestSettings.Style,1280,720,out _,out var shared);
+            var mesh=shared!.Value.Operations.ToArray().Single(o=>o.Mesh is { } m && m.IndexCount==n*3).Mesh!;
+            if(n==12){if(first==0)first=mesh.Identity;else Assert.Equal(first,mesh.Identity);}
+            Assert.Same(detail,owner.CircleDetail);
+            owner.Apply(new(ShmupRenderingPath.CpuBuiltTriangles,startup.Limits,detail));
+            var actual=owner.Build(draw,snapshot,settings,TestSettings.Colors,TestSettings.Style,1280,720,out _,out _);
+            var expected=ShmupPresentation.Build(reference,snapshot,settings,TestSettings.Colors,TestSettings.Style,1280,720,out _,null,detail);
+            Assert.Equal(expected.Vertices.ToArray(),actual.Vertices.ToArray());Assert.Equal(expected.Indices.ToArray(),actual.Indices.ToArray());
+        }
+        owner.Apply(startup);Assert.Same(startup.CircleDetail,owner.CircleDetail);
+        Assert.Equal(240,snapshot.Tick);Assert.Equal(2,snapshot.TimeSeconds);
+    }
+    [Fact]
     public void ExhaustedMeshBudgetFallsBackInOrderToExactCpuTriangles()
     {
         var settings = Settings(); var snapshot = Snapshot();
         // Entire CPU mesh budget is charged to the fixed selection reservation: no mesh can be admitted.
-        var policy = new RenderingSettings(ShmupRenderingPath.SharedMeshes, new(1, 8192, 8192, 2, 32));
+        var policy = new RenderingSettings(ShmupRenderingPath.SharedMeshes, new(1, 8192, 8192, 2, 32), new(CrushKit.Brutal.Draw2D.CircleDetailMode.Automatic, 12));
         using var owner = new ShmupRendering(policy); using var draw = new ShapeDrawList(); using var expected = new ShapeDrawList();
         var triangles = owner.Build(draw, snapshot, settings, TestSettings.Colors, TestSettings.Style, 1280, 720, out _, out var shared);
         Assert.True(shared.HasValue); Assert.Empty(shared.Value.Instances.ToArray());

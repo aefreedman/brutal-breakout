@@ -253,6 +253,14 @@ try
             bool? inspectorOverride = false;
 #endif
 #if BREAKOUT_EDITOR
+            if (shmupSmokeTest && shmupFrames is 9 or 10 or 11)
+            {
+                presentationSmokeRun = modes!.Shmup;
+                presentationSmokeTick = modes.Shmup!.Simulation.Snapshot.Tick;
+                var detailDocument = configurationWorkspace.Documents.Single(d => d.Section == "rendering");
+                detailDocument.Set("circleDetail.mode", shmupFrames == 11 ? "automatic" : "fixedSideCount");
+                detailDocument.Set("circleDetail.fixedSides", shmupFrames == 10 ? 16 : 12);
+            }
             if (shmupSmokeTest && shmupFrames is 9 or 11)
             {
                 presentationSmokeRun = modes!.Shmup;
@@ -269,6 +277,7 @@ try
                 configurationControls.SetGroupOpen("shmup", true);
                 configurationControls.SetGroupOpen("shmup.ball", true);
                 configurationControls.SetGroupOpen("rendering", true);
+                configurationControls.SetGroupOpen("rendering.circleDetail", true);
                 configurationControls.SetGroupOpen("shmup.brick", true);
             }
             if (shmupSmokeTest && shmupFrames is 16 or 18)
@@ -308,7 +317,7 @@ try
                     modes.ApplyTuning(nextPhysics.Settings, nextGameplay.Settings, nextShmup.Settings,
                         nextInput.Settings, nextExecution.Settings, nextTrails.Settings);
                 if (configurationWorkspace.IsChanged(candidate, "rendering"))
-                    shmupRendering.ApplyPath(candidate.Get<LoadedRenderingConfiguration>("rendering")!.Settings.Path);
+                    shmupRendering.Apply(candidate.Get<LoadedRenderingConfiguration>("rendering")!.Settings);
                 if (configurationWorkspace.IsChanged(candidate, "window"))
                 {
                     var nextWindow = candidate.Get<LoadedWindowConfiguration>("window")!;
@@ -346,6 +355,17 @@ try
                     renderer.VSync != windowConfiguration.Settings.VSync ||
                     shmupRendering.Path != (shmupFrames == 9 ? ShmupRenderingPath.CpuBuiltTriangles : ShmupRenderingPath.SharedMeshes))
                     throw new InvalidOperationException("Live presentation policy replaced/advanced the paused run or failed publication.");
+            }
+            if (shmupSmokeTest && shmupFrames is 9 or 10 or 11)
+            {
+                var expectedMode = shmupFrames == 11 ? CircleDetailMode.Automatic : CircleDetailMode.FixedSideCount;
+                if (!ReferenceEquals(presentationSmokeRun, modes!.Shmup) || !modes.Paused ||
+                    presentationSmokeTick != modes.Shmup!.Simulation.Snapshot.Tick ||
+                    shmupRendering.CircleDetail.Mode != expectedMode ||
+                    shmupRendering.CircleDetail.FixedSides != (shmupFrames == 10 ? 16 : 12) ||
+                    !ReferenceEquals(shmupRendering.Limits, renderingConfiguration.Settings.Limits))
+                    throw new InvalidOperationException("Live circle detail changed the paused run or failed policy publication.");
+                Console.WriteLine($"Circle detail receipt: mode={expectedMode}; sides={shmupRendering.CircleDetail.FixedSides}; path={shmupRendering.Path}; sameRun=True; paused=True; noSave=True.");
             }
             if (shmupSmokeTest && shmupFrames == 16)
             {
@@ -595,7 +615,7 @@ try
                     shmupSession is not null ? shmupRendering.Build(shapes, shmupSession.Simulation.Snapshot, shmupSession.Settings,
                         colors!.Settings, style!.Settings, framebuffer.X, framebuffer.Y, out shmupGeometry, out orderedFrame, shmupSession.Trails) :
                     BallSandbox.Build(shapes, (gameplayScript?.Session ?? session!).Simulation, colors!.Settings, style!.Settings, now.TotalSeconds,
-                        framebuffer.X + (injectStaleFrame ? 1 : 0), framebuffer.Y, out gameplayGeometry);
+                        framebuffer.X + (injectStaleFrame ? 1 : 0), framebuffer.Y, out gameplayGeometry, shmupRendering.CircleDetail);
                 if (smokeTest && (frame.Value.Vertices.Length < ShapeShowcase.ShapeCount * 3 ||
                     frame.Value.Indices.Length < ShapeShowcase.ShapeCount * 3 || frame.Value.Commands.Length < 5))
                     throw new InvalidOperationException("Smoke: showcase lost shapes or nested clip commands.");

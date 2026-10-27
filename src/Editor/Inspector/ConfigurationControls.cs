@@ -119,7 +119,23 @@ public sealed class ConfigurationControls
             editKeys.Add(key);
             try
             {
-                if (node.ValueKind == JsonValueKind.Object)
+                if (id == "rendering.circleDetail.fixedSides" && obj.GetProperty("mode"u8).GetString() != "fixedSideCount") continue;
+                if (id == "rendering.circleDetail.mode")
+                {
+                    string selected = node.GetString()!;
+                    Ui.TextWrapped("Circle detail [LIVE]"u8);
+                    if (Ui.BeginCombo(Bytes("##" + id), Bytes(selected == "automatic" ? "Automatic" : "Fixed side count"), ImGuiComboFlags.None))
+                    {
+                        try
+                        {
+                            foreach (string value in new[] { "automatic", "fixedSideCount" })
+                                if (Ui.Selectable(Bytes(value == "automatic" ? "Automatic" : "Fixed side count"), value == selected, ImGuiSelectableFlags.None, default))
+                                    EditValue(document, editKeys, JsonValue.Create(value));
+                        }
+                        finally { Ui.EndCombo(); }
+                    }
+                }
+                else if (node.ValueKind == JsonValueKind.Object)
                 {
                     if (Group(id, Label(key))) { Ui.Indent(); try { DrawObject(document, node, id); } finally { Ui.Unindent(); } }
                 }
@@ -269,6 +285,7 @@ public sealed class ConfigurationControls
     }
     private static string Label(string key)
     {
+        if (key == "fixedSides") return "Side count (multiple of 4, 8–4096)";
         if (key == "vsync") return "VSync";
         if (key == "frameRateLimit") return "Frame rate cap (0 unlimited)";
         var result = new StringBuilder();

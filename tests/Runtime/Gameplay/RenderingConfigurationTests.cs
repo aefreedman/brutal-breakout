@@ -14,7 +14,7 @@ public sealed class RenderingConfigurationTests
         loaded.Settings.Validate(ShmupConfiguration.Load(Path.Combine(AppContext.BaseDirectory, "Config", "shmup.json")).Settings);
         Assert.All(typeof(RenderingSettings).GetProperties(), p => Assert.Null(p.SetMethod));
         var original = JsonNode.Parse(Json)!.AsObject();
-        foreach (string key in new[] { "path", "limits" })
+        foreach (string key in new[] { "path", "limits", "circleDetail" })
         {
             var node = original.DeepClone().AsObject(); node.Remove(key); Reject(node.ToJsonString());
             node = original.DeepClone().AsObject(); node[key] = null; Reject(node.ToJsonString());
@@ -31,6 +31,26 @@ public sealed class RenderingConfigurationTests
         { var node = original.DeepClone(); node["limits"]![key] = 1_000_000_000; Reject(node.ToJsonString()); }
         var low = original.DeepClone(); low["limits"]!["cpuBytes"] = 8191; Reject(low.ToJsonString());
         var gpu = original.DeepClone(); gpu["limits"]!["gpuBytes"] = 8192; Reject(gpu.ToJsonString());
+    }
+    [Fact]
+    public void CircleDetailIsStrictNestedRequiredAndNotNormalized()
+    {
+        var settings = RenderingConfiguration.Load("unused.json", Json).Settings;
+        Assert.Equal(CrushKit.Brutal.Draw2D.CircleDetailMode.Automatic, settings.CircleDetail.Mode);
+        Assert.Equal(12, settings.CircleDetail.FixedSides);
+        foreach (string key in new[] { "mode", "fixedSides" })
+        {
+            var node = JsonNode.Parse(Json)!; node["circleDetail"]!.AsObject().Remove(key); Reject(node.ToJsonString());
+            node = JsonNode.Parse(Json)!; node["circleDetail"]![key] = null; Reject(node.ToJsonString());
+        }
+        foreach (long n in new long[] { 3,9,10,-4,0,4100,int.MaxValue,2147483648 })
+        {
+            var node=JsonNode.Parse(Json)!;node["circleDetail"]!["fixedSides"]=n;Reject(node.ToJsonString());
+        }
+        foreach (string mode in new[] { "", "Automatic", "fixed", "12" })
+        { var node=JsonNode.Parse(Json)!;node["circleDetail"]!["mode"]=mode;Reject(node.ToJsonString()); }
+        Reject(Json.Replace("\"fixedSides\":", "\"fixedSides\":12,\"fixedSides\":"));
+        Reject(Json.Replace("\"fixedSides\":", "\"unknown\":0,\"fixedSides\":"));
     }
     [Theory]
     [InlineData("null")] [InlineData("[]")] [InlineData("{}")] [InlineData("{broken")]
