@@ -1,5 +1,5 @@
 {
-  "updateHz": 120,
+  "updateHz": 60,
   "substeps": 4,
   "maxCatchUpSteps": 8,
   "contactHertz": 120,

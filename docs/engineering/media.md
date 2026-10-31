@@ -45,7 +45,7 @@ Prior to this outline/pattern layout, targeted client-area samples on the tested
 
 ## Shape API and limits
 
-The maintained drawing API, color/borrowed-frame contracts, stroke patterns and geometry limits are documented in [CrushKit Draw2D](../../../../crushkit-brutal/docs/draw2d.md). Breakout's showcase remains a game-owned integration demo of that API.
+The maintained drawing API, color/borrowed-frame contracts, stroke patterns and geometry limits are documented in [CrushKit Draw2D](https://github.com/aefreedman/crushkit-brutal/blob/main/docs/draw2d.md). Breakout's showcase remains a game-owned integration demo of that API.
 
 ## Shmup aim and audio feedback
 

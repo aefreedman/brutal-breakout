@@ -8,6 +8,6 @@
     <NuGetLockFilePath Condition="'$(UseCrushKitProjects)' == 'true' and '$(NuGetLockFilePath)' == ''">$(MSBuildProjectDirectory)/packages.source.lock.json</NuGetLockFilePath>
     <CrushKitVersion>0.1.0-preview.12</CrushKitVersion>
     <CrushKitImGuiVersion>0.1.0-preview.16</CrushKitImGuiVersion>
-    <CrushKitRoot Condition="'$(CrushKitRoot)' == ''">$(MSBuildThisFileDirectory)../../crushkit-brutal</CrushKitRoot>
+    <CrushKitRoot Condition="'$(CrushKitRoot)' == ''">$(MSBuildThisFileDirectory)../crushkit-brutal</CrushKitRoot>
   </PropertyGroup>
 </Project>

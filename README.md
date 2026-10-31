@@ -29,7 +29,7 @@ dotnet build --no-restore @source
 dotnet run --project src/App/BrutalBreakout.App.csproj --no-build @source
 ```
 
-For an existing coordinated checkout, set `$kit` to the actual kit location (normally `../../crushkit-brutal` from this game's root). Preserve local kit changes before checking out another revision. Source builds use committed `packages.source.lock.json` files; existing package locks and ignored private development locks remain separate. The legacy local-package mode is still available without `UseCrushKitProjects`, but requires the exact unpublished packages; package hosting/publication is intentionally deferred.
+For an existing coordinated checkout, set `$kit` to the actual kit location (normally `../crushkit-brutal` from this game's root). Preserve local kit changes before checking out another revision. Source builds use committed `packages.source.lock.json` files; existing package locks and ignored private development locks remain separate. The legacy local-package mode is still available without `UseCrushKitProjects`, but requires the exact unpublished packages; package hosting/publication is intentionally deferred.
 
 This opens a resizable brick-clearing game (shipped initial physical size: 1280×720). Optional modes:
 
